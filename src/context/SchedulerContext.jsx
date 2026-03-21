@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { ROLES } from '../data/roles';
-import { TASK_LIBRARY } from '../data/taskLibrary';
+import { TASK_LIBRARY, CAT_ORDER, CAT_LABELS } from '../data/taskLibrary';
 import { resolveBlockHex } from '../data/palette';
 import { makeKey, keyToRoleAndMin } from '../utils/scheduling';
 
@@ -13,6 +13,9 @@ const LS_POSTINGS  = 'noble_user_postings';
 const LS_DRAFTS    = 'noble_drafts';
 const LS_EXTRA_ROLES = 'noble_extra_roles';
 const LS_COL_ORDER   = 'noble_column_order';
+const LS_CAT_DEFS    = 'noble_cat_defs';    // { [catId]: { label?, deleted?, custom?, color? } }
+const LS_CAT_ORDER   = 'noble_cat_order';   // [catId, ...]
+const LS_TASK_ORDER  = 'noble_task_order';  // { [catId]: [taskId, ...] }
 
 const NOBLE_PROGRAM_DEFAULTS = { social: 65, select: 20, pf: 15, cats: 20, multipet: 15, multipetCats: 15 };
 
@@ -61,6 +64,9 @@ export function SchedulerProvider({ children }) {
   const [extraRoles,     setExtraRoles]     = useState(() => loadLS(LS_EXTRA_ROLES, []));
   const [columnOrder,    setColumnOrder]    = useState(() => loadLS(LS_COL_ORDER, ROLES.map(r => r.id)));
   const [scheduleLabel,  setScheduleLabel]  = useState('Template 1 — 2 SocPGs + 2 SelPGs');
+  const [userCatDefs,    setUserCatDefs]    = useState(() => loadLS(LS_CAT_DEFS,   {}));
+  const [catOrder,       setCatOrder]       = useState(() => loadLS(LS_CAT_ORDER,  [...CAT_ORDER]));
+  const [taskOrder,      setTaskOrder]      = useState(() => loadLS(LS_TASK_ORDER, {}));
 
   // Persist user defaults on change
   useEffect(() => { saveLS(LS_TASKS,       userTaskDefs);    }, [userTaskDefs]);
@@ -68,6 +74,29 @@ export function SchedulerProvider({ children }) {
   useEffect(() => { saveLS(LS_PROGRAMS,    userProgramDefs); }, [userProgramDefs]);
   useEffect(() => { saveLS(LS_EXTRA_ROLES, extraRoles);      }, [extraRoles]);
   useEffect(() => { saveLS(LS_COL_ORDER,   columnOrder);     }, [columnOrder]);
+  useEffect(() => { saveLS(LS_CAT_DEFS,    userCatDefs);     }, [userCatDefs]);
+  useEffect(() => { saveLS(LS_CAT_ORDER,   catOrder);        }, [catOrder]);
+  useEffect(() => { saveLS(LS_TASK_ORDER,  taskOrder);       }, [taskOrder]);
+
+  // ─── Category helpers ─────────────────────────────────────────────────────
+  // Returns merged, ordered list of all categories (built-in + custom).
+  // Each entry: { id, label, deleted, builtin }
+  const getFullCatList = useCallback(() => {
+    // catOrder may not yet include custom cats added after initial load — append any missing custom ones
+    const customIds = Object.keys(userCatDefs).filter(id => userCatDefs[id]?.custom && !catOrder.includes(id));
+    const allIds    = [...catOrder, ...customIds];
+    return allIds.map(id => {
+      const override = userCatDefs[id] || {};
+      const isBuiltin = CAT_ORDER.includes(id);
+      if (!isBuiltin && !override.custom) return null; // unknown id, skip
+      return {
+        id,
+        label:   override.label   ?? CAT_LABELS[id] ?? id,
+        deleted: override.deleted ?? false,
+        builtin: isBuiltin,
+      };
+    }).filter(Boolean);
+  }, [userCatDefs, catOrder]);
 
   // ─── Getters ─────────────────────────────────────────────────────────────
   const getTaskDefault = useCallback((taskId) => {
@@ -307,6 +336,10 @@ export function SchedulerProvider({ children }) {
       scheduleLabel, setScheduleLabel,
       extraRoles, setExtraRoles,
       columnOrder, setColumnOrder,
+      userCatDefs, setUserCatDefs,
+      catOrder, setCatOrder,
+      taskOrder, setTaskOrder,
+      getFullCatList,
       // Defaults
       userTaskDefs, userRoleDefs, userProgramDefs,
       NOBLE_TASK_DEFAULTS, NOBLE_ROLE_DEFAULTS, NOBLE_PROGRAM_DEFAULTS,

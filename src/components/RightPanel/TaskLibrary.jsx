@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useDraggable } from '@dnd-kit/core';
-import { TASK_LIBRARY, CAT_LABELS, CAT_ORDER } from '../../data/taskLibrary';
+import { TASK_LIBRARY } from '../../data/taskLibrary';
 import { useScheduler } from '../../context/SchedulerContext';
 import { getSchedulingStatus } from '../../utils/calculations';
 import { resolveBlockHex, resolveBlockText } from '../../data/palette';
@@ -9,7 +9,8 @@ import { ROLES } from '../../data/roles';
 export default function TaskLibrary({ onCreateCustom }) {
   const [filter, setFilter] = useState('pending'); // 'pending' | 'all'
   const [expanded, setExpanded] = useState({ group: true, suite: true, meals: true, fixed: true, on: true });
-  const { schedule, assumptions, getDerivedValues, userTaskDefs, extraRoles } = useScheduler();
+  const { schedule, assumptions, getDerivedValues, userTaskDefs, extraRoles,
+          getFullCatList, taskOrder } = useScheduler();
   const { scCount } = getDerivedValues();
   const { socpg, selpg } = assumptions;
 
@@ -17,19 +18,29 @@ export default function TaskLibrary({ onCreateCustom }) {
   const baseRoleCount = ROLES.filter(r => r.type === 'TM' || r.type === 'TL' || r.type === 'PAW').length;
   const totalRoleCount = baseRoleCount + (extraRoles?.length || 0);
 
+  // Full cat list for label lookup; active-only for display
+  const fullCatList = getFullCatList();
+  const activeCats  = fullCatList.filter(c => !c.deleted);
+  const catLabelMap = Object.fromEntries(fullCatList.map(c => [c.id, c.deleted ? `${c.label} – Deleted` : c.label]));
+
   function toggleCat(cat) {
     setExpanded(prev => ({ ...prev, [cat]: !prev[cat] }));
   }
 
-  const tasksByCat = {};
-  CAT_ORDER.forEach(cat => { tasksByCat[cat] = []; });
-  TASK_LIBRARY.forEach(task => {
-    if (tasksByCat[task.cat] && !userTaskDefs[task.id]?.hidden) tasksByCat[task.cat].push(task);
-  });
-  // Include custom tasks from userTaskDefs
-  Object.values(userTaskDefs).forEach(task => {
-    if (task.custom && tasksByCat[task.cat]) tasksByCat[task.cat].push(task);
-  });
+  // Build ordered task list per category
+  function getOrderedTasksForCat(catId) {
+    const libTasks = TASK_LIBRARY.filter(t => {
+      const effectiveCat = userTaskDefs[t.id]?.cat || t.cat;
+      return effectiveCat === catId && !userTaskDefs[t.id]?.hidden;
+    });
+    const customTasks = Object.values(userTaskDefs).filter(t => t.custom && (t.cat || '') === catId);
+    const all = [...libTasks, ...customTasks];
+    const order = taskOrder[catId] || [];
+    const byId = Object.fromEntries(all.map(t => [t.id, t]));
+    const ordered = order.map(id => byId[id]).filter(Boolean);
+    const rest = all.filter(t => !order.includes(t.id));
+    return [...ordered, ...rest];
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -70,21 +81,21 @@ export default function TaskLibrary({ onCreateCustom }) {
 
       {/* Task list */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
-        {CAT_ORDER.map(cat => {
-          const tasks = tasksByCat[cat] || [];
+        {activeCats.map(cat => {
+          const allTasks = getOrderedTasksForCat(cat.id);
           const visibleTasks = filter === 'pending'
-            ? tasks.filter(t => {
+            ? allTasks.filter(t => {
                 const { done } = getSchedulingStatus(t, schedule, socpg, selpg, scCount, totalRoleCount);
                 return !done;
               })
-            : tasks;
+            : allTasks;
 
           if (visibleTasks.length === 0) return null;
 
           return (
-            <div key={cat}>
+            <div key={cat.id}>
               <div
-                onClick={() => toggleCat(cat)}
+                onClick={() => toggleCat(cat.id)}
                 style={{
                   padding: '5px 14px',
                   display: 'flex',
@@ -101,13 +112,13 @@ export default function TaskLibrary({ onCreateCustom }) {
                   letterSpacing: '0.08em',
                   textTransform: 'uppercase',
                   color: 'var(--gray)',
-                }}>{CAT_LABELS[cat]}</span>
+                }}>{cat.label}</span>
                 <span style={{ fontSize: 10, color: 'var(--gray)' }}>
-                  {expanded[cat] ? '▲' : '▼'}
+                  {expanded[cat.id] ? '▲' : '▼'}
                 </span>
               </div>
 
-              {expanded[cat] && visibleTasks.map(task => (
+              {expanded[cat.id] && visibleTasks.map(task => (
                 <TaskChip
                   key={task.id}
                   task={task}

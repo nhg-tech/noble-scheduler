@@ -1,13 +1,13 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useScheduler } from '../../context/SchedulerContext';
-import { TASK_LIBRARY, CAT_LABELS, CAT_ORDER } from '../../data/taskLibrary';
+import { TASK_LIBRARY } from '../../data/taskLibrary';
 import { ROLES } from '../../data/roles';
 import { NOBLE_PALETTE, resolveBlockHex } from '../../data/palette';
 import { getExpectedInstances } from '../../utils/calculations';
 import CreateTaskModal from '../Modals/CreateTaskModal';
 import Modal, { ModalFooter, Btn } from '../Modals/Modal';
 
-const TABS = ['Program Mix', 'Task Defaults', 'Role Config'];
+const TABS = ['Program Mix', 'Task Defaults', 'Role Config', 'Categories'];
 
 export default function SetupOverlay({ onClose }) {
   const [tab, setTab] = useState(0);
@@ -20,6 +20,8 @@ export default function SetupOverlay({ onClose }) {
     userProgramDefs, setUserProgramDefs,
     NOBLE_PROGRAM_DEFAULTS,
     saveDefaults, resetDefaults,
+    getFullCatList, taskOrder, setTaskOrder,
+    userCatDefs, setUserCatDefs, catOrder, setCatOrder,
   } = useScheduler();
 
   function handleCreateCustom(taskData) {
@@ -76,7 +78,7 @@ export default function SetupOverlay({ onClose }) {
         background: '#fff',
         borderRadius: 14,
         boxShadow: '0 12px 60px rgba(62,42,126,0.2)',
-        width: 720,
+        width: 780,
         maxWidth: '96vw',
         maxHeight: '90vh',
         display: 'flex',
@@ -156,6 +158,15 @@ export default function SetupOverlay({ onClose }) {
           )}
 
           {tab === 2 && <RoleConfigTab />}
+          {tab === 3 && (
+            <CategoriesTab
+              getFullCatList={getFullCatList}
+              userCatDefs={userCatDefs}
+              setUserCatDefs={setUserCatDefs}
+              catOrder={catOrder}
+              setCatOrder={setCatOrder}
+            />
+          )}
         </div>
 
         {/* Footer */}
@@ -304,17 +315,68 @@ function ProgramMixTab({ assumptions, onAssumption, userProgramDefs, defaults, o
 }
 
 // ─── Task Defaults Tab ───────────────────────────────────────────────────────
+const CAT_BG = { group: '#EDE8F7', suite: '#E3F2FD', meals: '#FFF8E1', fixed: '#F1F8E9', on: '#F3E5F5' };
+
 function TaskDefaultsTab({ userTaskDefs, onChange, onCreateCustom, onEditCustom, onDeleteCustom, onEditLibTask, onDeleteLibTask }) {
-  const catColors = { group: '#EDE8F7', suite: '#E3F2FD', meals: '#FFF8E1', fixed: '#F1F8E9', on: '#F3E5F5' };
+  const { getFullCatList, taskOrder, setTaskOrder } = useScheduler();
+  const isDraggingRef = useRef(false);
+  const dragIdRef     = useRef(null);
+  const dragCatRef    = useRef(null);
+
+  const activeCats = getFullCatList().filter(c => !c.deleted);
+
+  function getOrderedTasksForCat(catId) {
+    const libTasks = TASK_LIBRARY.filter(t => {
+      const effectiveCat = userTaskDefs[t.id]?.cat || t.cat;
+      return effectiveCat === catId && !userTaskDefs[t.id]?.hidden;
+    });
+    const customTasks = Object.values(userTaskDefs).filter(t => t.custom && (t.cat || '') === catId);
+    const all = [...libTasks, ...customTasks];
+    const order = taskOrder[catId] || [];
+    const byId = Object.fromEntries(all.map(t => [t.id, t]));
+    const ordered = order.map(id => byId[id]).filter(Boolean);
+    const rest = all.filter(t => !order.includes(t.id));
+    return [...ordered, ...rest];
+  }
+
+  function handleGripPointerDown(e, taskId, catId) {
+    e.stopPropagation(); e.preventDefault();
+    isDraggingRef.current = true;
+    dragIdRef.current     = taskId;
+    dragCatRef.current    = catId;
+    function onUp() {
+      isDraggingRef.current = false;
+      dragIdRef.current = null; dragCatRef.current = null;
+      document.removeEventListener('pointerup', onUp);
+    }
+    document.addEventListener('pointerup', onUp);
+  }
+
+  function handleRowPointerEnter(taskId, catId) {
+    if (!isDraggingRef.current || !dragIdRef.current || dragCatRef.current !== catId) return;
+    const draggingId = dragIdRef.current;
+    if (draggingId === taskId) return;
+    setTaskOrder(prev => {
+      const tasks = getOrderedTasksForCat(catId);
+      const ids   = tasks.map(t => t.id);
+      const from  = ids.indexOf(draggingId);
+      const to    = ids.indexOf(taskId);
+      if (from === -1 || to === -1) return prev;
+      const next = [...ids];
+      next.splice(to, 0, next.splice(from, 1)[0]);
+      return { ...prev, [catId]: next };
+    });
+  }
 
   return (
     <div>
       <p style={{ fontSize: 12, color: 'var(--gray)', marginTop: 0 }}>
-        Set duration and color per task.
+        Set duration and color per task. Drag ⠿ to reorder tasks within a category.
       </p>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
         <thead>
           <tr style={{ background: 'var(--gray-light)' }}>
+            <Th style={{ width: 24 }}></Th>
             <Th>Code</Th>
             <Th>Task</Th>
             <Th>Unit Basis</Th>
@@ -325,155 +387,214 @@ function TaskDefaultsTab({ userTaskDefs, onChange, onCreateCustom, onEditCustom,
           </tr>
         </thead>
         <tbody>
-          {CAT_ORDER.map(cat => {
-            const customTasksForCat = Object.values(userTaskDefs).filter(t => t.custom && t.cat === cat);
+          {activeCats.map(cat => {
+            const tasks = getOrderedTasksForCat(cat.id);
             return [
-              <tr key={`cat-${cat}`}>
-                <td colSpan={7} style={{
-                  padding: '6px 10px 3px',
-                  fontSize: 10, fontWeight: 700, letterSpacing: '0.07em',
-                  textTransform: 'uppercase', color: 'var(--purple)',
-                  background: catColors[cat] || 'var(--gray-light)',
-                }}>
-                  {CAT_LABELS[cat]}
-                </td>
+              <tr key={`cat-${cat.id}`}>
+                <td colSpan={8} style={{
+                  padding: '6px 10px 3px', fontSize: 10, fontWeight: 700,
+                  letterSpacing: '0.07em', textTransform: 'uppercase',
+                  color: 'var(--purple)', background: CAT_BG[cat.id] || 'var(--gray-light)',
+                }}>{cat.label}</td>
               </tr>,
-              ...TASK_LIBRARY.filter(t => t.cat === cat && !userTaskDefs[t.id]?.hidden).map(task => {
-                const override = userTaskDefs[task.id] || {};
-                const isOverridden = override.durationMin != null;
-                const effectiveMin = override.durationMin ?? task.unitMin;
+              ...tasks.map(task => {
+                const isCustom  = !!task.custom;
+                const override  = userTaskDefs[task.id] || {};
+                const minVal    = isCustom ? (task.durationMin ?? 30) : (override.durationMin ?? task.unitMin);
+                const minRes    = isCustom ? task.minResources : override.minResources;
+                const colorVal  = isCustom ? task.color : (override.color || task.color);
                 return (
-                  <tr key={task.id} style={{ borderBottom: '1px solid var(--gray-light)' }}>
-                    <Td><code style={{ fontSize: 10 }}>{task.code}</code></Td>
-                    <Td>{task.name}</Td>
-                    <Td style={{ color: 'var(--gray)', fontSize: 11 }}>{task.unitBasis}</Td>
+                  <tr
+                    key={task.id}
+                    style={{ borderBottom: '1px solid var(--gray-light)', background: isCustom ? '#F8F5FF' : undefined }}
+                    onPointerEnter={() => handleRowPointerEnter(task.id, cat.id)}
+                  >
                     <Td>
-                      <input
-                        type="number"
-                        min={1}
-                        step={0.5}
-                        value={effectiveMin}
+                      <div
+                        onPointerDown={e => handleGripPointerDown(e, task.id, cat.id)}
+                        style={{ cursor: 'grab', color: 'var(--gray)', fontSize: 14, userSelect: 'none', padding: '0 4px', lineHeight: 1 }}
+                        title="Drag to reorder"
+                      >⠿</div>
+                    </Td>
+                    <Td>
+                      <code style={{ fontSize: 10 }}>{task.code}</code>
+                      {isCustom && <span style={{ marginLeft: 5, fontSize: 9, color: 'var(--purple)', fontWeight: 700, opacity: 0.7 }}>custom</span>}
+                    </Td>
+                    <Td>{task.name}</Td>
+                    <Td style={{ color: 'var(--gray)', fontSize: 11 }}>{task.unitBasis || '—'}</Td>
+                    <Td>
+                      <input type="number" min={1} step={isCustom ? 1 : 0.5}
+                        value={minVal}
                         onChange={e => onChange(task.id, 'durationMin', e.target.value ? Number(e.target.value) : undefined)}
-                        style={{
-                          ...inputStyle,
-                          width: 60, padding: '3px 6px', fontSize: 11,
-                        }}
+                        style={{ ...inputStyle, width: 60, padding: '3px 6px', fontSize: 11 }}
                       />
                     </Td>
                     <Td>
-                      <input
-                        type="number"
-                        min={1}
-                        step={1}
-                        value={override.minResources ?? ''}
+                      <input type="number" min={1} step={1}
+                        value={minRes ?? ''}
                         placeholder="—"
                         onChange={e => onChange(task.id, 'minResources', e.target.value ? Number(e.target.value) : undefined)}
                         style={{
-                          ...inputStyle,
-                          width: 60, padding: '3px 6px', fontSize: 11,
-                          borderColor: override.minResources != null ? 'var(--gold-dark)' : 'var(--gray-light)',
-                          background: override.minResources != null ? 'var(--gold-light)' : '#fff',
+                          ...inputStyle, width: 60, padding: '3px 6px', fontSize: 11,
+                          borderColor: minRes != null ? 'var(--gold-dark)' : 'var(--gray-light)',
+                          background:  minRes != null ? 'var(--gold-light)' : '#fff',
                         }}
                       />
                     </Td>
                     <Td>
-                      <ColorPicker
-                        value={override.color || task.color}
-                        onChange={hex => onChange(task.id, 'color', hex)}
-                      />
+                      <ColorPicker value={colorVal} onChange={hex => onChange(task.id, 'color', hex)} />
                     </Td>
                     <Td>
                       <div style={{ display: 'flex', gap: 4 }}>
-                        <button
-                          onClick={() => onEditLibTask(task)}
-                          title="Edit task"
-                          style={actionBtnStyle}
-                        >✏</button>
-                        <button
-                          onClick={() => onDeleteLibTask(task.id)}
-                          title="Delete customizations"
-                          style={{ ...actionBtnStyle, color: 'var(--red)' }}
-                        >🗑</button>
+                        <button onClick={() => isCustom ? onEditCustom(task) : onEditLibTask(task)} title="Edit" style={actionBtnStyle}>✏</button>
+                        <button onClick={() => isCustom ? onDeleteCustom(task.id) : onDeleteLibTask(task.id)} title="Delete" style={{ ...actionBtnStyle, color: 'var(--red)' }}>🗑</button>
                       </div>
                     </Td>
                   </tr>
                 );
               }),
-              ...customTasksForCat.map(task => (
-                <tr key={task.id} style={{ borderBottom: '1px solid var(--gray-light)', background: '#F8F5FF' }}>
-                  <Td>
-                    <code style={{ fontSize: 10 }}>{task.code}</code>
-                    <span style={{ marginLeft: 5, fontSize: 9, color: 'var(--purple)', fontWeight: 700, opacity: 0.7 }}>custom</span>
-                  </Td>
-                  <Td>{task.name}</Td>
-                  <Td style={{ color: 'var(--gray)', fontSize: 11 }}>{task.unitBasis}</Td>
-                  <Td>
-                    <input
-                      type="number"
-                      min={1}
-                      step={1}
-                      value={task.durationMin ?? 30}
-                      onChange={e => onChange(task.id, 'durationMin', e.target.value ? Number(e.target.value) : undefined)}
-                      style={{ ...inputStyle, width: 60, padding: '3px 6px', fontSize: 11 }}
-                    />
-                  </Td>
-                  <Td>
-                    <input
-                      type="number"
-                      min={1}
-                      step={1}
-                      value={task.minResources ?? ''}
-                      placeholder="—"
-                      onChange={e => onChange(task.id, 'minResources', e.target.value ? Number(e.target.value) : undefined)}
-                      style={{
-                        ...inputStyle,
-                        width: 60, padding: '3px 6px', fontSize: 11,
-                        borderColor: task.minResources != null ? 'var(--gold-dark)' : 'var(--gray-light)',
-                        background: task.minResources != null ? 'var(--gold-light)' : '#fff',
-                      }}
-                    />
-                  </Td>
-                  <Td>
-                    <ColorPicker
-                      value={task.color}
-                      onChange={hex => onChange(task.id, 'color', hex)}
-                    />
-                  </Td>
-                  <Td>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      <button
-                        onClick={() => onEditCustom(task)}
-                        title="Edit task"
-                        style={actionBtnStyle}
-                      >✏</button>
-                      <button
-                        onClick={() => onDeleteCustom(task.id)}
-                        title="Delete task"
-                        style={{ ...actionBtnStyle, color: 'var(--red)' }}
-                      >🗑</button>
-                    </div>
-                  </Td>
-                </tr>
-              )),
             ];
           })}
         </tbody>
       </table>
       <div style={{ marginTop: 14 }}>
+        <button onClick={onCreateCustom} style={{
+          padding: '8px 16px', borderRadius: 7, border: '1.5px dashed var(--purple-light)',
+          background: 'transparent', color: 'var(--purple)', fontSize: 12,
+          fontWeight: 600, fontFamily: "'DM Sans', sans-serif", cursor: 'pointer',
+        }}>+ Add New Default Task</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Categories Tab ───────────────────────────────────────────────────────────
+function CategoriesTab({ getFullCatList, userCatDefs, setUserCatDefs, catOrder, setCatOrder }) {
+  const [newLabel, setNewLabel] = useState('');
+  const isDraggingRef = useRef(false);
+  const dragIdRef     = useRef(null);
+
+  const cats = getFullCatList(); // includes deleted ones (for restore)
+
+  function handleLabelChange(catId, label) {
+    setUserCatDefs(prev => ({ ...prev, [catId]: { ...(prev[catId] || {}), label } }));
+  }
+
+  function handleToggleDelete(catId, currentlyDeleted) {
+    setUserCatDefs(prev => ({ ...prev, [catId]: { ...(prev[catId] || {}), deleted: !currentlyDeleted } }));
+  }
+
+  function handleAdd() {
+    if (!newLabel.trim()) return;
+    const id = `custom_cat_${Date.now()}`;
+    setUserCatDefs(prev => ({ ...prev, [id]: { label: newLabel.trim(), custom: true, deleted: false } }));
+    setCatOrder(prev => [...prev, id]);
+    setNewLabel('');
+  }
+
+  function handleGripPointerDown(e, catId) {
+    e.stopPropagation(); e.preventDefault();
+    isDraggingRef.current = true;
+    dragIdRef.current     = catId;
+    function onUp() {
+      isDraggingRef.current = false; dragIdRef.current = null;
+      document.removeEventListener('pointerup', onUp);
+    }
+    document.addEventListener('pointerup', onUp);
+  }
+
+  function handleRowPointerEnter(catId) {
+    if (!isDraggingRef.current || !dragIdRef.current || dragIdRef.current === catId) return;
+    const draggingId = dragIdRef.current;
+    setCatOrder(prev => {
+      const from = prev.indexOf(draggingId);
+      const to   = prev.indexOf(catId);
+      if (from === -1 || to === -1) return prev;
+      const next = [...prev];
+      next.splice(to, 0, next.splice(from, 1)[0]);
+      return next;
+    });
+  }
+
+  return (
+    <div>
+      <p style={{ fontSize: 12, color: 'var(--gray)', marginTop: 0 }}>
+        Manage task categories. Drag ⠿ to reorder. Deleting a category hides it from new task assignment — existing tasks in that category are preserved and shown as <em>[Name] – Deleted</em>.
+      </p>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+        <thead>
+          <tr style={{ background: 'var(--gray-light)' }}>
+            <Th style={{ width: 24 }}></Th>
+            <Th>Category Name</Th>
+            <Th>Type</Th>
+            <Th>Status</Th>
+            <Th></Th>
+          </tr>
+        </thead>
+        <tbody>
+          {cats.map(cat => (
+            <tr
+              key={cat.id}
+              style={{ borderBottom: '1px solid var(--gray-light)', opacity: cat.deleted ? 0.65 : 1 }}
+              onPointerEnter={() => handleRowPointerEnter(cat.id)}
+            >
+              <Td>
+                <div
+                  onPointerDown={e => handleGripPointerDown(e, cat.id)}
+                  style={{ cursor: 'grab', color: 'var(--gray)', fontSize: 14, userSelect: 'none', padding: '0 4px', lineHeight: 1 }}
+                  title="Drag to reorder"
+                >⠿</div>
+              </Td>
+              <Td>
+                <input
+                  value={userCatDefs[cat.id]?.label ?? cat.label}
+                  onChange={e => handleLabelChange(cat.id, e.target.value)}
+                  style={{
+                    ...inputStyle, width: '100%', padding: '4px 8px', fontSize: 12,
+                    textDecoration: cat.deleted ? 'line-through' : 'none',
+                    color: cat.deleted ? 'var(--gray)' : 'var(--dark)',
+                  }}
+                />
+              </Td>
+              <Td style={{ color: 'var(--gray)', fontSize: 11 }}>{cat.builtin ? 'Built-in' : 'Custom'}</Td>
+              <Td>
+                {cat.deleted
+                  ? <span style={{ fontSize: 10, color: 'var(--red)', fontWeight: 700, letterSpacing: '0.04em' }}>DELETED</span>
+                  : <span style={{ fontSize: 10, color: '#4CAF50', fontWeight: 700, letterSpacing: '0.04em' }}>ACTIVE</span>
+                }
+              </Td>
+              <Td>
+                <button
+                  onClick={() => handleToggleDelete(cat.id, cat.deleted)}
+                  style={{ ...actionBtnStyle, fontSize: 11, padding: '3px 8px', color: cat.deleted ? 'var(--purple)' : 'var(--red)' }}
+                >
+                  {cat.deleted ? 'Restore' : 'Delete'}
+                </button>
+              </Td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <div style={{ marginTop: 16, display: 'flex', gap: 8, alignItems: 'center' }}>
+        <input
+          value={newLabel}
+          onChange={e => setNewLabel(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleAdd()}
+          placeholder="New category name…"
+          style={{ ...inputStyle, flex: 1, padding: '7px 10px', fontSize: 12 }}
+        />
         <button
-          onClick={onCreateCustom}
+          onClick={handleAdd}
+          disabled={!newLabel.trim()}
           style={{
-            padding: '8px 16px',
-            borderRadius: 7,
-            border: '1.5px dashed var(--purple-light)',
-            background: 'transparent',
-            color: 'var(--purple)',
-            fontSize: 12,
-            fontWeight: 600,
-            fontFamily: "'DM Sans', sans-serif",
-            cursor: 'pointer',
+            padding: '7px 14px', borderRadius: 7, border: 'none',
+            background: newLabel.trim() ? 'var(--purple)' : 'var(--gray-light)',
+            color: newLabel.trim() ? '#fff' : 'var(--gray)',
+            fontSize: 12, fontWeight: 600, fontFamily: "'DM Sans', sans-serif",
+            cursor: newLabel.trim() ? 'pointer' : 'default',
           }}
-        >+ Add New Default Task</button>
+        >+ Add Category</button>
       </div>
     </div>
   );
