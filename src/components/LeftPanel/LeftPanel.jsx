@@ -11,6 +11,7 @@ function LoadSchedule() {
     loadTemplate, getUserTemplates, getUserPostings, getUserDrafts,
     applyState, setScheduleLabel,
     saveUserTemplates, saveUserPostings, saveUserDrafts,
+    assumptions, setAssumptions,
   } = useScheduler();
 
   const [loadTab, setLoadTab] = useState('template');
@@ -153,6 +154,17 @@ function LoadSchedule() {
           <LoadBtn onClick={() => handleLoad(userPostings, postingValue, '✅ ')}>Load Posted</LoadBtn>
         </>
       )}
+
+      {/* Date — always visible, below the load button */}
+      <div style={{ marginTop: 12, borderTop: '1px solid var(--gray-light)', paddingTop: 10 }}>
+        <InputRow label="Schedule Date">
+          <Inp
+            type="date"
+            value={assumptions.date || ''}
+            onChange={e => setAssumptions(prev => ({ ...prev, date: e.target.value }))}
+          />
+        </InputRow>
+      </div>
     </div>
   );
 }
@@ -245,13 +257,6 @@ function Assumptions() {
         </InputRow>
       </div>
       <Derived>{`Auto: ${estCats} cats · ${estBung} bungalow${estBung !== 1 ? 's' : ''}`}</Derived>
-
-      <div style={{ marginTop: 8 }}>
-        <InputRow label="Date">
-          <Inp type="date" value={assumptions.date || ''}
-            onChange={e => update('date', e.target.value)} />
-        </InputRow>
-      </div>
     </div>
   );
 }

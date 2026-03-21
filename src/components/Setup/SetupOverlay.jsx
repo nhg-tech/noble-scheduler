@@ -587,40 +587,90 @@ function Td({ children, style }) {
   );
 }
 
+const CAT_OPTIONS = [
+  { value: 'group', label: 'Play Groups' },
+  { value: 'suite', label: 'Suite Care' },
+  { value: 'meals', label: 'Meals' },
+  { value: 'fixed', label: 'Fixed Tasks' },
+  { value: 'on',    label: 'Overnight' },
+];
+
 // ─── Edit Library Task Modal ──────────────────────────────────────────────────
 function EditLibTaskModal({ task, override, onChange, onClose }) {
   const [local, setLocal] = useState({
-    durationMin: override.durationMin ?? task.unitMin,
-    minResources: override.minResources ?? '',
-    color: override.color || task.color,
+    durationMin:       override.durationMin     ?? task.unitMin,
+    minResources:      override.minResources     ?? '',
+    color:             override.color            || task.color,
+    cat:               override.cat              || task.cat,
+    desc:              override.desc             ?? (task.desc || ''),
+    // Custom tasks also expose code + name for editing
+    code:              override.code             ?? task.code,
+    name:              override.name             ?? task.name,
+    expectedInstances: override.expectedInstances ?? task.expectedInstances ?? 1,
   });
 
+  const isCustom = !!task.custom;
+
   function handleSave() {
-    onChange(task.id, 'durationMin', Number(local.durationMin));
-    onChange(task.id, 'minResources', local.minResources !== '' ? Number(local.minResources) : undefined);
-    onChange(task.id, 'color', local.color);
+    onChange(task.id, 'durationMin',       Number(local.durationMin));
+    onChange(task.id, 'minResources',      local.minResources !== '' ? Number(local.minResources) : undefined);
+    onChange(task.id, 'color',             local.color);
+    onChange(task.id, 'cat',               local.cat);
+    onChange(task.id, 'desc',              local.desc || undefined);
+    onChange(task.id, 'expectedInstances', local.expectedInstances !== '' ? Number(local.expectedInstances) : undefined);
+    if (isCustom) {
+      onChange(task.id, 'code', local.code.trim() || task.code);
+      onChange(task.id, 'name', local.name.trim() || task.name);
+    }
     onClose();
   }
 
   return (
-    <Modal title={`Edit: ${task.name}`} onClose={onClose} width={380}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <Modal title={`Edit: ${task.name}`} onClose={onClose} width={420}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+        {/* Code + Name — editable for custom tasks, read-only for library tasks */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div>
+            <label style={editLabelStyle}>Code</label>
+            {isCustom
+              ? <input value={local.code} maxLength={12} onChange={e => setLocal(p => ({ ...p, code: e.target.value }))} style={editInputStyle} />
+              : <div style={{ ...editInputStyle, background: 'var(--gray-light)', color: 'var(--gray)', cursor: 'default' }}>{task.code}</div>
+            }
+          </div>
+          <div>
+            <label style={editLabelStyle}>Category</label>
+            <select
+              value={local.cat}
+              onChange={e => setLocal(p => ({ ...p, cat: e.target.value }))}
+              style={editInputStyle}
+            >
+              {CAT_OPTIONS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {isCustom && (
+          <div>
+            <label style={editLabelStyle}>Full Name</label>
+            <input value={local.name} onChange={e => setLocal(p => ({ ...p, name: e.target.value }))} style={editInputStyle} />
+          </div>
+        )}
+
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div>
             <label style={editLabelStyle}>Min / Unit</label>
             <input
-              type="number"
-              min={1}
+              type="number" min={1}
               value={local.durationMin}
               onChange={e => setLocal(p => ({ ...p, durationMin: e.target.value }))}
               style={editInputStyle}
             />
           </div>
           <div>
-            <label style={editLabelStyle}>Min Res / Unit</label>
+            <label style={editLabelStyle}>Min Res / Unit <span style={{ fontWeight: 400, textTransform: 'none' }}>(99 = all roles)</span></label>
             <input
-              type="number"
-              min={1}
+              type="number" min={1}
               value={local.minResources}
               placeholder="—"
               onChange={e => setLocal(p => ({ ...p, minResources: e.target.value }))}
@@ -628,6 +678,28 @@ function EditLibTaskModal({ task, override, onChange, onClose }) {
             />
           </div>
         </div>
+
+        <div>
+          <label style={editLabelStyle}>Expected Instances</label>
+          <input
+            type="number" min={1}
+            value={local.expectedInstances}
+            onChange={e => setLocal(p => ({ ...p, expectedInstances: e.target.value }))}
+            style={editInputStyle}
+          />
+        </div>
+
+        <div>
+          <label style={editLabelStyle}>Description</label>
+          <textarea
+            rows={2}
+            value={local.desc}
+            onChange={e => setLocal(p => ({ ...p, desc: e.target.value }))}
+            placeholder="Optional description…"
+            style={{ ...editInputStyle, resize: 'vertical', fontFamily: "'DM Sans', sans-serif" }}
+          />
+        </div>
+
         <div>
           <label style={editLabelStyle}>Color</label>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
@@ -646,6 +718,7 @@ function EditLibTaskModal({ task, override, onChange, onClose }) {
             ))}
           </div>
         </div>
+
       </div>
       <ModalFooter>
         <Btn onClick={onClose} variant="secondary">Cancel</Btn>

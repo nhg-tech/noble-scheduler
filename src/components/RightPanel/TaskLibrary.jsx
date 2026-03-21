@@ -4,13 +4,18 @@ import { TASK_LIBRARY, CAT_LABELS, CAT_ORDER } from '../../data/taskLibrary';
 import { useScheduler } from '../../context/SchedulerContext';
 import { getSchedulingStatus } from '../../utils/calculations';
 import { resolveBlockHex, resolveBlockText } from '../../data/palette';
+import { ROLES } from '../../data/roles';
 
 export default function TaskLibrary({ onCreateCustom }) {
   const [filter, setFilter] = useState('pending'); // 'pending' | 'all'
   const [expanded, setExpanded] = useState({ group: true, suite: true, meals: true, fixed: true, on: true });
-  const { schedule, assumptions, getDerivedValues, userTaskDefs } = useScheduler();
+  const { schedule, assumptions, getDerivedValues, userTaskDefs, extraRoles } = useScheduler();
   const { scCount } = getDerivedValues();
   const { socpg, selpg } = assumptions;
+
+  // Total employee columns = built-in TM/TL/PAW roles + any extra columns added by user
+  const baseRoleCount = ROLES.filter(r => r.type === 'TM' || r.type === 'TL' || r.type === 'PAW').length;
+  const totalRoleCount = baseRoleCount + (extraRoles?.length || 0);
 
   function toggleCat(cat) {
     setExpanded(prev => ({ ...prev, [cat]: !prev[cat] }));
@@ -69,7 +74,7 @@ export default function TaskLibrary({ onCreateCustom }) {
           const tasks = tasksByCat[cat] || [];
           const visibleTasks = filter === 'pending'
             ? tasks.filter(t => {
-                const { done } = getSchedulingStatus(t, schedule, socpg, selpg, scCount);
+                const { done } = getSchedulingStatus(t, schedule, socpg, selpg, scCount, totalRoleCount);
                 return !done;
               })
             : tasks;
@@ -111,6 +116,7 @@ export default function TaskLibrary({ onCreateCustom }) {
                   selpg={selpg}
                   scCount={scCount}
                   userTaskDefs={userTaskDefs}
+                  totalRoleCount={totalRoleCount}
                 />
               ))}
             </div>
@@ -145,16 +151,19 @@ export default function TaskLibrary({ onCreateCustom }) {
   );
 }
 
-function TaskChip({ task, schedule, socpg, selpg, scCount, userTaskDefs }) {
+function TaskChip({ task, schedule, socpg, selpg, scCount, userTaskDefs, totalRoleCount }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `chip:${task.id}`,
     data: { type: 'chip', task },
   });
 
-  const { scheduled, expected: expectedDefault, done, partial } = getSchedulingStatus(task, schedule, socpg, selpg, scCount);
+  const { scheduled, expected: expectedDefault, done, partial } = getSchedulingStatus(task, schedule, socpg, selpg, scCount, totalRoleCount);
   const override = userTaskDefs[task.id];
-  const expected = override?.minResources != null ? override.minResources : expectedDefault;
-  const bgHex = resolveBlockHex(task.color);
+  // minResources=99 is a sentinel meaning "one per employee column"
+  const overrideMin = override?.minResources === 99 ? totalRoleCount : override?.minResources;
+  const expected = overrideMin != null ? overrideMin : expectedDefault;
+  // Chip color uses the user's Task Defaults override color if set, otherwise the library default
+  const bgHex = resolveBlockHex(override?.color || task.color);
   const textCol = resolveBlockText(bgHex);
 
   let statusDot = null;

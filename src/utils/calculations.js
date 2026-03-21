@@ -3,9 +3,13 @@ import { TASK_LIBRARY } from '../data/taskLibrary';
 
 /**
  * Resolve expected instance count for a task given current assumptions.
+ * allRoleCount — optional total employee column count (built-in + extra columns added by user).
+ * When provided, tasks with expectedInstances:'roles' or the sentinel value 99 resolve
+ * to this dynamic count rather than the static ROLES array length.
  */
-export function getExpectedInstances(task, socpg, selpg, scCount) {
-  const roleCount = ROLES.filter(r => r.type === 'TM' || r.type === 'TL' || r.type === 'PAW').length;
+export function getExpectedInstances(task, socpg, selpg, scCount, allRoleCount) {
+  const defaultRoleCount = ROLES.filter(r => r.type === 'TM' || r.type === 'TL' || r.type === 'PAW').length;
+  const roleCount = allRoleCount ?? defaultRoleCount;
   const ei = task.expectedInstances;
   if (ei === 'socpg*2') return socpg * 2;
   if (ei === 'selpg*2') return selpg * 2;
@@ -13,6 +17,7 @@ export function getExpectedInstances(task, socpg, selpg, scCount) {
   if (ei === 'selpg')   return selpg;
   if (ei === 'sc')      return scCount;
   if (ei === 'roles')   return roleCount;
+  if (ei === 99)        return roleCount; // 99 = sentinel meaning "one per employee column"
   return typeof ei === 'number' ? ei : 1;
 }
 
@@ -33,10 +38,11 @@ export function countTaskInSchedule(schedule, code) {
 
 /**
  * Get scheduling status for a task chip.
+ * allRoleCount — optional total employee column count for dynamic 'roles'/99 resolution.
  */
-export function getSchedulingStatus(task, schedule, socpg, selpg, scCount) {
+export function getSchedulingStatus(task, schedule, socpg, selpg, scCount, allRoleCount) {
   const scheduled = countTaskInSchedule(schedule, task.code);
-  const expected  = getExpectedInstances(task, socpg, selpg, scCount);
+  const expected  = getExpectedInstances(task, socpg, selpg, scCount, allRoleCount);
   return {
     scheduled,
     expected,
