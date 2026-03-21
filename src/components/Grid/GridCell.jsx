@@ -1,15 +1,21 @@
 import { useDroppable } from '@dnd-kit/core';
 
-export default function GridCell({ roleId, slotIdx, slotMin, isInShift, children }) {
+export default function GridCell({ roleId, slotIdx, slotMin, isInShift, onContextMenu, children }) {
   const id = `cell:${roleId}:${slotMin}`;
 
   const { isOver, setNodeRef } = useDroppable({ id, data: { type: 'cell', roleId, slotMin } });
+
+  function handleContextMenu(e) {
+    e.preventDefault();
+    onContextMenu?.(e, roleId, slotMin);
+  }
 
   return (
     <div
       ref={setNodeRef}
       data-role={roleId}
       data-slot={slotIdx}
+      onContextMenu={handleContextMenu}
       style={{
         position: 'relative',
         height: '44px',

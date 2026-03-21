@@ -11,14 +11,15 @@ const TIME_COL_W = 52;
 const ROLE_COL_W = 120;
 const SLOT_H = 44;
 
-export default function GridBody({ schedule, onEdit, onRemove, onSplit, onResize }) {
+export default function GridBody({ schedule, onEdit, onRemove, onSplit, onResize, onCopy, onPasteAt, hasClipboard }) {
   const { extraRoles, columnOrder } = useScheduler();
   const allRolesBase = [...ROLES, ...extraRoles];
   const allRoles = [
     ...columnOrder.map(id => allRolesBase.find(r => r.id === id)).filter(Boolean),
     ...allRolesBase.filter(r => !columnOrder.includes(r.id)),
   ];
-  const [contextMenu, setContextMenu] = useState(null); // { x, y, blockKey }
+  // contextMenu: { type:'block', x, y, blockKey } | { type:'cell', x, y, roleId, slotMin }
+  const [contextMenu, setContextMenu] = useState(null);
 
   // Build a map: roleId -> list of { blockKey, task, slotMin } rendered in that column
   const blocksByRole = useMemo(() => {
@@ -33,9 +34,15 @@ export default function GridBody({ schedule, onEdit, onRemove, onSplit, onResize
     return map;
   }, [schedule, allRoles]);
 
-  function handleContextMenu(e, blockKey) {
+  function handleBlockContextMenu(e, blockKey) {
     e.preventDefault();
-    setContextMenu({ x: e.clientX, y: e.clientY, blockKey });
+    e.stopPropagation(); // prevent cell handler from also firing
+    setContextMenu({ type: 'block', x: e.clientX, y: e.clientY, blockKey });
+  }
+
+  function handleCellContextMenu(e, roleId, slotMin) {
+    // Only show if the click wasn't on a task block (stopPropagation handles that)
+    setContextMenu({ type: 'cell', x: e.clientX, y: e.clientY, roleId, slotMin });
   }
 
   function closeMenu() { setContextMenu(null); }
@@ -118,6 +125,7 @@ export default function GridBody({ schedule, onEdit, onRemove, onSplit, onResize
                   slotIdx={slotIdx}
                   slotMin={slotMin}
                   isInShift={isInShiftVal}
+                  onContextMenu={handleCellContextMenu}
                 />
               );
             })}
@@ -134,7 +142,7 @@ export default function GridBody({ schedule, onEdit, onRemove, onSplit, onResize
                 <div
                   key={blockKey}
                   className="task-block"
-                  onContextMenu={(e) => handleContextMenu(e, blockKey)}
+                  onContextMenu={(e) => handleBlockContextMenu(e, blockKey)}
                   style={{ position: 'absolute', left: 0, right: 0, top: slotIdx * SLOT_H, zIndex: 10 }}
                 >
                   <TaskBlock
@@ -155,8 +163,8 @@ export default function GridBody({ schedule, onEdit, onRemove, onSplit, onResize
 
       </div>{/* end grid rows */}
 
-      {/* Context menu */}
-      {contextMenu && (
+      {/* Context menu — block variant */}
+      {contextMenu?.type === 'block' && (
         <div
           style={{
             position: 'fixed',
@@ -176,7 +184,39 @@ export default function GridBody({ schedule, onEdit, onRemove, onSplit, onResize
         >
           <MenuItem onClick={() => { onEdit(contextMenu.blockKey); closeMenu(); }}>✏️ Edit</MenuItem>
           <MenuItem onClick={() => { onSplit(contextMenu.blockKey); closeMenu(); }}>✂️ Split</MenuItem>
+          <MenuItem onClick={() => { onCopy?.(contextMenu.blockKey); closeMenu(); }}>📋 Copy</MenuItem>
           <MenuItem onClick={() => { onRemove(contextMenu.blockKey); closeMenu(); }} danger>🗑 Remove</MenuItem>
+        </div>
+      )}
+
+      {/* Context menu — empty cell variant */}
+      {contextMenu?.type === 'cell' && (
+        <div
+          style={{
+            position: 'fixed',
+            top: contextMenu.y,
+            left: contextMenu.x,
+            background: '#fff',
+            border: '1px solid var(--gray-light)',
+            borderRadius: 8,
+            boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+            zIndex: 1000,
+            minWidth: 160,
+            padding: '4px 0',
+            fontFamily: "'DM Sans', sans-serif",
+            fontSize: 13,
+          }}
+          onClick={e => e.stopPropagation()}
+        >
+          <MenuItem
+            onClick={() => {
+              if (hasClipboard) { onPasteAt?.(contextMenu.roleId, contextMenu.slotMin); }
+              closeMenu();
+            }}
+            disabled={!hasClipboard}
+          >
+            📋 Paste{!hasClipboard ? ' (nothing copied)' : ''}
+          </MenuItem>
         </div>
       )}
 
@@ -188,17 +228,18 @@ export default function GridBody({ schedule, onEdit, onRemove, onSplit, onResize
   );
 }
 
-function MenuItem({ children, onClick, danger }) {
+function MenuItem({ children, onClick, danger, disabled }) {
   return (
     <div
-      onClick={onClick}
+      onClick={disabled ? undefined : onClick}
       style={{
         padding: '7px 14px',
-        cursor: 'pointer',
-        color: danger ? '#FF5252' : 'var(--dark)',
+        cursor: disabled ? 'default' : 'pointer',
+        color: disabled ? 'var(--gray)' : danger ? '#FF5252' : 'var(--dark)',
+        opacity: disabled ? 0.55 : 1,
         transition: 'background 0.1s',
       }}
-      onMouseEnter={e => e.currentTarget.style.background = 'var(--gray-light)'}
+      onMouseEnter={e => { if (!disabled) e.currentTarget.style.background = 'var(--gray-light)'; }}
       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
     >
       {children}

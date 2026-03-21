@@ -61,6 +61,23 @@ export default function App() {
   // Drag overlay label
   const [dragLabel, setDragLabel] = useState(null);
 
+  // ─── Copy / Paste clipboard ───────────────────────────────────────────────
+  // Stores a shallow copy of a task block so it can be pasted into any cell
+  const [clipboard, setClipboard] = useState(null); // { task, colorHex }
+
+  function handleCopy(blockKey) {
+    const task = schedule[blockKey];
+    if (!task) return;
+    setClipboard({ task: { ...task }, colorHex: task.color });
+  }
+
+  function handlePasteAt(roleId, slotMin) {
+    if (!clipboard) return;
+    const { task, colorHex } = clipboard;
+    const durationMin = task.durationMin ?? task.slots * 30;
+    attemptPlaceInSchedule(schedule, null, roleId, slotMin, task, durationMin, colorHex);
+  }
+
   // ─── dnd-kit sensors ──────────────────────────────────────────────────────
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } })
@@ -339,6 +356,9 @@ export default function App() {
               onRemove={handleRemove}
               onSplit={setSplitKey}
               onResize={handleResize}
+              onCopy={handleCopy}
+              onPasteAt={handlePasteAt}
+              hasClipboard={!!clipboard}
             />
           </div>
 
