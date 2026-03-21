@@ -80,20 +80,19 @@ export function SchedulerProvider({ children }) {
 
   // ─── Category helpers ─────────────────────────────────────────────────────
   // Returns merged, ordered list of all categories (built-in + custom).
-  // Each entry: { id, label, deleted, builtin }
+  // Each entry: { id, label, deleted }
   const getFullCatList = useCallback(() => {
-    // catOrder may not yet include custom cats added after initial load — append any missing custom ones
+    // catOrder may not yet include custom cats added after initial load — append any missing ones
     const customIds = Object.keys(userCatDefs).filter(id => userCatDefs[id]?.custom && !catOrder.includes(id));
     const allIds    = [...catOrder, ...customIds];
     return allIds.map(id => {
-      const override = userCatDefs[id] || {};
+      const override  = userCatDefs[id] || {};
       const isBuiltin = CAT_ORDER.includes(id);
       if (!isBuiltin && !override.custom) return null; // unknown id, skip
       return {
         id,
         label:   override.label   ?? CAT_LABELS[id] ?? id,
         deleted: override.deleted ?? false,
-        builtin: isBuiltin,
       };
     }).filter(Boolean);
   }, [userCatDefs, catOrder]);

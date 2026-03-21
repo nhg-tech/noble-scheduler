@@ -526,7 +526,6 @@ function CategoriesTab({ getFullCatList, userCatDefs, setUserCatDefs, catOrder, 
           <tr style={{ background: 'var(--gray-light)' }}>
             <Th style={{ width: 24 }}></Th>
             <Th>Category Name</Th>
-            <Th>Type</Th>
             <Th>Status</Th>
             <Th></Th>
           </tr>
@@ -556,7 +555,7 @@ function CategoriesTab({ getFullCatList, userCatDefs, setUserCatDefs, catOrder, 
                   }}
                 />
               </Td>
-              <Td style={{ color: 'var(--gray)', fontSize: 11 }}>{cat.builtin ? 'Built-in' : 'Custom'}</Td>
+
               <Td>
                 {cat.deleted
                   ? <span style={{ fontSize: 10, color: 'var(--red)', fontWeight: 700, letterSpacing: '0.04em' }}>DELETED</span>
