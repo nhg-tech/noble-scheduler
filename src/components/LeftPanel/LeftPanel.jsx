@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { useScheduler } from '../../context/SchedulerContext';
 
 const PANEL_TITLE = { fontFamily: "'Cormorant Garamond', serif", fontSize: 13, fontWeight: 600,
-  letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--purple)', marginBottom: 12 };
-const PANEL_SECTION = { borderBottom: '1px solid var(--gray-light)', padding: 16 };
+  letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--purple)', marginBottom: 8 };
+const PANEL_SECTION = { borderBottom: '1px solid var(--gray-light)', padding: '10px 14px' };
 
 // ─── Load Schedule Panel ─────────────────────────────────────────────────────
 function LoadSchedule() {
@@ -83,7 +83,7 @@ function LoadSchedule() {
   return (
     <div style={PANEL_SECTION}>
       <div style={PANEL_TITLE}>Load Schedule</div>
-      <div style={{ display: 'flex', gap: 2, marginBottom: 10, background: 'var(--cream)', borderRadius: 6, padding: 2 }}>
+      <div style={{ display: 'flex', gap: 2, marginBottom: 8, background: 'var(--cream)', borderRadius: 6, padding: 2 }}>
         <button style={tabStyle(loadTab === 'template')} onClick={() => setLoadTab('template')}>Templates</button>
         <button style={tabStyle(loadTab === 'draft')}    onClick={() => setLoadTab('draft')}>📝 Drafts</button>
         <button style={tabStyle(loadTab === 'posting')}  onClick={() => setLoadTab('posting')}>✅ Posted</button>
@@ -156,7 +156,7 @@ function LoadSchedule() {
       )}
 
       {/* Date — always visible, below the load button */}
-      <div style={{ marginTop: 12, borderTop: '1px solid var(--gray-light)', paddingTop: 10 }}>
+      <div style={{ marginTop: 8, borderTop: '1px solid var(--gray-light)', paddingTop: 8 }}>
         <InputRow label="Schedule Date">
           <Inp
             type="date"
@@ -189,7 +189,7 @@ function Assumptions() {
       <div style={PANEL_TITLE}>Assumptions</div>
 
       <SubHead>🐕 Dogs</SubHead>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 4 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 2 }}>
         <InputRow label="Total Dogs">
           <Inp type="number" value={assumptions.dogs} min={1} max={200}
             onChange={e => update('dogs', parseInt(e.target.value) || 65)} />
@@ -208,7 +208,7 @@ function Assumptions() {
       </div>
       <Derived>{assumptions.roomsUserEdited ? `Auto-calc: ${estRooms} rooms · Override: ${assumptions.roomsActual}` : `Auto-calc: ${estRooms} rooms (${pct.multipet}% multi-pet)`}</Derived>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
         <InputRow label="# SocPGs">
           <Inp type="number" value={assumptions.socpg} min={1} max={6}
             onChange={e => update('socpg', parseInt(e.target.value) || 2)} />
@@ -232,7 +232,7 @@ function Assumptions() {
       <Derived>{assumptions.scUserEdited ? `Auto-calc: ${estSC} SCs · Override: ${assumptions.scActual}` : `Auto-calc: ${estSC} SCs (${pct.pf}% of dogs)`}</Derived>
 
       <SubHead style={{ marginTop: 8 }}>🐈 Cats</SubHead>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
         <InputRow label="Cats ↺ auto">
           <Inp type="number"
             value={assumptions.catsUserEdited ? (assumptions.catsActual ?? '') : estCats}
@@ -304,7 +304,7 @@ function SmBtn({ onClick, children, purple, danger, style }) {
 
 function InputRow({ label, children }) {
   return (
-    <div style={{ marginBottom: 10 }}>
+    <div style={{ marginBottom: 6 }}>
       <label style={{ fontSize: 11, color: 'var(--gray)', marginBottom: 4, display: 'block', fontWeight: 500 }}>{label}</label>
       {children}
     </div>
@@ -326,14 +326,14 @@ function SubHead({ children, style }) {
   return (
     <div style={{
       fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase',
-      color: 'var(--gray)', margin: '6px 0 4px', ...style,
+      color: 'var(--gray)', margin: '4px 0 3px', ...style,
     }}>{children}</div>
   );
 }
 
 function Derived({ children }) {
   return (
-    <div style={{ fontSize: 10, color: 'var(--gray)', marginTop: 3, fontStyle: 'italic', marginBottom: 4 }}>
+    <div style={{ fontSize: 10, color: 'var(--gray)', marginTop: 2, fontStyle: 'italic', marginBottom: 3 }}>
       {children}
     </div>
   );

@@ -8,7 +8,8 @@ import { ROLES } from '../../data/roles';
 
 export default function TaskLibrary({ onCreateCustom }) {
   const [filter, setFilter] = useState('pending'); // 'pending' | 'all'
-  const [expanded, setExpanded] = useState({ group: true, suite: true, meals: true, fixed: true, on: true });
+  // undefined entries treated as true — so any new/future category is expanded by default
+  const [expanded, setExpanded] = useState({});
   const { schedule, assumptions, getDerivedValues, userTaskDefs, sessionTaskDefs,
           extraRoles, getFullCatList, taskOrder } = useScheduler();
   const { scCount } = getDerivedValues();
@@ -23,8 +24,24 @@ export default function TaskLibrary({ onCreateCustom }) {
   const activeCats  = fullCatList.filter(c => !c.deleted);
   const catLabelMap = Object.fromEntries(fullCatList.map(c => [c.id, c.deleted ? `${c.label} – Deleted` : c.label]));
 
-  function toggleCat(cat) {
-    setExpanded(prev => ({ ...prev, [cat]: !prev[cat] }));
+  // undefined = expanded (true by default); explicit false = collapsed
+  function isCatExpanded(catId) { return expanded[catId] !== false; }
+
+  function toggleCat(catId) {
+    setExpanded(prev => ({ ...prev, [catId]: !isCatExpanded(catId) }));
+  }
+
+  function toggleAll() {
+    const anyCollapsed = activeCats.some(c => expanded[c.id] === false);
+    if (anyCollapsed) {
+      // expand all
+      setExpanded({});
+    } else {
+      // collapse all
+      const all = {};
+      activeCats.forEach(c => { all[c.id] = false; });
+      setExpanded(all);
+    }
   }
 
   // Build ordered task list per category
@@ -47,14 +64,22 @@ export default function TaskLibrary({ onCreateCustom }) {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Header */}
       <div style={{ padding: '12px 14px 8px', borderBottom: '1px solid var(--gray-light)' }}>
-        <div style={{
-          fontFamily: "'Cormorant Garamond', serif",
-          fontSize: 15,
-          fontWeight: 700,
-          color: 'var(--purple)',
-          marginBottom: 8,
-          letterSpacing: '0.02em',
-        }}>Task Library</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <div style={{
+            fontFamily: "'Cormorant Garamond', serif",
+            fontSize: 15, fontWeight: 700,
+            color: 'var(--purple)', letterSpacing: '0.02em',
+          }}>Task Library</div>
+          <button
+            onClick={toggleAll}
+            title={activeCats.some(c => expanded[c.id] === false) ? 'Expand all' : 'Collapse all'}
+            style={{
+              background: 'none', border: '1px solid var(--gray-light)', borderRadius: 4,
+              cursor: 'pointer', padding: '2px 6px', fontSize: 11, color: 'var(--gray)',
+              lineHeight: 1, fontFamily: "'DM Sans', sans-serif",
+            }}
+          >{activeCats.some(c => expanded[c.id] === false) ? '⊞' : '⊟'}</button>
+        </div>
         <div style={{ display: 'flex', gap: 4 }}>
           {['pending', 'all'].map(f => (
             <button
@@ -115,11 +140,11 @@ export default function TaskLibrary({ onCreateCustom }) {
                   color: 'var(--gray)',
                 }}>{cat.label}</span>
                 <span style={{ fontSize: 10, color: 'var(--gray)' }}>
-                  {expanded[cat.id] ? '▲' : '▼'}
+                  {isCatExpanded(cat.id) ? '▲' : '▼'}
                 </span>
               </div>
 
-              {expanded[cat.id] && visibleTasks.map(task => (
+              {isCatExpanded(cat.id) && visibleTasks.map(task => (
                 <TaskChip
                   key={task.id}
                   task={task}
