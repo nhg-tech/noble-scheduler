@@ -707,16 +707,11 @@ function Td({ children, style }) {
   );
 }
 
-const CAT_OPTIONS = [
-  { value: 'group', label: 'Play Groups' },
-  { value: 'suite', label: 'Suite Care' },
-  { value: 'meals', label: 'Meals' },
-  { value: 'fixed', label: 'Fixed Tasks' },
-  { value: 'on',    label: 'Overnight' },
-];
-
 // ─── Edit Library Task Modal ──────────────────────────────────────────────────
 function EditLibTaskModal({ task, override, onChange, onClose }) {
+  const { getFullCatList } = useScheduler();
+  const catOptions = getFullCatList().filter(c => !c.deleted).map(c => ({ value: c.id, label: c.label }));
+
   const [local, setLocal] = useState({
     durationMin:       override.durationMin     ?? task.unitMin,
     minResources:      override.minResources     ?? '',
@@ -765,7 +760,7 @@ function EditLibTaskModal({ task, override, onChange, onClose }) {
               onChange={e => setLocal(p => ({ ...p, cat: e.target.value }))}
               style={editInputStyle}
             >
-              {CAT_OPTIONS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+              {catOptions.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
             </select>
           </div>
         </div>

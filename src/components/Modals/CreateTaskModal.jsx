@@ -1,20 +1,17 @@
 import { useState } from 'react';
 import Modal, { ModalFooter, Btn } from './Modal';
 import { NOBLE_PALETTE } from '../../data/palette';
-
-const CATS = [
-  { value: 'group', label: 'Play Groups' },
-  { value: 'suite', label: 'Suite Care' },
-  { value: 'meals', label: 'Meals' },
-  { value: 'fixed', label: 'Fixed Tasks' },
-  { value: 'on', label: 'Overnight' },
-];
+import { useScheduler } from '../../context/SchedulerContext';
 
 /**
  * CreateTaskModal — create or edit a custom task.
  * Pass `initialData` to pre-fill for editing an existing task.
  */
 export default function CreateTaskModal({ onSave, onClose, initialData }) {
+  const { getFullCatList } = useScheduler();
+  // Active (non-deleted) categories in user-defined order
+  const cats = getFullCatList().filter(c => !c.deleted).map(c => ({ value: c.id, label: c.label }));
+
   const [form, setForm] = useState({
     code: initialData?.code || '',
     name: initialData?.name || '',
@@ -61,7 +58,7 @@ export default function CreateTaskModal({ onSave, onClose, initialData }) {
           </Field>
           <Field label="Category" style={{ flex: 1 }}>
             <select value={form.cat} onChange={e => set('cat', e.target.value)} style={inputStyle}>
-              {CATS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+              {cats.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
             </select>
           </Field>
         </Row>
