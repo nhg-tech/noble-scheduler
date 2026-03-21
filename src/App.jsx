@@ -42,6 +42,7 @@ export default function App() {
     assumptions,
     scheduleLabel,
     userTaskDefs, setUserTaskDefs,
+    setExtraRoles, setColumnOrder,
     captureState,
     getDerivedValues,
     getUserTemplates, getUserPostings, getUserDrafts,
@@ -53,6 +54,8 @@ export default function App() {
   const [splitKey, setSplitKey]           = useState(null);
   const [editKey, setEditKey]             = useState(null);
   const [showCreate, setShowCreate]       = useState(false);
+  const [createHereCtx, setCreateHereCtx] = useState(null); // { roleId, slotMin } when triggered from cell
+  const [showAddColumn, setShowAddColumn] = useState(false);
   const [saveMode, setSaveMode]           = useState(null); // 'draft'|'template'|'post'
   const [showValidate, setShowValidate]   = useState(false);
   const [showChecklist, setShowChecklist] = useState(false);
@@ -318,7 +321,25 @@ export default function App() {
 
   function handleCreateCustom(taskData) {
     setUserTaskDefs(prev => ({ ...prev, [taskData.id]: taskData }));
+    // If triggered from a cell right-click, immediately place the task there
+    if (createHereCtx) {
+      const { roleId, slotMin } = createHereCtx;
+      const durationMin = taskData.durationMin ?? 30;
+      const colorHex = resolveBlockHex(taskData.color);
+      attemptPlaceInSchedule(schedule, null, roleId, slotMin, taskData, durationMin, colorHex);
+      setCreateHereCtx(null);
+    }
     setShowCreate(false);
+  }
+
+  function handleAddColumnSave(label, sub) {
+    const id = `custom_${Date.now()}`;
+    setExtraRoles(prev => [...prev, {
+      id, label: label.trim(), sub: (sub || 'TM').trim(),
+      type: 'TM', shiftStart: 5, shiftEnd: 22, hours: 8, custom: true,
+    }]);
+    setColumnOrder(prev => [...prev, id]);
+    setShowAddColumn(false);
   }
 
   return (
@@ -359,6 +380,8 @@ export default function App() {
               onCopy={handleCopy}
               onPasteAt={handlePasteAt}
               hasClipboard={!!clipboard}
+              onCreateHere={(roleId, slotMin) => { setCreateHereCtx({ roleId, slotMin }); setShowCreate(true); }}
+              onAddColumn={() => setShowAddColumn(true)}
             />
           </div>
 
@@ -417,6 +440,58 @@ export default function App() {
       {showValidate && <ValidationModal onClose={() => setShowValidate(false)} />}
       {showChecklist && <ChecklistModal onClose={() => setShowChecklist(false)} />}
       {showSetup && <SetupOverlay onClose={() => setShowSetup(false)} />}
+      {showAddColumn && (
+        <AddColumnModal
+          onSave={handleAddColumnSave}
+          onClose={() => setShowAddColumn(false)}
+        />
+      )}
     </div>
   );
 }
+
+// ─── Add Column Modal ─────────────────────────────────────────────────────────
+import Modal, { ModalFooter, Btn } from './components/Modals/Modal';
+function AddColumnModal({ onSave, onClose }) {
+  const [label, setLabel] = useState('');
+  const [sub, setSub]     = useState('');
+  return (
+    <Modal title="Add Column" onClose={onClose}>
+      <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <label style={labelStyle}>
+          Column Label
+          <input
+            value={label} onChange={e => setLabel(e.target.value)} maxLength={12} autoFocus
+            placeholder="e.g. SOC 3"
+            style={inputStyle}
+            onKeyDown={e => e.key === 'Enter' && label.trim() && onSave(label, sub)}
+          />
+        </label>
+        <label style={labelStyle}>
+          Sub-text
+          <input
+            value={sub} onChange={e => setSub(e.target.value)} maxLength={18}
+            placeholder="e.g. TM  (defaults to TM)"
+            style={inputStyle}
+            onKeyDown={e => e.key === 'Enter' && label.trim() && onSave(label, sub)}
+          />
+        </label>
+      </div>
+      <ModalFooter>
+        <Btn onClick={onClose} variant="secondary">Cancel</Btn>
+        <Btn onClick={() => onSave(label, sub)} disabled={!label.trim()}>Add Column</Btn>
+      </ModalFooter>
+    </Modal>
+  );
+}
+
+const labelStyle = {
+  display: 'flex', flexDirection: 'column', gap: 4,
+  fontSize: 12, fontWeight: 600, color: 'var(--gray)',
+  fontFamily: "'DM Sans', sans-serif", letterSpacing: '0.03em', textTransform: 'uppercase',
+};
+const inputStyle = {
+  padding: '8px 10px', border: '1px solid var(--gray-light)',
+  borderRadius: 6, fontSize: 13, fontFamily: "'DM Sans', sans-serif",
+  outline: 'none', width: '100%', boxSizing: 'border-box',
+};

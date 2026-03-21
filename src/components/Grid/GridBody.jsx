@@ -11,7 +11,7 @@ const TIME_COL_W = 52;
 const ROLE_COL_W = 120;
 const SLOT_H = 44;
 
-export default function GridBody({ schedule, onEdit, onRemove, onSplit, onResize, onCopy, onPasteAt, hasClipboard }) {
+export default function GridBody({ schedule, onEdit, onRemove, onSplit, onResize, onCopy, onPasteAt, hasClipboard, onCreateHere, onAddColumn }) {
   const { extraRoles, columnOrder } = useScheduler();
   const allRolesBase = [...ROLES, ...extraRoles];
   const allRoles = [
@@ -53,7 +53,7 @@ export default function GridBody({ schedule, onEdit, onRemove, onSplit, onResize
       onClick={closeMenu}
     >
       {/* Column headers — sticky at top of the scroll container */}
-      <GridHeader />
+      <GridHeader onAddColumn={onAddColumn} />
 
       {/* Grid rows */}
       <div style={{ display: 'flex', flex: 1, position: 'relative' }}>
@@ -208,15 +208,17 @@ export default function GridBody({ schedule, onEdit, onRemove, onSplit, onResize
           }}
           onClick={e => e.stopPropagation()}
         >
-          <MenuItem
-            onClick={() => {
-              if (hasClipboard) { onPasteAt?.(contextMenu.roleId, contextMenu.slotMin); }
-              closeMenu();
-            }}
-            disabled={!hasClipboard}
-          >
-            📋 Paste{!hasClipboard ? ' (nothing copied)' : ''}
+          <MenuItem onClick={() => { onCreateHere?.(contextMenu.roleId, contextMenu.slotMin); closeMenu(); }}>
+            ✏️ Create custom task
           </MenuItem>
+          <MenuItem onClick={() => { onAddColumn?.(); closeMenu(); }}>
+            ➕ Add column
+          </MenuItem>
+          {hasClipboard && (
+            <MenuItem onClick={() => { onPasteAt?.(contextMenu.roleId, contextMenu.slotMin); closeMenu(); }}>
+              📋 Paste
+            </MenuItem>
+          )}
         </div>
       )}
 

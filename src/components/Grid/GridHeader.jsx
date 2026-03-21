@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef } from 'react'; // useState kept for dragRoleId
 import { ROLES } from '../../data/roles';
 import { formatShiftTime, keyToRoleAndMin } from '../../utils/scheduling';
 import { useScheduler } from '../../context/SchedulerContext';
@@ -12,11 +12,8 @@ function arrayMove(arr, from, to) {
   return next;
 }
 
-export default function GridHeader() {
+export default function GridHeader({ onAddColumn }) {
   const { schedule, extraRoles, setExtraRoles, columnOrder, setColumnOrder } = useScheduler();
-  const [showAdd, setShowAdd]   = useState(false);
-  const [newLabel, setNewLabel] = useState('');
-  const [newSub, setNewSub]     = useState('');
   const [dragRoleId, setDragRoleId] = useState(null);
   const isDraggingRef  = useRef(false);
   const dragIdRef      = useRef(null);
@@ -70,18 +67,7 @@ export default function GridHeader() {
     });
   }
 
-  // ── Add / remove extra columns ───────────────────────────────────────────
-  function handleAddRole() {
-    if (!newLabel.trim()) return;
-    const id = `custom_${Date.now()}`;
-    setExtraRoles(prev => [...prev, {
-      id, label: newLabel.trim(), sub: newSub.trim() || 'TM',
-      type: 'TM', shiftStart: 5, shiftEnd: 22, hours: 8, custom: true,
-    }]);
-    setColumnOrder(prev => [...prev, id]);
-    setNewLabel(''); setNewSub(''); setShowAdd(false);
-  }
-
+  // ── Remove extra columns ─────────────────────────────────────────────────
   function handleRemoveRole(id) {
     setExtraRoles(prev => prev.filter(r => r.id !== id));
     setColumnOrder(prev => prev.filter(x => x !== id));
@@ -170,74 +156,18 @@ export default function GridHeader() {
         );
       })}
 
-      {/* Add column button + popover */}
-      <div style={{ display: 'flex', alignItems: 'stretch', flexShrink: 0, position: 'relative' }}>
-        <button
-          onClick={() => setShowAdd(v => !v)}
-          title="Add column"
-          style={{
-            width: 32, border: 'none',
-            borderRight: '1px solid var(--gray-light)',
-            background: showAdd ? 'var(--purple-pale)' : 'transparent',
-            cursor: 'pointer', color: 'var(--purple)',
-            fontSize: 20, fontWeight: 300, lineHeight: 1,
-          }}
-        >+</button>
-
-        {showAdd && (
-          <div style={{
-            position: 'absolute', top: '100%', right: 0,
-            background: '#fff', border: '1px solid var(--gray-light)',
-            borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
-            padding: 12, zIndex: 200, minWidth: 190,
-          }}>
-            <div style={{
-              fontSize: 11, fontWeight: 700, color: 'var(--gray)',
-              marginBottom: 8, letterSpacing: '0.05em', textTransform: 'uppercase',
-            }}>Add Column</div>
-            <input
-              value={newLabel} onChange={e => setNewLabel(e.target.value)}
-              placeholder="Label (e.g. SOC 3)" maxLength={12} autoFocus
-              onKeyDown={e => e.key === 'Enter' && handleAddRole()}
-              style={popInputStyle}
-            />
-            <input
-              value={newSub} onChange={e => setNewSub(e.target.value)}
-              placeholder="Sub-text (e.g. TM)" maxLength={18}
-              onKeyDown={e => e.key === 'Enter' && handleAddRole()}
-              style={{ ...popInputStyle, marginBottom: 8 }}
-            />
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button
-                onClick={() => { setShowAdd(false); setNewLabel(''); setNewSub(''); }}
-                style={popBtnStyle(false)}
-              >Cancel</button>
-              <button
-                onClick={handleAddRole} disabled={!newLabel.trim()}
-                style={popBtnStyle(true, !newLabel.trim())}
-              >Add</button>
-            </div>
-          </div>
-        )}
-      </div>
+      {/* Add column button */}
+      <button
+        onClick={onAddColumn}
+        title="Add column"
+        style={{
+          width: 32, border: 'none', flexShrink: 0,
+          borderRight: '1px solid var(--gray-light)',
+          background: 'transparent',
+          cursor: 'pointer', color: 'var(--purple)',
+          fontSize: 20, fontWeight: 300, lineHeight: 1,
+        }}
+      >+</button>
     </div>
   );
-}
-
-const popInputStyle = {
-  width: '100%', padding: '6px 8px',
-  border: '1px solid var(--gray-light)', borderRadius: 5,
-  fontSize: 12, fontFamily: "'DM Sans', sans-serif",
-  marginBottom: 6, boxSizing: 'border-box', outline: 'none',
-};
-
-function popBtnStyle(primary, disabled) {
-  return {
-    flex: 1, padding: '6px 8px', border: 'none', borderRadius: 5,
-    background: primary && !disabled ? 'var(--purple)' : 'var(--gray-light)',
-    color: primary && !disabled ? '#fff' : 'var(--gray)',
-    cursor: primary && !disabled ? 'pointer' : 'default',
-    fontSize: 11, fontWeight: primary ? 600 : 400,
-    fontFamily: "'DM Sans', sans-serif",
-  };
 }
