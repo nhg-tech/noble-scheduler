@@ -67,6 +67,8 @@ export function SchedulerProvider({ children }) {
   const [userCatDefs,    setUserCatDefs]    = useState(() => loadLS(LS_CAT_DEFS,   {}));
   const [catOrder,       setCatOrder]       = useState(() => loadLS(LS_CAT_ORDER,  [...CAT_ORDER]));
   const [taskOrder,      setTaskOrder]      = useState(() => loadLS(LS_TASK_ORDER, {}));
+  // Session-only custom tasks — not persisted to localStorage; saved/restored with schedule drafts/templates
+  const [sessionTaskDefs, setSessionTaskDefs] = useState({});
 
   // Persist user defaults on change
   useEffect(() => { saveLS(LS_TASKS,       userTaskDefs);    }, [userTaskDefs]);
@@ -276,14 +278,19 @@ export function SchedulerProvider({ children }) {
     setSchedule(newSchedule);
     setAssumptions(newAssumptions);
     setScheduleLabel(labels[tpl] || tpl);
+    setSessionTaskDefs({}); // clear session-only custom tasks on template load
   }, [getTaskDefault, assumptions]); // eslint-disable-line
 
   // ─── Capture / apply state ────────────────────────────────────────────────
-  const captureState = useCallback(() => ({ schedule, assumptions }), [schedule, assumptions]);
+  const captureState = useCallback(
+    () => ({ schedule, assumptions, sessionTaskDefs }),
+    [schedule, assumptions, sessionTaskDefs]
+  );
 
   const applyState = useCallback((state) => {
-    if (state.schedule)    setSchedule(state.schedule);
-    if (state.assumptions) setAssumptions(a => ({ ...a, ...state.assumptions }));
+    if (state.schedule)         setSchedule(state.schedule);
+    if (state.assumptions)      setAssumptions(a => ({ ...a, ...state.assumptions }));
+    setSessionTaskDefs(state.sessionTaskDefs || {});
   }, []);
 
   // ─── User templates / postings ────────────────────────────────────────────
@@ -341,6 +348,8 @@ export function SchedulerProvider({ children }) {
       getFullCatList,
       // Defaults
       userTaskDefs, userRoleDefs, userProgramDefs,
+      // Session-only custom tasks (not persisted; saved/restored with schedule)
+      sessionTaskDefs, setSessionTaskDefs,
       NOBLE_TASK_DEFAULTS, NOBLE_ROLE_DEFAULTS, NOBLE_PROGRAM_DEFAULTS,
       // Getters
       getTaskDefault, getRoleConfig, getProgramPct, getDerivedValues,

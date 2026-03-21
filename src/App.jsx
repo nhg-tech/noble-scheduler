@@ -42,6 +42,7 @@ export default function App() {
     assumptions,
     scheduleLabel,
     userTaskDefs, setUserTaskDefs,
+    sessionTaskDefs, setSessionTaskDefs,
     setExtraRoles, setColumnOrder,
     captureState,
     getDerivedValues,
@@ -320,7 +321,9 @@ export default function App() {
   }
 
   function handleCreateCustom(taskData) {
-    setUserTaskDefs(prev => ({ ...prev, [taskData.id]: taskData }));
+    // Custom tasks live only in the current session — they are NOT added to the
+    // persistent userTaskDefs library. They are saved/restored with schedule drafts.
+    setSessionTaskDefs(prev => ({ ...prev, [taskData.id]: taskData }));
     // If triggered from a cell right-click, immediately place the task there
     if (createHereCtx) {
       const { roleId, slotMin } = createHereCtx;

@@ -17,6 +17,7 @@ export default function SetupOverlay({ onClose }) {
   const {
     assumptions, setAssumptions,
     userTaskDefs, setUserTaskDefs,
+    sessionTaskDefs, setSessionTaskDefs,
     userProgramDefs, setUserProgramDefs,
     NOBLE_PROGRAM_DEFAULTS,
     saveDefaults, resetDefaults,
@@ -24,8 +25,9 @@ export default function SetupOverlay({ onClose }) {
     userCatDefs, setUserCatDefs, catOrder, setCatOrder,
   } = useScheduler();
 
+  // Custom tasks are session-only — route to sessionTaskDefs, not userTaskDefs
   function handleCreateCustom(taskData) {
-    setUserTaskDefs(prev => ({ ...prev, [taskData.id]: taskData }));
+    setSessionTaskDefs(prev => ({ ...prev, [taskData.id]: taskData }));
     setShowCreateModal(false);
     setEditingTask(null);
   }
@@ -37,7 +39,7 @@ export default function SetupOverlay({ onClose }) {
 
   function handleDeleteCustom(taskId) {
     if (!window.confirm('Delete this custom task?')) return;
-    setUserTaskDefs(prev => {
+    setSessionTaskDefs(prev => {
       const updated = { ...prev };
       delete updated[taskId];
       return updated;
@@ -61,10 +63,18 @@ export default function SetupOverlay({ onClose }) {
   }
 
   function setTaskDefault(taskId, field, val) {
-    setUserTaskDefs(prev => ({
-      ...prev,
-      [taskId]: { ...(prev[taskId] || {}), [field]: val },
-    }));
+    // If this is a session-only custom task, update sessionTaskDefs; otherwise update persistent userTaskDefs
+    if (sessionTaskDefs[taskId]) {
+      setSessionTaskDefs(prev => ({
+        ...prev,
+        [taskId]: { ...(prev[taskId] || {}), [field]: val },
+      }));
+    } else {
+      setUserTaskDefs(prev => ({
+        ...prev,
+        [taskId]: { ...(prev[taskId] || {}), [field]: val },
+      }));
+    }
   }
 
   return (
@@ -148,6 +158,7 @@ export default function SetupOverlay({ onClose }) {
           {tab === 1 && (
             <TaskDefaultsTab
               userTaskDefs={userTaskDefs}
+              sessionTaskDefs={sessionTaskDefs}
               onChange={setTaskDefault}
               onCreateCustom={() => setShowCreateModal(true)}
               onEditCustom={handleEditCustom}
@@ -317,7 +328,7 @@ function ProgramMixTab({ assumptions, onAssumption, userProgramDefs, defaults, o
 // ─── Task Defaults Tab ───────────────────────────────────────────────────────
 const CAT_BG = { group: '#EDE8F7', suite: '#E3F2FD', meals: '#FFF8E1', fixed: '#F1F8E9', on: '#F3E5F5' };
 
-function TaskDefaultsTab({ userTaskDefs, onChange, onCreateCustom, onEditCustom, onDeleteCustom, onEditLibTask, onDeleteLibTask }) {
+function TaskDefaultsTab({ userTaskDefs, sessionTaskDefs, onChange, onCreateCustom, onEditCustom, onDeleteCustom, onEditLibTask, onDeleteLibTask }) {
   const { getFullCatList, taskOrder, setTaskOrder } = useScheduler();
   const isDraggingRef = useRef(false);
   const dragIdRef     = useRef(null);
@@ -330,7 +341,8 @@ function TaskDefaultsTab({ userTaskDefs, onChange, onCreateCustom, onEditCustom,
       const effectiveCat = userTaskDefs[t.id]?.cat || t.cat;
       return effectiveCat === catId && !userTaskDefs[t.id]?.hidden;
     });
-    const customTasks = Object.values(userTaskDefs).filter(t => t.custom && (t.cat || '') === catId);
+    // Custom tasks are session-only — read from sessionTaskDefs
+    const customTasks = Object.values(sessionTaskDefs || {}).filter(t => (t.cat || '') === catId);
     const all = [...libTasks, ...customTasks];
     const order = taskOrder[catId] || [];
     const byId = Object.fromEntries(all.map(t => [t.id, t]));

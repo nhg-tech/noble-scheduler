@@ -9,8 +9,8 @@ import { ROLES } from '../../data/roles';
 export default function TaskLibrary({ onCreateCustom }) {
   const [filter, setFilter] = useState('pending'); // 'pending' | 'all'
   const [expanded, setExpanded] = useState({ group: true, suite: true, meals: true, fixed: true, on: true });
-  const { schedule, assumptions, getDerivedValues, userTaskDefs, extraRoles,
-          getFullCatList, taskOrder } = useScheduler();
+  const { schedule, assumptions, getDerivedValues, userTaskDefs, sessionTaskDefs,
+          extraRoles, getFullCatList, taskOrder } = useScheduler();
   const { scCount } = getDerivedValues();
   const { socpg, selpg } = assumptions;
 
@@ -33,7 +33,8 @@ export default function TaskLibrary({ onCreateCustom }) {
       const effectiveCat = userTaskDefs[t.id]?.cat || t.cat;
       return effectiveCat === catId && !userTaskDefs[t.id]?.hidden;
     });
-    const customTasks = Object.values(userTaskDefs).filter(t => t.custom && (t.cat || '') === catId);
+    // Custom tasks come from session only — not the persistent library
+    const customTasks = Object.values(sessionTaskDefs).filter(t => (t.cat || '') === catId);
     const all = [...libTasks, ...customTasks];
     const order = taskOrder[catId] || [];
     const byId = Object.fromEntries(all.map(t => [t.id, t]));
