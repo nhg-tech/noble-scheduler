@@ -341,9 +341,8 @@ function TaskDefaultsTab({ userTaskDefs, sessionTaskDefs, onChange, onCreateCust
       const effectiveCat = userTaskDefs[t.id]?.cat || t.cat;
       return effectiveCat === catId && !userTaskDefs[t.id]?.hidden;
     });
-    // Custom tasks are session-only — read from sessionTaskDefs
-    const customTasks = Object.values(sessionTaskDefs || {}).filter(t => (t.cat || '') === catId);
-    const all = [...libTasks, ...customTasks];
+    // Task Defaults only configures built-in library tasks — custom session tasks are excluded
+    const all = [...libTasks];
     const order = taskOrder[catId] || [];
     const byId = Object.fromEntries(all.map(t => [t.id, t]));
     const ordered = order.map(id => byId[id]).filter(Boolean);
