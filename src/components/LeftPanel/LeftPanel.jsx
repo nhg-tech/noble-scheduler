@@ -173,8 +173,7 @@ function LoadSchedule() {
 function Assumptions() {
   const { assumptions, setAssumptions, getProgramPct } = useScheduler();
   const pct = getProgramPct();
-  const [dogsOpen, setDogsOpen] = useState(true);
-  const [catsOpen, setCatsOpen] = useState(false);
+  const [open, setOpen] = useState(true);
 
   function update(field, value) {
     setAssumptions(a => ({ ...a, [field]: value }));
@@ -186,20 +185,33 @@ function Assumptions() {
   const estCats  = Math.round(dogs * pct.cats / 100);
   const estBung  = Math.max(1, Math.round(estCats / (1 + pct.multipetCats / 100)));
 
-  const rooms   = assumptions.roomsUserEdited ? assumptions.roomsActual : estRooms;
-  const scs     = assumptions.scUserEdited    ? assumptions.scActual    : estSC;
-  const cats    = assumptions.catsUserEdited  ? assumptions.catsActual  : estCats;
-  const bungs   = assumptions.catRoomsUserEdited ? assumptions.catRoomsActual : estBung;
+  const rooms = assumptions.roomsUserEdited ? assumptions.roomsActual : estRooms;
+  const scs   = assumptions.scUserEdited    ? assumptions.scActual    : estSC;
+  const cats  = assumptions.catsUserEdited  ? assumptions.catsActual  : estCats;
+  const bungs = assumptions.catRoomsUserEdited ? assumptions.catRoomsActual : estBung;
 
   return (
     <div style={{ ...PANEL_SECTION, flex: 1 }}>
-      <div style={PANEL_TITLE}>Assumptions</div>
+      {/* Title row doubles as the single toggle */}
+      <button onClick={() => setOpen(o => !o)} style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        width: '100%', background: 'none', border: 'none', padding: 0,
+        cursor: 'pointer', marginBottom: open ? 8 : 4,
+      }}>
+        <span style={PANEL_TITLE}><span style={{ marginBottom: 0 }}>Assumptions</span></span>
+        <span style={{ fontSize: 10, color: 'var(--gray)' }}>{open ? '▾' : '▸'}</span>
+      </button>
 
-      {/* ── Dogs ── */}
-      <SectionToggle label="🐕 Dogs" open={dogsOpen} onToggle={() => setDogsOpen(o => !o)}
-        summary={!dogsOpen ? `${dogs} dogs · ${rooms} rooms · ${assumptions.socpg} Soc · ${assumptions.selpg} Sel · ${scs} SC` : null} />
+      {/* Collapsed summary — both lines */}
+      {!open && (
+        <div style={{ fontSize: 10, color: 'var(--gray)', fontStyle: 'italic', lineHeight: 1.6 }}>
+          <div>🐕 {dogs} dogs · {rooms} rooms · {assumptions.socpg} Soc · {assumptions.selpg} Sel · {scs} SC</div>
+          <div>🐈 {cats} cats · {bungs} bungalow{bungs !== 1 ? 's' : ''}</div>
+        </div>
+      )}
 
-      {dogsOpen && <>
+      {open && <>
+        <SubHead>🐕 Dogs</SubHead>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 2 }}>
           <InputRow label="Total Dogs">
             <Inp type="number" value={assumptions.dogs} min={1} max={200}
@@ -236,14 +248,8 @@ function Assumptions() {
               }} />
           </InputRow>
         </div>
-      </>}
 
-      {/* ── Cats ── */}
-      <SectionToggle label="🐈 Cats" open={catsOpen} onToggle={() => setCatsOpen(o => !o)}
-        summary={!catsOpen ? `${cats} cats · ${bungs} bungalow${bungs !== 1 ? 's' : ''}` : null}
-        style={{ marginTop: dogsOpen ? 6 : 4 }} />
-
-      {catsOpen && <>
+        <SubHead style={{ marginTop: 6 }}>🐈 Cats</SubHead>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
           <InputRow label="Cats ↺">
             <Inp type="number"
