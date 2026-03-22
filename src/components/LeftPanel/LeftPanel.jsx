@@ -173,95 +173,125 @@ function LoadSchedule() {
 function Assumptions() {
   const { assumptions, setAssumptions, getProgramPct } = useScheduler();
   const pct = getProgramPct();
+  const [dogsOpen, setDogsOpen] = useState(true);
+  const [catsOpen, setCatsOpen] = useState(false);
 
   function update(field, value) {
     setAssumptions(a => ({ ...a, [field]: value }));
   }
 
-  const dogs = assumptions.dogs || 0;
+  const dogs     = assumptions.dogs || 0;
   const estRooms = Math.round(dogs * (1 - pct.multipet / 100));
   const estSC    = Math.max(1, Math.round(dogs * pct.pf / 100));
   const estCats  = Math.round(dogs * pct.cats / 100);
   const estBung  = Math.max(1, Math.round(estCats / (1 + pct.multipetCats / 100)));
 
+  const rooms   = assumptions.roomsUserEdited ? assumptions.roomsActual : estRooms;
+  const scs     = assumptions.scUserEdited    ? assumptions.scActual    : estSC;
+  const cats    = assumptions.catsUserEdited  ? assumptions.catsActual  : estCats;
+  const bungs   = assumptions.catRoomsUserEdited ? assumptions.catRoomsActual : estBung;
+
   return (
     <div style={{ ...PANEL_SECTION, flex: 1 }}>
       <div style={PANEL_TITLE}>Assumptions</div>
 
-      <SubHead>🐕 Dogs</SubHead>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 2 }}>
-        <InputRow label="Total Dogs">
-          <Inp type="number" value={assumptions.dogs} min={1} max={200}
-            onChange={e => update('dogs', parseInt(e.target.value) || 65)} />
-        </InputRow>
-        <InputRow label="Dog Rooms ↺ auto">
-          <Inp type="number"
-            value={assumptions.roomsUserEdited ? (assumptions.roomsActual ?? '') : estRooms}
-            style={assumptions.roomsUserEdited ? { borderColor: 'var(--gold-dark)', background: 'var(--gold-light)' } : {}}
-            onChange={e => {
-              const v = parseInt(e.target.value);
-              const edited = !isNaN(v) && v !== estRooms;
-              update('roomsActual', isNaN(v) ? null : v);
-              update('roomsUserEdited', edited);
-            }} />
-        </InputRow>
-      </div>
-      <Derived>{assumptions.roomsUserEdited ? `Auto-calc: ${estRooms} rooms · Override: ${assumptions.roomsActual}` : `Auto-calc: ${estRooms} rooms (${pct.multipet}% multi-pet)`}</Derived>
+      {/* ── Dogs ── */}
+      <SectionToggle label="🐕 Dogs" open={dogsOpen} onToggle={() => setDogsOpen(o => !o)}
+        summary={!dogsOpen ? `${dogs} dogs · ${rooms} rooms · ${assumptions.socpg} Soc · ${assumptions.selpg} Sel · ${scs} SC` : null} />
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
-        <InputRow label="# SocPGs">
-          <Inp type="number" value={assumptions.socpg} min={1} max={6}
-            onChange={e => update('socpg', parseInt(e.target.value) || 2)} />
-        </InputRow>
-        <InputRow label="# SelPGs">
-          <Inp type="number" value={assumptions.selpg} min={0} max={4}
-            onChange={e => update('selpg', parseInt(e.target.value) || 0)} />
-        </InputRow>
-        <InputRow label="# SCs ↺ auto">
-          <Inp type="number"
-            value={assumptions.scUserEdited ? (assumptions.scActual ?? '') : estSC}
-            style={assumptions.scUserEdited ? { borderColor: 'var(--gold-dark)', background: 'var(--gold-light)' } : {}}
-            onChange={e => {
-              const v = parseInt(e.target.value);
-              const edited = !isNaN(v) && v !== estSC;
-              update('scActual', isNaN(v) ? null : v);
-              update('scUserEdited', edited);
-            }} />
-        </InputRow>
-      </div>
-      <Derived>{assumptions.scUserEdited ? `Auto-calc: ${estSC} SCs · Override: ${assumptions.scActual}` : `Auto-calc: ${estSC} SCs (${pct.pf}% of dogs)`}</Derived>
+      {dogsOpen && <>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 2 }}>
+          <InputRow label="Total Dogs">
+            <Inp type="number" value={assumptions.dogs} min={1} max={200}
+              onChange={e => update('dogs', parseInt(e.target.value) || 65)} />
+          </InputRow>
+          <InputRow label="Dog Rooms ↺">
+            <Inp type="number"
+              value={assumptions.roomsUserEdited ? (assumptions.roomsActual ?? '') : estRooms}
+              style={assumptions.roomsUserEdited ? { borderColor: 'var(--gold-dark)', background: 'var(--gold-light)' } : {}}
+              onChange={e => {
+                const v = parseInt(e.target.value);
+                update('roomsActual', isNaN(v) ? null : v);
+                update('roomsUserEdited', !isNaN(v) && v !== estRooms);
+              }} />
+          </InputRow>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+          <InputRow label="# SocPGs">
+            <Inp type="number" value={assumptions.socpg} min={1} max={6}
+              onChange={e => update('socpg', parseInt(e.target.value) || 2)} />
+          </InputRow>
+          <InputRow label="# SelPGs">
+            <Inp type="number" value={assumptions.selpg} min={0} max={4}
+              onChange={e => update('selpg', parseInt(e.target.value) || 0)} />
+          </InputRow>
+          <InputRow label="# SCs ↺">
+            <Inp type="number"
+              value={assumptions.scUserEdited ? (assumptions.scActual ?? '') : estSC}
+              style={assumptions.scUserEdited ? { borderColor: 'var(--gold-dark)', background: 'var(--gold-light)' } : {}}
+              onChange={e => {
+                const v = parseInt(e.target.value);
+                update('scActual', isNaN(v) ? null : v);
+                update('scUserEdited', !isNaN(v) && v !== estSC);
+              }} />
+          </InputRow>
+        </div>
+      </>}
 
-      <SubHead style={{ marginTop: 8 }}>🐈 Cats</SubHead>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-        <InputRow label="Cats ↺ auto">
-          <Inp type="number"
-            value={assumptions.catsUserEdited ? (assumptions.catsActual ?? '') : estCats}
-            style={assumptions.catsUserEdited ? { borderColor: 'var(--gold-dark)', background: 'var(--gold-light)' } : {}}
-            onChange={e => {
-              const v = parseInt(e.target.value);
-              const edited = !isNaN(v) && v !== estCats;
-              update('catsActual', isNaN(v) ? null : v);
-              update('catsUserEdited', edited);
-            }} />
-        </InputRow>
-        <InputRow label="Cat Rooms ↺ auto">
-          <Inp type="number"
-            value={assumptions.catRoomsUserEdited ? (assumptions.catRoomsActual ?? '') : estBung}
-            style={assumptions.catRoomsUserEdited ? { borderColor: 'var(--gold-dark)', background: 'var(--gold-light)' } : {}}
-            onChange={e => {
-              const v = parseInt(e.target.value);
-              const edited = !isNaN(v) && v !== estBung;
-              update('catRoomsActual', isNaN(v) ? null : v);
-              update('catRoomsUserEdited', edited);
-            }} />
-        </InputRow>
-      </div>
-      <Derived>{`Auto: ${estCats} cats · ${estBung} bungalow${estBung !== 1 ? 's' : ''}`}</Derived>
+      {/* ── Cats ── */}
+      <SectionToggle label="🐈 Cats" open={catsOpen} onToggle={() => setCatsOpen(o => !o)}
+        summary={!catsOpen ? `${cats} cats · ${bungs} bungalow${bungs !== 1 ? 's' : ''}` : null}
+        style={{ marginTop: dogsOpen ? 6 : 4 }} />
+
+      {catsOpen && <>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+          <InputRow label="Cats ↺">
+            <Inp type="number"
+              value={assumptions.catsUserEdited ? (assumptions.catsActual ?? '') : estCats}
+              style={assumptions.catsUserEdited ? { borderColor: 'var(--gold-dark)', background: 'var(--gold-light)' } : {}}
+              onChange={e => {
+                const v = parseInt(e.target.value);
+                update('catsActual', isNaN(v) ? null : v);
+                update('catsUserEdited', !isNaN(v) && v !== estCats);
+              }} />
+          </InputRow>
+          <InputRow label="Cat Rooms ↺">
+            <Inp type="number"
+              value={assumptions.catRoomsUserEdited ? (assumptions.catRoomsActual ?? '') : estBung}
+              style={assumptions.catRoomsUserEdited ? { borderColor: 'var(--gold-dark)', background: 'var(--gold-light)' } : {}}
+              onChange={e => {
+                const v = parseInt(e.target.value);
+                update('catRoomsActual', isNaN(v) ? null : v);
+                update('catRoomsUserEdited', !isNaN(v) && v !== estBung);
+              }} />
+          </InputRow>
+        </div>
+      </>}
     </div>
   );
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+function SectionToggle({ label, open, onToggle, summary, style }) {
+  return (
+    <div style={{ marginBottom: open ? 4 : 2, ...style }}>
+      <button onClick={onToggle} style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        width: '100%', background: 'none', border: 'none', padding: '2px 0',
+        cursor: 'pointer', textAlign: 'left',
+      }}>
+        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.05em',
+          textTransform: 'uppercase', color: 'var(--gray)' }}>{label}</span>
+        <span style={{ fontSize: 9, color: 'var(--gray)' }}>{open ? '▾' : '▸'}</span>
+      </button>
+      {!open && summary && (
+        <div style={{ fontSize: 10, color: 'var(--gray)', fontStyle: 'italic', marginTop: 1 }}>
+          {summary}
+        </div>
+      )}
+    </div>
+  );
+}
 function SelectWrap({ value, onChange, children }) {
   return (
     <div style={{ position: 'relative', marginBottom: 0 }}>
