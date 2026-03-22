@@ -278,26 +278,6 @@ function Assumptions() {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-function SectionToggle({ label, open, onToggle, summary, style }) {
-  return (
-    <div style={{ marginBottom: open ? 4 : 2, ...style }}>
-      <button onClick={onToggle} style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        width: '100%', background: 'none', border: 'none', padding: '2px 0',
-        cursor: 'pointer', textAlign: 'left',
-      }}>
-        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.05em',
-          textTransform: 'uppercase', color: 'var(--gray)' }}>{label}</span>
-        <span style={{ fontSize: 9, color: 'var(--gray)' }}>{open ? '▾' : '▸'}</span>
-      </button>
-      {!open && summary && (
-        <div style={{ fontSize: 10, color: 'var(--gray)', fontStyle: 'italic', marginTop: 1 }}>
-          {summary}
-        </div>
-      )}
-    </div>
-  );
-}
 function SelectWrap({ value, onChange, children }) {
   return (
     <div style={{ position: 'relative', marginBottom: 0 }}>
