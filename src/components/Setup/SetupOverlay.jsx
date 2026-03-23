@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useCallback } from 'react';
 import { useScheduler } from '../../context/SchedulerContext';
 import { TASK_LIBRARY } from '../../data/taskLibrary';
 import { ROLES } from '../../data/roles';
@@ -29,6 +29,55 @@ export default function SetupOverlay({ onClose }) {
 
   // Snapshot of role defs when overlay opened — used to detect new deletions on Save
   const initialRoleDefs = useRef(userRoleDefs);
+  const importInputRef  = useRef(null);
+
+  // ── Export all Setup data as a JSON backup file ───────────────────────────
+  function handleExportSetup() {
+    const payload = {
+      version:    '1.0',
+      exportedAt: new Date().toISOString(),
+      noble_task_defaults:    userTaskDefs,
+      noble_role_defaults:    userRoleDefs,
+      noble_program_defaults: userProgramDefs,
+      noble_cat_defs:         userCatDefs,
+      noble_cat_order:        catOrder,
+      noble_task_order:       taskOrder,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `noble-setup-${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // ── Import Setup data from a JSON backup file ─────────────────────────────
+  function handleImportFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (!data.version) throw new Error('Not a valid Noble Setup backup file.');
+        const keys = [
+          'noble_task_defaults', 'noble_role_defaults', 'noble_program_defaults',
+          'noble_cat_defs', 'noble_cat_order', 'noble_task_order',
+        ];
+        keys.forEach(k => {
+          if (data[k] !== undefined) localStorage.setItem(k, JSON.stringify(data[k]));
+        });
+        alert('Setup imported successfully. The page will reload to apply the changes.');
+        window.location.reload();
+      } catch (err) {
+        alert(`Import failed: ${err.message}`);
+      }
+    };
+    reader.readAsText(file);
+    // Reset so same file can be re-imported if needed
+    e.target.value = '';
+  }
 
   // Custom tasks are session-only — route to sessionTaskDefs, not userTaskDefs
   function handleCreateCustom(taskData) {
@@ -193,7 +242,36 @@ export default function SetupOverlay({ onClose }) {
           justifyContent: 'space-between',
           flexShrink: 0,
         }}>
-          <div />
+          {/* Export / Import backup buttons */}
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button
+              onClick={handleExportSetup}
+              title="Download all Setup data as a JSON backup file"
+              style={{
+                padding: '7px 13px', borderRadius: 7, cursor: 'pointer',
+                border: '1.5px solid var(--purple-light)',
+                background: 'var(--purple-pale)', color: 'var(--purple)',
+                fontSize: 12, fontWeight: 600, fontFamily: "'DM Sans', sans-serif",
+              }}
+            >⬇ Export Setup</button>
+            <button
+              onClick={() => importInputRef.current?.click()}
+              title="Restore Setup from a previously exported JSON file"
+              style={{
+                padding: '7px 13px', borderRadius: 7, cursor: 'pointer',
+                border: '1.5px solid var(--gray-light)',
+                background: 'var(--cream)', color: 'var(--dark)',
+                fontSize: 12, fontWeight: 600, fontFamily: "'DM Sans', sans-serif",
+              }}
+            >⬆ Import Setup</button>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".json"
+              style={{ display: 'none' }}
+              onChange={handleImportFile}
+            />
+          </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button
               onClick={onClose}

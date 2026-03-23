@@ -11,6 +11,7 @@ function LoadSchedule() {
     loadTemplate, getUserTemplates, getMasterTemplates, getUserPostings, getUserDrafts,
     applyState, setScheduleLabel,
     saveUserTemplates, saveMasterTemplates, saveUserPostings, saveUserDrafts,
+    apiDeleteTemplate,
     assumptions, setAssumptions,
   } = useScheduler();
 
@@ -64,21 +65,13 @@ function LoadSchedule() {
     applyState(state);
   }
 
-  function handleDeleteTemplate() {
+  async function handleDeleteTemplate() {
     const isMaster = tplValue.startsWith('master_');
     const isUser   = tplValue.startsWith('user_');
     if (!isMaster && !isUser) return;
     const name = tplValue.replace(/^(master_|user_)/, '');
     if (!window.confirm(`Delete template "${name}"?`)) return;
-    if (isMaster) {
-      const updated = { ...masterTemplates };
-      delete updated[name];
-      saveMasterTemplates(updated);
-    } else {
-      const updated = { ...userTemplates };
-      delete updated[name];
-      saveUserTemplates(updated);
-    }
+    await apiDeleteTemplate(name, isMaster ? 'master' : 'user');
     setTplValue('t1');
   }
 

@@ -1,7 +1,9 @@
 import { useScheduler } from '../../context/SchedulerContext';
+import { useAuth } from '../../context/AuthContext';
 
 export default function Header({ onSetup, onSaveDraft, onSaveTemplate, onPostSchedule, onValidate, onChecklist, onPrint }) {
   const { scheduleLabel, setSchedule } = useScheduler();
+  const { user, logout } = useAuth();
 
   function handleClear() {
     if (window.confirm('Clear all scheduled tasks?')) setSchedule({});
@@ -46,6 +48,19 @@ export default function Header({ onSetup, onSaveDraft, onSaveTemplate, onPostSch
         <Btn onClick={onChecklist}>☑ Checklist</Btn>
         <Btn onClick={handleClear}>🗑 Clear</Btn>
         <Btn onClick={onPrint} gold>🖨 Print</Btn>
+        {user && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 4,
+            borderLeft: '1px solid rgba(255,255,255,0.2)', paddingLeft: 10 }}>
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)' }}>
+              {user.name} · <span style={{ textTransform: 'capitalize' }}>{user.role}</span>
+            </span>
+            <button onClick={logout} title="Sign out" style={{
+              background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)',
+              color: 'rgba(255,255,255,0.7)', borderRadius: 5, padding: '3px 8px',
+              fontSize: 11, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+            }}>Sign out</button>
+          </div>
+        )}
       </div>
     </header>
   );

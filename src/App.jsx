@@ -48,6 +48,7 @@ export default function App() {
     getDerivedValues,
     getUserTemplates, getMasterTemplates, getUserPostings, getUserDrafts,
     saveUserTemplates, saveMasterTemplates, saveUserPostings, saveUserDrafts,
+    apiSaveTemplate, apiSaveSchedule,
   } = useScheduler();
 
   // Modal state
@@ -344,18 +345,14 @@ export default function App() {
   }
 
   // ─── Save handlers ────────────────────────────────────────────────────────
-  function handleSaveConfirm(name, tplType) {
+  async function handleSaveConfirm(name, tplType) {
     const state = captureState();
     if (saveMode === 'draft') {
-      saveUserDrafts({ ...getUserDrafts(), [name]: state });
+      await apiSaveSchedule(name, state, 'draft');
     } else if (saveMode === 'template') {
-      if (tplType === 'master') {
-        saveMasterTemplates({ ...getMasterTemplates(), [name]: state });
-      } else {
-        saveUserTemplates({ ...getUserTemplates(), [name]: state });
-      }
+      await apiSaveTemplate(name, state, tplType === 'master' ? 'master' : 'user');
     } else if (saveMode === 'post') {
-      saveUserPostings({ ...getUserPostings(), [name]: state });
+      await apiSaveSchedule(name, state, 'posted');
     }
     setSaveMode(null);
   }

@@ -3,6 +3,7 @@ import { ROLES } from '../data/roles';
 import { TASK_LIBRARY, CAT_ORDER, CAT_LABELS } from '../data/taskLibrary';
 import { resolveBlockHex } from '../data/palette';
 import { makeKey, keyToRoleAndMin } from '../utils/scheduling';
+import { apiSetup, apiTemplates, apiSchedules, isLoggedIn } from '../api';
 
 // ─── localStorage keys ───────────────────────────────────────────────────────
 const LS_TASKS    = 'noble_task_defaults';
@@ -87,7 +88,13 @@ export function SchedulerProvider({ children }) {
   // Session-only custom tasks — not persisted to localStorage; saved/restored with schedule drafts/templates
   const [sessionTaskDefs, setSessionTaskDefs] = useState({});
 
-  // Persist user defaults on change
+  // In-memory stores for templates / schedules (populated from API on mount)
+  const [masterTemplatesData, setMasterTemplatesData] = useState(() => loadLS(LS_MASTER_TEMPLATES, {}));
+  const [userTemplatesData,   setUserTemplatesData]   = useState(() => loadLS(LS_TEMPLATES,        {}));
+  const [draftsData,          setDraftsData]          = useState(() => loadLS(LS_DRAFTS,           {}));
+  const [postingsData,        setPostingsData]        = useState(() => loadLS(LS_POSTINGS,         {}));
+
+  // Persist user defaults on change (write-through cache — API is source of truth)
   useEffect(() => { saveLS(LS_TASKS,       userTaskDefs);    }, [userTaskDefs]);
   useEffect(() => { saveLS(LS_ROLES,       userRoleDefs);    }, [userRoleDefs]);
   useEffect(() => { saveLS(LS_PROGRAMS,    userProgramDefs); }, [userProgramDefs]);
@@ -97,6 +104,45 @@ export function SchedulerProvider({ children }) {
   useEffect(() => { saveLS(LS_CAT_DEFS,    userCatDefs);     }, [userCatDefs]);
   useEffect(() => { saveLS(LS_CAT_ORDER,   catOrder);        }, [catOrder]);
   useEffect(() => { saveLS(LS_TASK_ORDER,  taskOrder);       }, [taskOrder]);
+
+  // ─── API hydration on mount ───────────────────────────────────────────────
+  // Fetch all data from API and update state (API wins over localStorage cache)
+  useEffect(() => {
+    if (!isLoggedIn()) return;
+    async function hydrate() {
+      try {
+        const [tasks, roles, progMix, cats, master, user, drafts, postings] = await Promise.allSettled([
+          apiSetup.getTasks(),
+          apiSetup.getRoles(),
+          apiSetup.getProgramMix(),
+          apiSetup.getCategories(),
+          apiTemplates.getMaster(),
+          apiTemplates.getUser(),
+          apiSchedules.getDrafts(),
+          apiSchedules.getPostings(),
+        ]);
+        if (tasks.status    === 'fulfilled' && Object.keys(tasks.value).length)
+          setUserTaskDefs(tasks.value);
+        if (roles.status    === 'fulfilled' && Object.keys(roles.value).length)
+          setUserRoleDefs(roles.value);
+        if (progMix.status  === 'fulfilled')
+          setUserProgramDefs(progMix.value);
+        if (cats.status     === 'fulfilled') {
+          const { catDefs, catOrder: co, taskOrder: to } = cats.value;
+          if (catDefs  && Object.keys(catDefs).length)  setUserCatDefs(catDefs);
+          if (co       && co.length)                    setCatOrder(co);
+          if (to       && Object.keys(to).length)       setTaskOrder(to);
+        }
+        if (master.status   === 'fulfilled') { setMasterTemplatesData(master.value); saveLS(LS_MASTER_TEMPLATES, master.value); }
+        if (user.status     === 'fulfilled') { setUserTemplatesData(user.value);     saveLS(LS_TEMPLATES,        user.value); }
+        if (drafts.status   === 'fulfilled') { setDraftsData(drafts.value);          saveLS(LS_DRAFTS,           drafts.value); }
+        if (postings.status === 'fulfilled') { setPostingsData(postings.value);      saveLS(LS_POSTINGS,         postings.value); }
+      } catch (err) {
+        console.warn('API hydration failed — using localStorage cache:', err.message);
+      }
+    }
+    hydrate();
+  }, []); // eslint-disable-line
 
   // ─── Category helpers ─────────────────────────────────────────────────────
   // Returns merged, ordered list of all categories (built-in + custom).
@@ -352,15 +398,97 @@ export function SchedulerProvider({ children }) {
     setSessionTaskDefs(state.sessionTaskDefs || {});
   }, []);
 
-  // ─── User templates / postings ────────────────────────────────────────────
-  const getUserTemplates    = useCallback(() => loadLS(LS_TEMPLATES,        {}), []);
-  const getMasterTemplates  = useCallback(() => loadLS(LS_MASTER_TEMPLATES, {}), []);
-  const getUserPostings     = useCallback(() => loadLS(LS_POSTINGS,         {}), []);
-  const getUserDrafts       = useCallback(() => loadLS(LS_DRAFTS,           {}), []);
-  const saveUserTemplates   = useCallback((obj) => { saveLS(LS_TEMPLATES,        obj); }, []);
-  const saveMasterTemplates = useCallback((obj) => { saveLS(LS_MASTER_TEMPLATES, obj); }, []);
-  const saveUserPostings    = useCallback((obj) => { saveLS(LS_POSTINGS,         obj); }, []);
-  const saveUserDrafts      = useCallback((obj) => { saveLS(LS_DRAFTS,           obj); }, []);
+  // ─── Template / schedule getters (read from state — already API-hydrated) ──
+  const getUserTemplates   = useCallback(() => userTemplatesData,   [userTemplatesData]);
+  const getMasterTemplates = useCallback(() => masterTemplatesData, [masterTemplatesData]);
+  const getUserPostings    = useCallback(() => postingsData,        [postingsData]);
+  const getUserDrafts      = useCallback(() => draftsData,          [draftsData]);
+
+  // ─── Template / schedule savers (update state + localStorage + API) ────────
+  const saveUserTemplates = useCallback(async (obj) => {
+    setUserTemplatesData(obj); saveLS(LS_TEMPLATES, obj);
+  }, []);
+
+  const saveMasterTemplates = useCallback(async (obj) => {
+    setMasterTemplatesData(obj); saveLS(LS_MASTER_TEMPLATES, obj);
+  }, []);
+
+  const saveUserPostings = useCallback(async (obj) => {
+    setPostingsData(obj); saveLS(LS_POSTINGS, obj);
+  }, []);
+
+  const saveUserDrafts = useCallback(async (obj) => {
+    setDraftsData(obj); saveLS(LS_DRAFTS, obj);
+  }, []);
+
+  // ─── API-backed save for a single template/schedule ───────────────────────
+  const apiSaveTemplate = useCallback(async (name, state, type) => {
+    try {
+      if (type === 'master') {
+        await apiTemplates.saveMaster(name, state);
+        const updated = { ...masterTemplatesData, [name]: state };
+        setMasterTemplatesData(updated); saveLS(LS_MASTER_TEMPLATES, updated);
+      } else {
+        await apiTemplates.saveUser(name, state);
+        const updated = { ...userTemplatesData, [name]: state };
+        setUserTemplatesData(updated); saveLS(LS_TEMPLATES, updated);
+      }
+    } catch (err) {
+      console.warn('API template save failed — saved locally only:', err.message);
+      if (type === 'master') {
+        const updated = { ...masterTemplatesData, [name]: state };
+        setMasterTemplatesData(updated); saveLS(LS_MASTER_TEMPLATES, updated);
+      } else {
+        const updated = { ...userTemplatesData, [name]: state };
+        setUserTemplatesData(updated); saveLS(LS_TEMPLATES, updated);
+      }
+    }
+  }, [masterTemplatesData, userTemplatesData]);
+
+  const apiSaveSchedule = useCallback(async (name, state, status) => {
+    try {
+      await apiSchedules.save({
+        name,
+        scheduleDate: state.assumptions?.date || null,
+        status,
+        schedule:     state.schedule     || {},
+        assumptions:  state.assumptions  || {},
+        sessionTaskDefs: state.sessionTaskDefs || {},
+      });
+      if (status === 'draft') {
+        const updated = { ...draftsData, [name]: state };
+        setDraftsData(updated); saveLS(LS_DRAFTS, updated);
+      } else {
+        const updated = { ...postingsData, [name]: state };
+        setPostingsData(updated); saveLS(LS_POSTINGS, updated);
+      }
+    } catch (err) {
+      console.warn('API schedule save failed — saved locally only:', err.message);
+      if (status === 'draft') {
+        const updated = { ...draftsData, [name]: state };
+        setDraftsData(updated); saveLS(LS_DRAFTS, updated);
+      } else {
+        const updated = { ...postingsData, [name]: state };
+        setPostingsData(updated); saveLS(LS_POSTINGS, updated);
+      }
+    }
+  }, [draftsData, postingsData]);
+
+  const apiDeleteTemplate = useCallback(async (name, type) => {
+    try {
+      if (type === 'master') await apiTemplates.deleteMaster(name);
+      else                   await apiTemplates.deleteUser(name);
+    } catch (err) {
+      console.warn('API delete failed:', err.message);
+    }
+    if (type === 'master') {
+      const updated = { ...masterTemplatesData }; delete updated[name];
+      setMasterTemplatesData(updated); saveLS(LS_MASTER_TEMPLATES, updated);
+    } else {
+      const updated = { ...userTemplatesData }; delete updated[name];
+      setUserTemplatesData(updated); saveLS(LS_TEMPLATES, updated);
+    }
+  }, [masterTemplatesData, userTemplatesData]);
 
   // ─── Save user defaults ───────────────────────────────────────────────────
   // Re-apply color and code overrides to any blocks already on the schedule
@@ -399,6 +527,21 @@ export function SchedulerProvider({ children }) {
     });
   }, [getTaskDefault, userTaskDefs]);
 
+  // Also push setup defaults to API
+  const persistDefaultsToApi = useCallback(async (tasks, roles, progMix, cats, co, to) => {
+    if (!isLoggedIn()) return;
+    try {
+      await Promise.all([
+        Object.keys(tasks).length  && apiSetup.saveTasks(tasks),
+        Object.keys(roles).length  && apiSetup.saveRoles(roles),
+        apiSetup.saveProgramMix(progMix),
+        apiSetup.saveCategories({ catDefs: cats, catOrder: co, taskOrder: to }),
+      ].filter(Boolean));
+    } catch (err) {
+      console.warn('API defaults save failed — saved locally only:', err.message);
+    }
+  }, []);
+
   const resetDefaults = useCallback(() => {
     setUserTaskDefs({}); setUserRoleDefs({}); setUserProgramDefs({});
   }, []);
@@ -431,6 +574,7 @@ export function SchedulerProvider({ children }) {
       loadTemplate, captureState, applyState,
       getUserTemplates, getMasterTemplates, getUserPostings, getUserDrafts,
       saveUserTemplates, saveMasterTemplates, saveUserPostings, saveUserDrafts,
+      apiSaveTemplate, apiSaveSchedule, apiDeleteTemplate, persistDefaultsToApi,
       saveDefaults, resetDefaults,
     }}>
       {children}
