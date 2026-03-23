@@ -1,5 +1,5 @@
 // ─── Noble Scheduler API Client ──────────────────────────────────────────────
-const BASE = 'http://localhost:3001/api';
+const BASE = (import.meta.env.VITE_API_URL || 'http://localhost:3001') + '/api';
 
 // Token stored in localStorage — survives page reloads
 let _token = localStorage.getItem('noble_token') || null;
