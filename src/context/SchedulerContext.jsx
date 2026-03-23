@@ -8,9 +8,10 @@ import { makeKey, keyToRoleAndMin } from '../utils/scheduling';
 const LS_TASKS    = 'noble_task_defaults';
 const LS_ROLES    = 'noble_role_defaults';
 const LS_PROGRAMS = 'noble_program_defaults';
-const LS_TEMPLATES = 'noble_user_templates';
-const LS_POSTINGS  = 'noble_user_postings';
-const LS_DRAFTS    = 'noble_drafts';
+const LS_TEMPLATES        = 'noble_user_templates';
+const LS_MASTER_TEMPLATES = 'noble_master_templates';
+const LS_POSTINGS         = 'noble_user_postings';
+const LS_DRAFTS           = 'noble_drafts';
 const LS_EXTRA_ROLES = 'noble_extra_roles';
 const LS_COL_ORDER   = 'noble_column_order';
 const LS_CAT_DEFS    = 'noble_cat_defs';    // { [catId]: { label?, deleted?, custom?, color? } }
@@ -19,6 +20,9 @@ const LS_TASK_ORDER  = 'noble_task_order';  // { [catId]: [taskId, ...] }
 
 const NOBLE_PROGRAM_DEFAULTS = { social: 65, select: 20, pf: 15, cats: 20, multipet: 15, multipetCats: 15 };
 
+// Tasks that should NOT count toward scheduled hours totals (unpaid breaks etc.)
+const COUNT_HOURS_FALSE = new Set(['BRK30', 'LUN']);
+
 // Build Noble baseline defaults from task library and roles
 const NOBLE_TASK_DEFAULTS = {};
 TASK_LIBRARY.forEach(t => {
@@ -26,6 +30,7 @@ TASK_LIBRARY.forEach(t => {
     slots: t.slots, unitMin: t.unitMin ?? null,
     unitBasis: t.unitBasis ?? '', idealStart: t.idealStart ?? '',
     color: t.color ?? 'block-group',
+    countHours: !COUNT_HOURS_FALSE.has(t.id),
   };
 });
 const NOBLE_ROLE_DEFAULTS = {};
@@ -62,7 +67,19 @@ export function SchedulerProvider({ children }) {
   const [userRoleDefs,   setUserRoleDefs]   = useState(() => loadLS(LS_ROLES, {}));
   const [userProgramDefs,setUserProgramDefs]= useState(() => loadLS(LS_PROGRAMS, {}));
   const [extraRoles,     setExtraRoles]     = useState(() => loadLS(LS_EXTRA_ROLES, []));
-  const [columnOrder,    setColumnOrder]    = useState(() => loadLS(LS_COL_ORDER, ROLES.map(r => r.id)));
+  const [columnOrder,    setColumnOrder]    = useState(() => {
+    const stored     = loadLS(LS_COL_ORDER, null);
+    const savedRoles = loadLS(LS_ROLES, {});
+    // Include any custom roles from userRoleDefs not yet in stored order
+    const customIds  = Object.entries(savedRoles)
+      .filter(([, def]) => def.custom && !def.deleted)
+      .map(([id]) => id);
+    const base    = stored ?? ROLES.map(r => r.id);
+    const missing = customIds.filter(id => !base.includes(id));
+    return [...base, ...missing];
+  });
+  // Transient session-only — resets on page load, never written to localStorage
+  const [hiddenColumns,  setHiddenColumns]  = useState(() => new Set());
   const [scheduleLabel,  setScheduleLabel]  = useState('Template 1 — 2 SocPGs + 2 SelPGs');
   const [userCatDefs,    setUserCatDefs]    = useState(() => loadLS(LS_CAT_DEFS,   {}));
   const [catOrder,       setCatOrder]       = useState(() => loadLS(LS_CAT_ORDER,  [...CAT_ORDER]));
@@ -75,7 +92,8 @@ export function SchedulerProvider({ children }) {
   useEffect(() => { saveLS(LS_ROLES,       userRoleDefs);    }, [userRoleDefs]);
   useEffect(() => { saveLS(LS_PROGRAMS,    userProgramDefs); }, [userProgramDefs]);
   useEffect(() => { saveLS(LS_EXTRA_ROLES, extraRoles);      }, [extraRoles]);
-  useEffect(() => { saveLS(LS_COL_ORDER,   columnOrder);     }, [columnOrder]);
+  // columnOrder is saved explicitly on save actions only — NOT auto-saved, so
+  // hiding a column is session-only until the user explicitly saves the schedule.
   useEffect(() => { saveLS(LS_CAT_DEFS,    userCatDefs);     }, [userCatDefs]);
   useEffect(() => { saveLS(LS_CAT_ORDER,   catOrder);        }, [catOrder]);
   useEffect(() => { saveLS(LS_TASK_ORDER,  taskOrder);       }, [taskOrder]);
@@ -101,14 +119,17 @@ export function SchedulerProvider({ children }) {
 
   // ─── Getters ─────────────────────────────────────────────────────────────
   const getTaskDefault = useCallback((taskId) => {
-    const base = NOBLE_TASK_DEFAULTS[taskId] || {};
-    const user = userTaskDefs[taskId] || {};
+    const base    = NOBLE_TASK_DEFAULTS[taskId] || {};
+    const libTask = TASK_LIBRARY.find(t => t.id === taskId);
+    const user    = userTaskDefs[taskId] || {};
     return {
       slots:      user.slots      ?? base.slots,
       unitMin:    user.unitMin    ?? base.unitMin,
       unitBasis:  user.unitBasis  ?? base.unitBasis,
       idealStart: user.idealStart ?? base.idealStart,
       color:      user.color      ?? base.color,
+      countHours: user.countHours ?? base.countHours ?? true,
+      code:       user.code       ?? libTask?.code ?? taskId,
     };
   }, [userTaskDefs]);
 
@@ -121,6 +142,41 @@ export function SchedulerProvider({ children }) {
       hours:        user.hours        ?? base.hours,
       includeInHrs: user.includeInHrs ?? base.includeInHrs,
     };
+  }, [userRoleDefs]);
+
+  // Returns all active roles: built-in with overrides, then custom roles.
+  // Deleted roles are excluded. Consumed by GridHeader/GridBody instead of raw ROLES.
+  const getEffectiveRoles = useCallback(() => {
+    // Built-in roles with any user overrides applied
+    const builtIn = ROLES
+      .filter(r => !userRoleDefs[r.id]?.deleted)
+      .map(r => {
+        const over = userRoleDefs[r.id] || {};
+        return {
+          ...r,
+          label:       over.label       ?? r.label,
+          sub:         over.sub         ?? r.sub,
+          shiftStart:  over.shiftStart  ?? r.shiftStart,
+          shiftEnd:    over.shiftEnd    ?? r.shiftEnd,
+          unpaidBreak: over.unpaidBreak ?? (r.unpaidBreak ?? 0),
+          hours:       over.hours       ?? r.hours,
+        };
+      });
+    // Custom roles added via Role Config
+    const custom = Object.entries(userRoleDefs)
+      .filter(([, def]) => def.custom && !def.deleted)
+      .map(([id, def]) => ({
+        id,
+        label:       def.label       || id,
+        sub:         def.sub         || '',
+        type:        def.type        || 'TM',
+        shiftStart:  def.shiftStart  ?? 9,
+        shiftEnd:    def.shiftEnd    ?? 17,
+        unpaidBreak: def.unpaidBreak ?? 30,
+        hours:       def.hours       ?? 7.5,
+        custom:      true,
+      }));
+    return [...builtIn, ...custom];
   }, [userRoleDefs]);
 
   const getProgramPct = useCallback(() => ({
@@ -279,7 +335,10 @@ export function SchedulerProvider({ children }) {
     setAssumptions(newAssumptions);
     setScheduleLabel(labels[tpl] || tpl);
     setSessionTaskDefs({}); // clear session-only custom tasks on template load
-  }, [getTaskDefault, assumptions]); // eslint-disable-line
+    // Reset column order to all effective roles (built-in + custom) and clear session hides
+    setColumnOrder(getEffectiveRoles().map(r => r.id));
+    setHiddenColumns(new Set());
+  }, [getTaskDefault, getEffectiveRoles, assumptions]); // eslint-disable-line
 
   // ─── Capture / apply state ────────────────────────────────────────────────
   const captureState = useCallback(
@@ -294,30 +353,40 @@ export function SchedulerProvider({ children }) {
   }, []);
 
   // ─── User templates / postings ────────────────────────────────────────────
-  const getUserTemplates = useCallback(() => loadLS(LS_TEMPLATES, {}), []);
-  const getUserPostings  = useCallback(() => loadLS(LS_POSTINGS,  {}), []);
-  const getUserDrafts    = useCallback(() => loadLS(LS_DRAFTS,    {}), []);
-  const saveUserTemplates = useCallback((obj) => { saveLS(LS_TEMPLATES, obj); }, []);
-  const saveUserPostings  = useCallback((obj) => { saveLS(LS_POSTINGS,  obj); }, []);
-  const saveUserDrafts    = useCallback((obj) => { saveLS(LS_DRAFTS,    obj); }, []);
+  const getUserTemplates    = useCallback(() => loadLS(LS_TEMPLATES,        {}), []);
+  const getMasterTemplates  = useCallback(() => loadLS(LS_MASTER_TEMPLATES, {}), []);
+  const getUserPostings     = useCallback(() => loadLS(LS_POSTINGS,         {}), []);
+  const getUserDrafts       = useCallback(() => loadLS(LS_DRAFTS,           {}), []);
+  const saveUserTemplates   = useCallback((obj) => { saveLS(LS_TEMPLATES,        obj); }, []);
+  const saveMasterTemplates = useCallback((obj) => { saveLS(LS_MASTER_TEMPLATES, obj); }, []);
+  const saveUserPostings    = useCallback((obj) => { saveLS(LS_POSTINGS,         obj); }, []);
+  const saveUserDrafts      = useCallback((obj) => { saveLS(LS_DRAFTS,           obj); }, []);
 
   // ─── Save user defaults ───────────────────────────────────────────────────
-  // Re-apply color overrides to any blocks already on the schedule
+  // Re-apply color and code overrides to any blocks already on the schedule
   const saveDefaults = useCallback(() => {
     setSchedule(prev => {
       let changed = false;
       const updated = {};
       Object.entries(prev).forEach(([key, block]) => {
-        const libTask = TASK_LIBRARY.find(t => t.code === block.code);
+        // Find library task by original code; fall back to reverse-lookup via userTaskDefs
+        // (handles blocks whose code was already overridden in a previous save)
+        let libTask = TASK_LIBRARY.find(t => t.code === block.code);
+        if (!libTask) {
+          const entry = Object.entries(userTaskDefs).find(([, def]) => def.code === block.code);
+          if (entry) libTask = TASK_LIBRARY.find(t => t.id === entry[0]);
+        }
         if (!libTask) { updated[key] = block; return; }
-        const def    = getTaskDefault(libTask.id);
-        const newHex = resolveBlockHex(def.color ?? libTask.color);
-        if (newHex !== block.color) {
-          // Also update constituent colors in merged blocks
-          const newBlock = { ...block, color: newHex };
+        const def     = getTaskDefault(libTask.id);
+        const newHex  = resolveBlockHex(def.color ?? libTask.color);
+        const newCode = def.code ?? libTask.code;
+        if (newHex !== block.color || newCode !== block.code) {
+          const oldCode  = block.code;
+          const newBlock = { ...block, color: newHex, code: newCode };
+          // Also update constituent codes/colors in merged blocks
           if (newBlock.constituents) {
             newBlock.constituents = newBlock.constituents.map(c =>
-              c.code === block.code ? { ...c, color: newHex } : c
+              c.code === oldCode ? { ...c, color: newHex, code: newCode } : c
             );
           }
           updated[key] = newBlock;
@@ -328,7 +397,7 @@ export function SchedulerProvider({ children }) {
       });
       return changed ? updated : prev;
     });
-  }, [getTaskDefault]);
+  }, [getTaskDefault, userTaskDefs]);
 
   const resetDefaults = useCallback(() => {
     setUserTaskDefs({}); setUserRoleDefs({}); setUserProgramDefs({});
@@ -342,6 +411,9 @@ export function SchedulerProvider({ children }) {
       scheduleLabel, setScheduleLabel,
       extraRoles, setExtraRoles,
       columnOrder, setColumnOrder,
+      hiddenColumns,
+      hideColumn:    (id) => setHiddenColumns(prev => new Set([...prev, id])),
+      restoreColumn: (id) => setHiddenColumns(prev => { const s = new Set(prev); s.delete(id); return s; }),
       userCatDefs, setUserCatDefs,
       catOrder, setCatOrder,
       taskOrder, setTaskOrder,
@@ -352,13 +424,13 @@ export function SchedulerProvider({ children }) {
       sessionTaskDefs, setSessionTaskDefs,
       NOBLE_TASK_DEFAULTS, NOBLE_ROLE_DEFAULTS, NOBLE_PROGRAM_DEFAULTS,
       // Getters
-      getTaskDefault, getRoleConfig, getProgramPct, getDerivedValues,
+      getTaskDefault, getRoleConfig, getProgramPct, getDerivedValues, getEffectiveRoles,
       // User defaults setters
       setUserTaskDefs, setUserRoleDefs, setUserProgramDefs,
       // Actions
       loadTemplate, captureState, applyState,
-      getUserTemplates, getUserPostings, getUserDrafts,
-      saveUserTemplates, saveUserPostings, saveUserDrafts,
+      getUserTemplates, getMasterTemplates, getUserPostings, getUserDrafts,
+      saveUserTemplates, saveMasterTemplates, saveUserPostings, saveUserDrafts,
       saveDefaults, resetDefaults,
     }}>
       {children}

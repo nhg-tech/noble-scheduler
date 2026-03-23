@@ -8,9 +8,9 @@ const PANEL_SECTION = { borderBottom: '1px solid var(--gray-light)', padding: '1
 // ─── Load Schedule Panel ─────────────────────────────────────────────────────
 function LoadSchedule() {
   const {
-    loadTemplate, getUserTemplates, getUserPostings, getUserDrafts,
+    loadTemplate, getUserTemplates, getMasterTemplates, getUserPostings, getUserDrafts,
     applyState, setScheduleLabel,
-    saveUserTemplates, saveUserPostings, saveUserDrafts,
+    saveUserTemplates, saveMasterTemplates, saveUserPostings, saveUserDrafts,
     assumptions, setAssumptions,
   } = useScheduler();
 
@@ -20,9 +20,11 @@ function LoadSchedule() {
   const [postingValue, setPostingValue] = useState('');
 
   // Refresh from storage each render (small panel, acceptable)
-  const userTemplates = getUserTemplates(); // { name: state }
-  const userDrafts    = getUserDrafts();    // { name: state }
-  const userPostings  = getUserPostings();  // { name: state }
+  const masterTemplates = getMasterTemplates(); // { name: state }
+  const userTemplates   = getUserTemplates();   // { name: state }
+  const userDrafts      = getUserDrafts();      // { name: state }
+  const userPostings    = getUserPostings();    // { name: state }
+  const masterKeys   = Object.keys(masterTemplates);
   const templateKeys = Object.keys(userTemplates);
   const draftKeys    = Object.keys(userDrafts);
   const postingKeys  = Object.keys(userPostings);
@@ -37,21 +39,21 @@ function LoadSchedule() {
 
   function handleLoadTemplate() {
     if (!tplValue) return;
-    if (tplValue.startsWith('user_')) {
+    if (tplValue.startsWith('master_')) {
+      const name = tplValue.replace('master_', '');
+      const state = masterTemplates[name];
+      if (!state) return;
+      setScheduleLabel(name);
+      applyState(state);
+    } else if (tplValue.startsWith('user_')) {
       const name = tplValue.replace('user_', '');
       const state = userTemplates[name];
       if (!state) return;
       setScheduleLabel(name);
       applyState(state);
     } else {
-      // Check if user has saved an override for this built-in template
-      const builtinLabel = BUILTIN_LABELS[tplValue];
-      if (builtinLabel && userTemplates[builtinLabel]) {
-        setScheduleLabel(builtinLabel);
-        applyState(userTemplates[builtinLabel]);
-      } else {
-        loadTemplate(tplValue);
-      }
+      // Built-in Noble Template
+      loadTemplate(tplValue);
     }
   }
 
@@ -63,12 +65,20 @@ function LoadSchedule() {
   }
 
   function handleDeleteTemplate() {
-    if (!tplValue.startsWith('user_')) return;
-    const name = tplValue.replace('user_', '');
+    const isMaster = tplValue.startsWith('master_');
+    const isUser   = tplValue.startsWith('user_');
+    if (!isMaster && !isUser) return;
+    const name = tplValue.replace(/^(master_|user_)/, '');
     if (!window.confirm(`Delete template "${name}"?`)) return;
-    const updated = { ...userTemplates };
-    delete updated[name];
-    saveUserTemplates(updated);
+    if (isMaster) {
+      const updated = { ...masterTemplates };
+      delete updated[name];
+      saveMasterTemplates(updated);
+    } else {
+      const updated = { ...userTemplates };
+      delete updated[name];
+      saveUserTemplates(updated);
+    }
     setTplValue('t1');
   }
 
@@ -99,6 +109,13 @@ function LoadSchedule() {
               <option value="t2_noMR">2 SocPGs only · No MR/GM</option>
               <option value="blank">— Blank Schedule —</option>
             </optgroup>
+            {masterKeys.length > 0 && (
+              <optgroup label="— Master Templates —">
+                {masterKeys.map(name => (
+                  <option key={name} value={`master_${name}`}>{name}</option>
+                ))}
+              </optgroup>
+            )}
             {templateKeys.length > 0 && (
               <optgroup label="— My Templates —">
                 {templateKeys.map(name => (
@@ -108,7 +125,7 @@ function LoadSchedule() {
             )}
           </SelectWrap>
           <LoadBtn onClick={handleLoadTemplate}>Load Template</LoadBtn>
-          {tplValue.startsWith('user_') && (
+          {(tplValue.startsWith('master_') || tplValue.startsWith('user_')) && (
             <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
               <SmBtn onClick={handleDeleteTemplate} danger>🗑 Delete</SmBtn>
             </div>
@@ -199,7 +216,7 @@ function Assumptions() {
         cursor: 'pointer', marginBottom: open ? 8 : 4,
       }}>
         <span style={PANEL_TITLE}><span style={{ marginBottom: 0 }}>Assumptions</span></span>
-        <span style={{ fontSize: 10, color: 'var(--gray)' }}>{open ? '▾' : '▸'}</span>
+        <span style={{ fontSize: 14, color: 'var(--purple)', lineHeight: 1 }}>{open ? '▾' : '▸'}</span>
       </button>
 
       {/* Collapsed summary — both lines */}

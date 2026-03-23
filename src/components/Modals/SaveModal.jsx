@@ -11,6 +11,7 @@ import Modal, { ModalFooter, Btn } from './Modal';
  */
 export default function SaveModal({ mode, existingName, onSave, onClose }) {
   const [name, setName] = useState('');
+  const [tplType, setTplType] = useState('master'); // 'master' | 'my' — only used for template mode
 
   const titles = {
     draft: 'Save Draft',
@@ -20,13 +21,13 @@ export default function SaveModal({ mode, existingName, onSave, onClose }) {
 
   const placeholders = {
     draft: 'e.g. Thursday draft',
-    template: 'e.g. 2 soc + 2 sel standard',
+    template: tplType === 'master' ? 'e.g. Standard Weekday' : 'e.g. My custom layout',
     post: 'e.g. Thursday June 5',
   };
 
   function handleSave() {
     if (!name.trim()) return;
-    onSave(name.trim());
+    onSave(name.trim(), tplType);
   }
 
   const showOverride = mode === 'template' && existingName;
@@ -34,6 +35,32 @@ export default function SaveModal({ mode, existingName, onSave, onClose }) {
   return (
     <Modal title={titles[mode] || 'Save'} onClose={onClose} width={420}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+        {/* Template type toggle — Master vs My */}
+        {mode === 'template' && (
+          <div style={{ display: 'flex', gap: 0, borderRadius: 7, overflow: 'hidden', border: '1.5px solid var(--purple-light)' }}>
+            {[
+              { value: 'master', label: '🏢 Master Template', desc: 'Shared business template' },
+              { value: 'my',     label: '👤 My Template',     desc: 'Personal saved template' },
+            ].map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => setTplType(opt.value)}
+                style={{
+                  flex: 1, padding: '8px 10px', border: 'none', cursor: 'pointer',
+                  fontFamily: "'DM Sans', sans-serif",
+                  background: tplType === opt.value ? 'var(--purple)' : 'var(--purple-pale)',
+                  color: tplType === opt.value ? '#fff' : 'var(--purple)',
+                  transition: 'all 0.15s',
+                  textAlign: 'center',
+                }}
+              >
+                <div style={{ fontSize: 12, fontWeight: 600 }}>{opt.label}</div>
+                <div style={{ fontSize: 10, opacity: 0.75, marginTop: 1 }}>{opt.desc}</div>
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Override option */}
         {showOverride && (
@@ -44,7 +71,7 @@ export default function SaveModal({ mode, existingName, onSave, onClose }) {
                 letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 8,
               }}>Override Existing</div>
               <button
-                onClick={() => onSave(existingName)}
+                onClick={() => onSave(existingName, tplType)}
                 style={{
                   width: '100%',
                   padding: '10px 14px',

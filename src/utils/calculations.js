@@ -75,16 +75,22 @@ export function computeTaskDuration(task, derivedValues, assumptions) {
 
 /**
  * Compute full schedule summary.
+ * countingSchedule — optional subset of schedule blocks that count toward hours
+ *   (excludes breaks, optional events, etc. where countHours === false).
+ *   When omitted, all blocks in schedule count.
  */
 export function computeSummary({
   dogs, multipet, multipetCats, socpg, selpg,
-  suites, cats, bungalows, scCount, schedule,
+  suites, cats, bungalows, scCount, schedule, countingSchedule, effectiveRoles,
 }) {
-  const eligibleRoles = ROLES.filter(r => r.type === 'TM' || r.type === 'TL');
-  const hrsAvail = eligibleRoles.reduce((a, r) => a + r.hours, 0);
+  // Use effectiveRoles (from Role Config) if provided, otherwise fall back to raw ROLES
+  const rolesForHours = effectiveRoles ?? ROLES;
+  const eligibleRoles = rolesForHours.filter(r => r.type === 'TM' || r.type === 'TL');
+  const hrsAvail = eligibleRoles.reduce((a, r) => a + (r.hours ?? 0), 0);
 
+  const hrsSource = countingSchedule ?? schedule;
   let schedMins = 0;
-  Object.values(schedule).forEach(t => { schedMins += t.durationMin ?? (t.slots * 30); });
+  Object.values(hrsSource).forEach(t => { schedMins += t.durationMin ?? (t.slots * 30); });
   const schedHrs  = schedMins / 60;
   const openMins  = (hrsAvail * 60) - schedMins;
   const openSlots = Math.round(openMins / 30);

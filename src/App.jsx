@@ -19,7 +19,7 @@ import {
   freeTimeFrom,
   doMerge,
 } from './utils/scheduling';
-import { resolveBlockHex } from './data/palette';
+import { resolveBlockHex, resolveBlockText } from './data/palette';
 import { computeTaskDuration } from './utils/calculations';
 
 import Header from './components/Header/Header';
@@ -43,11 +43,11 @@ export default function App() {
     scheduleLabel,
     userTaskDefs, setUserTaskDefs,
     sessionTaskDefs, setSessionTaskDefs,
-    setExtraRoles, setColumnOrder,
+    setExtraRoles, setColumnOrder, restoreColumn,
     captureState,
     getDerivedValues,
-    getUserTemplates, getUserPostings, getUserDrafts,
-    saveUserTemplates, saveUserPostings, saveUserDrafts,
+    getUserTemplates, getMasterTemplates, getUserPostings, getUserDrafts,
+    saveUserTemplates, saveMasterTemplates, saveUserPostings, saveUserDrafts,
   } = useScheduler();
 
   // Modal state
@@ -62,8 +62,9 @@ export default function App() {
   const [showChecklist, setShowChecklist] = useState(false);
   const [showSetup, setShowSetup]         = useState(false);
 
-  // Drag overlay label
+  // Drag overlay label + meta
   const [dragLabel, setDragLabel] = useState(null);
+  const [dragMeta,  setDragMeta]  = useState(null); // { color, textColor, isBlock }
 
   // ─── Copy / Paste clipboard ───────────────────────────────────────────────
   // Stores a shallow copy of a task block so it can be pasted into any cell
@@ -90,16 +91,23 @@ export default function App() {
   // ─── Drag start ───────────────────────────────────────────────────────────
   function handleDragStart({ active }) {
     const data = active.data.current;
-    if (data?.type === 'chip') setDragLabel(data.task.code);
-    else if (data?.type === 'block') {
+    if (data?.type === 'chip') {
+      const override = userTaskDefs[data.task.id] || {};
+      const colorHex = resolveBlockHex(override.color || data.task.color);
+      setDragLabel(data.task.code);
+      setDragMeta({ color: colorHex, textColor: resolveBlockText(colorHex), isBlock: false });
+    } else if (data?.type === 'block') {
       const task = schedule[data.blockKey];
+      const colorHex = resolveBlockHex(task?.color || 'block-group');
       setDragLabel(task?.code || data.blockKey);
+      setDragMeta({ color: colorHex, textColor: resolveBlockText(colorHex), isBlock: true });
     }
   }
 
   // ─── Drag end ─────────────────────────────────────────────────────────────
   function handleDragEnd({ active, over }) {
     setDragLabel(null);
+    setDragMeta(null);
     if (!over) return;
 
     const activeData = active.data.current;
@@ -168,6 +176,7 @@ export default function App() {
         slots: Math.ceil(durationMin / 30),
         durationMin,
         notes: task.notes || task.desc || '',
+        ...(task.id ? { taskId: task.id } : {}),
       };
       setSchedule(newSchedule);
       return;
@@ -176,12 +185,40 @@ export default function App() {
     const existingTask = baseSchedule[existingKey];
     const existMergeCount = existingTask?.merged ? (existingTask.constituents?.length || 1) : 1;
     const { startMin: existStart } = keyToRoleAndMin(existingKey);
-    // Free minutes = gap between drop point and the overlapping block (0 if direct overlap)
+    const existDur = existingTask.durationMin ?? existingTask.slots * 30;
+    const existEnd = existStart + existDur;
+
+    // Determine auto-placement position and available space
+    let autoStart, availableMin;
+    if (existStart > startMin) {
+      // Existing block is ahead — new task may fit in the gap before it
+      autoStart    = startMin;
+      availableMin = existStart - startMin;
+    } else {
+      // Existing block starts at/before drop — try placing right after it
+      autoStart    = existEnd;
+      availableMin = freeTimeFrom(baseSchedule, roleId, existingKey, existEnd);
+    }
+
+    // If there's enough room, auto-place without showing the conflict modal
+    if (availableMin >= durationMin) {
+      const newSchedule = { ...baseSchedule };
+      if (sourceKey) delete newSchedule[sourceKey];
+      const key = makeKey(roleId, autoStart);
+      newSchedule[key] = {
+        name: task.name, code: task.code, color: colorHex,
+        slots: Math.ceil(durationMin / 30), durationMin,
+        notes: task.notes || task.desc || '',
+        ...(task.id ? { taskId: task.id } : {}),
+      };
+      setSchedule(newSchedule);
+      return;
+    }
+
+    // Not enough room — show conflict modal
     const freeMinutes = existStart > startMin
       ? existStart - startMin
       : freeTimeFrom(baseSchedule, roleId, existingKey, startMin);
-
-    // Always prompt on conflict — pass canMerge flag so modal can show Merge option
     setConflictState({
       baseSchedule, sourceKey, roleId, startMin, task, durationMin, colorHex,
       existingKey, existingTask, freeMinutes,
@@ -218,6 +255,7 @@ export default function App() {
         name: task.name, code: task.code, color: colorHex,
         slots: Math.ceil(fitDur / 30), durationMin: fitDur,
         notes: task.notes || task.desc || '',
+        ...(task.id ? { taskId: task.id } : {}),
       },
     });
     setConflictState(null);
@@ -234,6 +272,7 @@ export default function App() {
         slots: Math.ceil(durationMin / 30), durationMin,
         notes: task.notes || task.desc || '',
         overflow: true,
+        ...(task.id ? { taskId: task.id } : {}),
       },
     });
     setConflictState(null);
@@ -305,17 +344,18 @@ export default function App() {
   }
 
   // ─── Save handlers ────────────────────────────────────────────────────────
-  function handleSaveConfirm(name) {
+  function handleSaveConfirm(name, tplType) {
     const state = captureState();
     if (saveMode === 'draft') {
-      const existing = getUserDrafts();
-      saveUserDrafts({ ...existing, [name]: state });
+      saveUserDrafts({ ...getUserDrafts(), [name]: state });
     } else if (saveMode === 'template') {
-      const existing = getUserTemplates();
-      saveUserTemplates({ ...existing, [name]: state });
+      if (tplType === 'master') {
+        saveMasterTemplates({ ...getMasterTemplates(), [name]: state });
+      } else {
+        saveUserTemplates({ ...getUserTemplates(), [name]: state });
+      }
     } else if (saveMode === 'post') {
-      const existing = getUserPostings();
-      saveUserPostings({ ...existing, [name]: state });
+      saveUserPostings({ ...getUserPostings(), [name]: state });
     }
     setSaveMode(null);
   }
@@ -342,6 +382,12 @@ export default function App() {
       type: 'TM', shiftStart: 5, shiftEnd: 22, hours: 8, custom: true,
     }]);
     setColumnOrder(prev => [...prev, id]);
+    setShowAddColumn(false);
+  }
+
+  // Restore a session-hidden column — removes from hiddenColumns (transient state)
+  function handleRestoreColumn(roleId) {
+    restoreColumn(roleId);
     setShowAddColumn(false);
   }
 
@@ -391,15 +437,18 @@ export default function App() {
           <RightPanel onCreateCustom={() => setShowCreate(true)} />
         </div>
 
-        <DragOverlay>
-          {dragLabel && (
+        <DragOverlay dropAnimation={null}>
+          {dragLabel && dragMeta && (
             <div style={{
-              padding: '6px 12px', borderRadius: 6,
-              background: 'var(--purple)', color: '#fff',
-              fontSize: 12, fontWeight: 700,
+              padding: '5px 10px', borderRadius: 6,
+              background: dragMeta.color,
+              color: dragMeta.textColor,
+              fontSize: 11, fontWeight: 700,
               fontFamily: "'DM Mono', monospace",
-              boxShadow: '0 4px 16px rgba(62,42,126,0.3)',
-              pointerEvents: 'none', opacity: 0.9,
+              boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+              pointerEvents: 'none', opacity: 0.92,
+              letterSpacing: '0.02em',
+              whiteSpace: 'nowrap',
             }}>
               {dragLabel}
             </div>
@@ -446,6 +495,7 @@ export default function App() {
       {showAddColumn && (
         <AddColumnModal
           onSave={handleAddColumnSave}
+          onRestore={handleRestoreColumn}
           onClose={() => setShowAddColumn(false)}
         />
       )}
@@ -455,14 +505,54 @@ export default function App() {
 
 // ─── Add Column Modal ─────────────────────────────────────────────────────────
 import Modal, { ModalFooter, Btn } from './components/Modals/Modal';
-function AddColumnModal({ onSave, onClose }) {
+function AddColumnModal({ onSave, onRestore, onClose }) {
+  const { getEffectiveRoles, hiddenColumns } = useScheduler();
   const [label, setLabel] = useState('');
   const [sub, setSub]     = useState('');
+
+  // Built-in / Role Config roles that are session-hidden (can be restored)
+  const hiddenRoles = getEffectiveRoles().filter(r => hiddenColumns.has(r.id));
+
   return (
     <Modal title="Add Column" onClose={onClose}>
-      <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+        {/* Restore section — only shown when columns are hidden */}
+        {hiddenRoles.length > 0 && (
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--gray)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 8 }}>
+              Restore hidden column
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {hiddenRoles.map(r => (
+                <button
+                  key={r.id}
+                  onClick={() => onRestore(r.id)}
+                  style={{
+                    padding: '5px 10px', borderRadius: 6,
+                    border: '1.5px solid var(--purple-light)',
+                    background: 'var(--purple-pale)',
+                    cursor: 'pointer',
+                    fontFamily: "'DM Sans', sans-serif",
+                    fontSize: 12, fontWeight: 600, color: 'var(--purple)',
+                    lineHeight: 1.3,
+                    textAlign: 'left',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'var(--purple)'; e.currentTarget.style.color = '#fff'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'var(--purple-pale)'; e.currentTarget.style.color = 'var(--purple)'; }}
+                >
+                  <div>{r.label}</div>
+                  {r.sub && <div style={{ fontSize: 10, fontWeight: 400, opacity: 0.8 }}>{r.sub}</div>}
+                </button>
+              ))}
+            </div>
+            <hr style={{ border: 'none', borderTop: '1px solid var(--gray-light)', margin: '12px 0 0' }} />
+          </div>
+        )}
+
+        {/* New column form */}
         <label style={labelStyle}>
-          Column Label
+          New Column Label
           <input
             value={label} onChange={e => setLabel(e.target.value)} maxLength={12} autoFocus
             placeholder="e.g. SOC 3"

@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { useScheduler } from '../../context/SchedulerContext';
 import { TASK_LIBRARY } from '../../data/taskLibrary';
 import { ROLES } from '../../data/roles';
@@ -19,11 +19,16 @@ export default function SetupOverlay({ onClose }) {
     userTaskDefs, setUserTaskDefs,
     sessionTaskDefs, setSessionTaskDefs,
     userProgramDefs, setUserProgramDefs,
+    userRoleDefs,
     NOBLE_PROGRAM_DEFAULTS,
     saveDefaults, resetDefaults,
     getFullCatList, taskOrder, setTaskOrder,
     userCatDefs, setUserCatDefs, catOrder, setCatOrder,
+    getUserDrafts, getUserPostings, saveUserDrafts, saveUserPostings,
   } = useScheduler();
+
+  // Snapshot of role defs when overlay opened — used to detect new deletions on Save
+  const initialRoleDefs = useRef(userRoleDefs);
 
   // Custom tasks are session-only — route to sessionTaskDefs, not userTaskDefs
   function handleCreateCustom(taskData) {
@@ -188,19 +193,7 @@ export default function SetupOverlay({ onClose }) {
           justifyContent: 'space-between',
           flexShrink: 0,
         }}>
-          <button
-            onClick={resetDefaults}
-            style={{
-              padding: '8px 16px',
-              borderRadius: 7,
-              border: '1px solid var(--gray-light)',
-              background: 'none',
-              color: 'var(--gray)',
-              fontSize: 12,
-              cursor: 'pointer',
-              fontFamily: "'DM Sans', sans-serif",
-            }}
-          >Reset to defaults</button>
+          <div />
           <div style={{ display: 'flex', gap: 8 }}>
             <button
               onClick={onClose}
@@ -217,7 +210,32 @@ export default function SetupOverlay({ onClose }) {
               }}
             >Cancel</button>
             <button
-              onClick={() => { saveDefaults(); onClose(); }}
+              onClick={() => {
+                // Detect roles newly deleted during this session
+                const newlyDeleted = Object.entries(userRoleDefs)
+                  .filter(([id, def]) => def.deleted && !initialRoleDefs.current[id]?.deleted)
+                  .map(([id]) => id);
+                if (newlyDeleted.length > 0) {
+                  const update = window.confirm(
+                    `${newlyDeleted.length} role(s) were removed from the schedule.\n\nClick OK to also remove their scheduled tasks from all saved drafts and postings.\nClick Cancel to leave saved schedules unchanged.`
+                  );
+                  if (update) {
+                    const purge = (store) => Object.fromEntries(
+                      Object.entries(store).map(([name, state]) => [name, {
+                        ...state,
+                        schedule: Object.fromEntries(
+                          Object.entries(state.schedule || {})
+                            .filter(([key]) => !newlyDeleted.includes(key.split('|')[0]))
+                        ),
+                      }])
+                    );
+                    saveUserDrafts(purge(getUserDrafts()));
+                    saveUserPostings(purge(getUserPostings()));
+                  }
+                }
+                saveDefaults();
+                onClose();
+              }}
               style={{
                 padding: '8px 18px',
                 borderRadius: 7,
@@ -329,7 +347,7 @@ function ProgramMixTab({ assumptions, onAssumption, userProgramDefs, defaults, o
 const CAT_BG = { group: '#EDE8F7', suite: '#E3F2FD', meals: '#FFF8E1', fixed: '#F1F8E9', on: '#F3E5F5' };
 
 function TaskDefaultsTab({ userTaskDefs, sessionTaskDefs, onChange, onCreateCustom, onEditCustom, onDeleteCustom, onEditLibTask, onDeleteLibTask }) {
-  const { getFullCatList, taskOrder, setTaskOrder } = useScheduler();
+  const { getFullCatList, taskOrder, setTaskOrder, getTaskDefault } = useScheduler();
   const isDraggingRef = useRef(false);
   const dragIdRef     = useRef(null);
   const dragCatRef    = useRef(null);
@@ -394,6 +412,7 @@ function TaskDefaultsTab({ userTaskDefs, sessionTaskDefs, onChange, onCreateCust
             <Th>Min / Unit</Th>
             <Th>Min Res / Unit</Th>
             <Th>Color</Th>
+            <Th style={{ whiteSpace: 'nowrap' }}>Count Hrs</Th>
             <Th></Th>
           </tr>
         </thead>
@@ -402,7 +421,7 @@ function TaskDefaultsTab({ userTaskDefs, sessionTaskDefs, onChange, onCreateCust
             const tasks = getOrderedTasksForCat(cat.id);
             return [
               <tr key={`cat-${cat.id}`}>
-                <td colSpan={8} style={{
+                <td colSpan={9} style={{
                   padding: '6px 10px 3px', fontSize: 10, fontWeight: 700,
                   letterSpacing: '0.07em', textTransform: 'uppercase',
                   color: 'var(--purple)', background: CAT_BG[cat.id] || 'var(--gray-light)',
@@ -428,7 +447,7 @@ function TaskDefaultsTab({ userTaskDefs, sessionTaskDefs, onChange, onCreateCust
                       >⠿</div>
                     </Td>
                     <Td>
-                      <code style={{ fontSize: 10 }}>{task.code}</code>
+                      <code style={{ fontSize: 10 }}>{override.code ?? task.code}</code>
                       {isCustom && <span style={{ marginLeft: 5, fontSize: 9, color: 'var(--purple)', fontWeight: 700, opacity: 0.7 }}>custom</span>}
                     </Td>
                     <Td>{task.name}</Td>
@@ -454,6 +473,17 @@ function TaskDefaultsTab({ userTaskDefs, sessionTaskDefs, onChange, onCreateCust
                     </Td>
                     <Td>
                       <ColorPicker value={colorVal} onChange={hex => onChange(task.id, 'color', hex)} />
+                    </Td>
+                    <Td style={{ textAlign: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={isCustom
+                          ? (task.countHours ?? true)
+                          : getTaskDefault(task.id).countHours}
+                        onChange={e => onChange(task.id, 'countHours', e.target.checked)}
+                        title={getTaskDefault(task.id).countHours === false ? 'Excluded from hours total' : 'Counts toward hours total'}
+                        style={{ cursor: 'pointer', accentColor: 'var(--purple)', width: 14, height: 14 }}
+                      />
                     </Td>
                     <Td>
                       <div style={{ display: 'flex', gap: 4 }}>
@@ -663,40 +693,215 @@ function ColorPicker({ value, onChange }) {
   );
 }
 
+// ─── Role Config Tab helpers ──────────────────────────────────────────────────
+function decToTime(decimal) {
+  if (decimal == null || decimal === '') return '';
+  const h = Math.floor(decimal);
+  const m = Math.round((decimal - h) * 60);
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+function timeToDec(timeStr) {
+  if (!timeStr) return null;
+  const [h, m] = timeStr.split(':').map(Number);
+  return h + m / 60;
+}
+function calcShiftHours(shiftStart, shiftEnd, unpaidBreak) {
+  if (shiftStart == null || shiftEnd == null) return null;
+  let mins = (shiftEnd - shiftStart) * 60;
+  if (mins < 0) mins += 24 * 60; // overnight
+  mins -= (Number(unpaidBreak) || 0);
+  return Math.round(mins / 60 * 10) / 10;
+}
+
 // ─── Role Config Tab ─────────────────────────────────────────────────────────
 function RoleConfigTab() {
+  const {
+    userRoleDefs, setUserRoleDefs,
+    columnOrder,  setColumnOrder,
+  } = useScheduler();
+
+  // Build display list: built-in roles (with overrides) + custom roles
+  const displayRoles = useMemo(() => {
+    const builtIn = ROLES.map(r => {
+      const over   = userRoleDefs[r.id] || {};
+      const sStart = over.shiftStart  ?? r.shiftStart;
+      const sEnd   = over.shiftEnd    ?? r.shiftEnd;
+      const uBreak = over.unpaidBreak ?? (r.unpaidBreak ?? 0);
+      return {
+        id: r.id, type: r.type, isCustom: false,
+        label:       over.label ?? r.label,
+        sub:         over.sub   ?? r.sub,
+        shiftStart:  sStart,
+        shiftEnd:    sEnd,
+        unpaidBreak: uBreak,
+        hours:       calcShiftHours(sStart, sEnd, uBreak),
+        deleted:     over.deleted ?? false,
+      };
+    });
+    const custom = Object.entries(userRoleDefs)
+      .filter(([, def]) => def.custom)
+      .map(([id, def]) => ({
+        id, isCustom: true, type: 'TM',
+        label:       def.label       || '',
+        sub:         def.sub         || '',
+        shiftStart:  def.shiftStart  ?? 9,
+        shiftEnd:    def.shiftEnd    ?? 17,
+        unpaidBreak: def.unpaidBreak ?? 30,
+        hours:       calcShiftHours(def.shiftStart ?? 9, def.shiftEnd ?? 17, def.unpaidBreak ?? 30),
+        deleted:     def.deleted ?? false,
+      }));
+    return [...builtIn, ...custom];
+  }, [userRoleDefs]);
+
+  function updateField(id, field, value) {
+    setUserRoleDefs(prev => {
+      const cur = prev[id] || {};
+      const updated = { ...cur, [field]: value };
+      // Auto-recalc hours when shift times or break change
+      if (['shiftStart', 'shiftEnd', 'unpaidBreak'].includes(field)) {
+        const sStart = field === 'shiftStart' ? value : (cur.shiftStart ?? ROLES.find(r=>r.id===id)?.shiftStart ?? 9);
+        const sEnd   = field === 'shiftEnd'   ? value : (cur.shiftEnd   ?? ROLES.find(r=>r.id===id)?.shiftEnd   ?? 17);
+        const uBreak = field === 'unpaidBreak'? value : (cur.unpaidBreak?? ROLES.find(r=>r.id===id)?.unpaidBreak ?? 0);
+        updated.hours = calcShiftHours(sStart, sEnd, uBreak);
+      }
+      return { ...prev, [id]: updated };
+    });
+  }
+
+  function toggleDelete(id) {
+    setUserRoleDefs(prev => {
+      const cur = prev[id] || {};
+      return { ...prev, [id]: { ...cur, deleted: !cur.deleted } };
+    });
+  }
+
+  function addRole() {
+    const id   = `role_${Date.now()}`;
+    const sS   = 9, sE = 17, uB = 30;
+    setUserRoleDefs(prev => ({
+      ...prev,
+      [id]: {
+        label: 'New Role', sub: '', type: 'TM',
+        shiftStart: sS, shiftEnd: sE, unpaidBreak: uB,
+        hours: calcShiftHours(sS, sE, uB),
+        custom: true, deleted: false,
+      },
+    }));
+    setColumnOrder(prev => [...prev, id]);
+  }
+
+  const cellSt = { ...inputStyle, padding: '4px 6px', fontSize: 12 };
+
   return (
     <div>
       <p style={{ fontSize: 12, color: 'var(--gray)', marginTop: 0 }}>
-        Role shift times are set by management. Contact your GM to change role configurations.
+        Edit role labels, shift times, and unpaid breaks. Hours auto-calculate. Deleted roles are hidden from the schedule grid.
       </p>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-        <thead>
-          <tr style={{ background: 'var(--gray-light)' }}>
-            <Th>Role</Th>
-            <Th>Type</Th>
-            <Th>Shift Start</Th>
-            <Th>Shift End</Th>
-            <Th>Hours</Th>
-          </tr>
-        </thead>
-        <tbody>
-          {ROLES.map(role => (
-            <tr key={role.id} style={{ borderBottom: '1px solid var(--gray-light)' }}>
-              <Td><strong>{role.label}</strong> — {role.sub}</Td>
-              <Td>{role.type}</Td>
-              <Td style={{ fontFamily: "'DM Mono', monospace" }}>{role.shiftStart}:00</Td>
-              <Td style={{ fontFamily: "'DM Mono', monospace" }}>{role.shiftEnd}:00</Td>
-              <Td style={{ fontFamily: "'DM Mono', monospace" }}>{role.hours}h</Td>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 700 }}>
+          <thead>
+            <tr style={{ background: 'var(--gray-light)' }}>
+              <Th>Label</Th>
+              <Th>Sub-text</Th>
+              <Th>Shift Start</Th>
+              <Th>Shift End</Th>
+              <Th style={{ whiteSpace: 'nowrap' }}>Unpaid Brk (min)</Th>
+              <Th>Hours</Th>
+              <Th>Status</Th>
+              <Th></Th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {displayRoles.map(role => (
+              <tr
+                key={role.id}
+                style={{
+                  borderBottom: '1px solid var(--gray-light)',
+                  opacity:      role.deleted ? 0.55 : 1,
+                }}
+              >
+                <Td>
+                  <input
+                    value={role.label}
+                    disabled={role.deleted}
+                    onChange={e => updateField(role.id, 'label', e.target.value)}
+                    style={{ ...cellSt, width: 90 }}
+                  />
+                </Td>
+                <Td>
+                  <input
+                    value={role.sub}
+                    disabled={role.deleted}
+                    onChange={e => updateField(role.id, 'sub', e.target.value)}
+                    style={{ ...cellSt, width: 80 }}
+                  />
+                </Td>
+                <Td>
+                  <input
+                    type="time"
+                    value={decToTime(role.shiftStart)}
+                    disabled={role.deleted}
+                    onChange={e => updateField(role.id, 'shiftStart', timeToDec(e.target.value))}
+                    style={{ ...cellSt, width: 100 }}
+                  />
+                </Td>
+                <Td>
+                  <input
+                    type="time"
+                    value={decToTime(role.shiftEnd)}
+                    disabled={role.deleted}
+                    onChange={e => updateField(role.id, 'shiftEnd', timeToDec(e.target.value))}
+                    style={{ ...cellSt, width: 100 }}
+                  />
+                </Td>
+                <Td>
+                  <input
+                    type="number" min={0} step={5}
+                    value={role.unpaidBreak}
+                    disabled={role.deleted}
+                    onChange={e => updateField(role.id, 'unpaidBreak', Number(e.target.value) || 0)}
+                    style={{ ...cellSt, width: 60 }}
+                  />
+                </Td>
+                <Td>
+                  <span style={{ fontFamily: "'DM Mono', monospace", color: 'var(--gray)', fontSize: 12 }}>
+                    {role.hours != null ? `${role.hours}h` : '—'}
+                  </span>
+                </Td>
+                <Td>
+                  {role.deleted
+                    ? <span style={{ fontSize: 10, color: 'var(--red)', fontWeight: 700, letterSpacing: '0.04em' }}>DELETED</span>
+                    : <span style={{ fontSize: 10, color: '#4CAF50', fontWeight: 700, letterSpacing: '0.04em' }}>ACTIVE</span>
+                  }
+                </Td>
+                <Td>
+                  <button
+                    onClick={() => toggleDelete(role.id)}
+                    style={{ ...actionBtnStyle, fontSize: 11, padding: '3px 8px', color: role.deleted ? 'var(--purple)' : 'var(--red)' }}
+                  >
+                    {role.deleted ? 'Restore' : 'Delete'}
+                  </button>
+                </Td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ marginTop: 14 }}>
+        <button
+          onClick={addRole}
+          style={{
+            padding: '8px 16px', borderRadius: 7, border: '1.5px dashed var(--purple-light)',
+            background: 'transparent', color: 'var(--purple)', fontSize: 12,
+            fontWeight: 600, fontFamily: "'DM Sans', sans-serif", cursor: 'pointer',
+          }}
+        >+ Add Role</button>
+      </div>
     </div>
   );
 }
 
-function Th({ children }) {
+function Th({ children, style }) {
   return (
     <th style={{
       padding: '6px 10px',
@@ -706,6 +911,7 @@ function Th({ children }) {
       letterSpacing: '0.06em',
       textTransform: 'uppercase',
       color: 'var(--gray)',
+      ...style,
     }}>{children}</th>
   );
 }
@@ -720,7 +926,7 @@ function Td({ children, style }) {
 
 // ─── Edit Library Task Modal ──────────────────────────────────────────────────
 function EditLibTaskModal({ task, override, onChange, onClose }) {
-  const { getFullCatList } = useScheduler();
+  const { getFullCatList, getTaskDefault } = useScheduler();
   const catOptions = getFullCatList().filter(c => !c.deleted).map(c => ({ value: c.id, label: c.label }));
 
   const [local, setLocal] = useState({
@@ -733,6 +939,7 @@ function EditLibTaskModal({ task, override, onChange, onClose }) {
     code:              override.code             ?? task.code,
     name:              override.name             ?? task.name,
     expectedInstances: override.expectedInstances ?? task.expectedInstances ?? 1,
+    countHours:        getTaskDefault(task.id).countHours,
   });
 
   const isCustom = !!task.custom;
@@ -744,8 +951,9 @@ function EditLibTaskModal({ task, override, onChange, onClose }) {
     onChange(task.id, 'cat',               local.cat);
     onChange(task.id, 'desc',              local.desc || undefined);
     onChange(task.id, 'expectedInstances', local.expectedInstances !== '' ? Number(local.expectedInstances) : undefined);
+    onChange(task.id, 'countHours',        local.countHours);
+    onChange(task.id, 'code', local.code.trim() || task.code);
     if (isCustom) {
-      onChange(task.id, 'code', local.code.trim() || task.code);
       onChange(task.id, 'name', local.name.trim() || task.name);
     }
     onClose();
@@ -755,14 +963,11 @@ function EditLibTaskModal({ task, override, onChange, onClose }) {
     <Modal title={`Edit: ${task.name}`} onClose={onClose} width={420}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-        {/* Code + Name — editable for custom tasks, read-only for library tasks */}
+        {/* Code + Name */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div>
             <label style={editLabelStyle}>Code</label>
-            {isCustom
-              ? <input value={local.code} maxLength={12} onChange={e => setLocal(p => ({ ...p, code: e.target.value }))} style={editInputStyle} />
-              : <div style={{ ...editInputStyle, background: 'var(--gray-light)', color: 'var(--gray)', cursor: 'default' }}>{task.code}</div>
-            }
+            <input value={local.code} maxLength={12} onChange={e => setLocal(p => ({ ...p, code: e.target.value }))} style={editInputStyle} />
           </div>
           <div>
             <label style={editLabelStyle}>Category</label>
@@ -825,6 +1030,22 @@ function EditLibTaskModal({ task, override, onChange, onClose }) {
             style={{ ...editInputStyle, resize: 'vertical', fontFamily: "'DM Sans', sans-serif" }}
           />
         </div>
+
+        {/* Count toward hours toggle */}
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={local.countHours}
+            onChange={e => setLocal(p => ({ ...p, countHours: e.target.checked }))}
+            style={{ width: 15, height: 15, cursor: 'pointer', accentColor: 'var(--purple)' }}
+          />
+          <span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--dark)' }}>Count toward scheduled hours</span>
+            <span style={{ display: 'block', fontSize: 11, color: 'var(--gray)', marginTop: 1 }}>
+              Uncheck for unpaid breaks, optional events, etc.
+            </span>
+          </span>
+        </label>
 
         <div>
           <label style={editLabelStyle}>Color</label>

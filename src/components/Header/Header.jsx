@@ -25,7 +25,14 @@ export default function Header({ onSetup, onSaveDraft, onSaveTemplate, onPostSch
           <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 20, fontWeight: 600, letterSpacing: '0.02em' }}>
             Noble Task Scheduler
           </div>
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 1 }}>Noble Pet Resort · SeaTac, WA</div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 1, display: 'flex', alignItems: 'center', gap: 6 }}>
+            Noble Pet Resort · SeaTac, WA
+            <span style={{
+              fontSize: 9, fontFamily: "'DM Mono', monospace", fontWeight: 600,
+              background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.5)',
+              borderRadius: 3, padding: '1px 5px', letterSpacing: '0.04em',
+            }}>v0.4.0</span>
+          </div>
         </div>
       </div>
 

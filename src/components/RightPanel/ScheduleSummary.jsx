@@ -2,17 +2,42 @@ import { useMemo } from 'react';
 import { useScheduler } from '../../context/SchedulerContext';
 import { computeSummary } from '../../utils/calculations';
 import { formatMin } from '../../utils/scheduling';
+import { TASK_LIBRARY } from '../../data/taskLibrary';
+
+function fmtDelta(mins) {
+  const sign = mins >= 0 ? '+' : '-';
+  const abs  = Math.abs(Math.round(mins));
+  const h    = Math.floor(abs / 60);
+  const m    = abs % 60;
+  if (h === 0) return `${sign}${m}m`;
+  if (m === 0) return `${sign}${h}h`;
+  return `${sign}${h}h ${m}m`;
+}
 
 export default function ScheduleSummary() {
-  const { schedule, assumptions, getDerivedValues, getProgramPct } = useScheduler();
+  const { schedule, assumptions, getDerivedValues, getProgramPct, getTaskDefault, getEffectiveRoles, columnOrder } = useScheduler();
   const { suites, cats, bungalows, scCount } = getDerivedValues();
   const { socpg, selpg, dogs } = assumptions;
   const { multipet, multipetCats } = getProgramPct();
+  // Only count hours for roles currently visible (in columnOrder)
+  const effectiveRoles = getEffectiveRoles().filter(r => columnOrder.includes(r.id));
+
+  // Subset of schedule blocks that count toward hours (excludes breaks, optional events, etc.)
+  const countingSchedule = useMemo(() => {
+    const out = {};
+    Object.entries(schedule).forEach(([key, block]) => {
+      const libTask = TASK_LIBRARY.find(t => t.code === block.code);
+      if (!libTask) { out[key] = block; return; } // unknown tasks count by default
+      const def = getTaskDefault(libTask.id);
+      if (def.countHours !== false) out[key] = block;
+    });
+    return out;
+  }, [schedule, getTaskDefault]);
 
   const summary = useMemo(() => computeSummary({
     dogs, multipet, multipetCats, socpg, selpg,
-    suites, cats, bungalows, scCount, schedule,
-  }), [schedule, assumptions, suites, cats, bungalows, scCount]);
+    suites, cats, bungalows, scCount, schedule, countingSchedule, effectiveRoles,
+  }), [schedule, countingSchedule, assumptions, suites, cats, bungalows, scCount, effectiveRoles]);
 
   const deltaColor = summary.delta < 0 ? '#FF5252' : summary.delta > 60 ? '#4CAF50' : 'var(--gold-dark)';
 
@@ -37,25 +62,12 @@ export default function ScheduleSummary() {
       <Row label="Est. time required" value={`${summary.reqHrs.toFixed(1)}h`} />
       <Row
         label="Delta"
-        value={`${summary.delta >= 0 ? '+' : ''}${Math.round(summary.delta)}m`}
+        value={fmtDelta(summary.delta)}
         valueColor={deltaColor}
         bold
       />
 
-      {summary.missing.length > 0 && (
-        <div style={{
-          marginTop: 8,
-          padding: '6px 8px',
-          background: 'rgba(255,82,82,0.08)',
-          borderRadius: 6,
-          border: '1px solid rgba(255,82,82,0.2)',
-        }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: '#FF5252', marginBottom: 3 }}>Missing</div>
-          {summary.missing.map(code => (
-            <div key={code} style={{ fontSize: 11, color: '#FF5252' }}>• {code}</div>
-          ))}
-        </div>
-      )}
+      {/* Missing box hidden — to be revisited */}
     </div>
   );
 }

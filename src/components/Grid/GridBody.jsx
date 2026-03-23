@@ -1,23 +1,25 @@
 import { useMemo, useState } from 'react';
-import { ROLES, TIME_SLOTS } from '../../data/roles';
+import { TIME_SLOTS } from '../../data/roles';
 import { inShift, slotStartMin, keyToRoleAndMin } from '../../utils/scheduling';
 import { formatMin } from '../../utils/scheduling';
 import GridCell from './GridCell';
 import TaskBlock from './TaskBlock';
 import GridHeader from './GridHeader';
 import { useScheduler } from '../../context/SchedulerContext';
+import { TASK_LIBRARY } from '../../data/taskLibrary';
 
 const TIME_COL_W = 52;
 const ROLE_COL_W = 120;
 const SLOT_H = 44;
 
 export default function GridBody({ schedule, onEdit, onRemove, onSplit, onResize, onCopy, onPasteAt, hasClipboard, onCreateHere, onAddColumn }) {
-  const { extraRoles, columnOrder } = useScheduler();
-  const allRolesBase = [...ROLES, ...extraRoles];
-  const allRoles = [
-    ...columnOrder.map(id => allRolesBase.find(r => r.id === id)).filter(Boolean),
-    ...allRolesBase.filter(r => !columnOrder.includes(r.id)),
-  ];
+  const { extraRoles, columnOrder, getEffectiveRoles, userTaskDefs, hiddenColumns } = useScheduler();
+  const allRolesBase = [...getEffectiveRoles(), ...extraRoles];
+  // Only render columns in columnOrder that are not session-hidden
+  const allRoles = columnOrder
+    .map(id => allRolesBase.find(r => r.id === id))
+    .filter(Boolean)
+    .filter(r => !hiddenColumns.has(r.id));
   // contextMenu: { type:'block', x, y, blockKey } | { type:'cell', x, y, roleId, slotMin }
   const [contextMenu, setContextMenu] = useState(null);
 
@@ -27,12 +29,18 @@ export default function GridBody({ schedule, onEdit, onRemove, onSplit, onResize
     allRoles.forEach(r => { map[r.id] = []; });
     Object.entries(schedule).forEach(([blockKey, task]) => {
       const { roleId, startMin } = keyToRoleAndMin(blockKey);
-      if (map[roleId]) {
-        map[roleId].push({ blockKey, task, startMin });
-      }
+      if (!map[roleId]) return;
+      // Resolve display code from userTaskDefs — use stored taskId, fall back to TASK_LIBRARY lookup by code
+      const libTask = task.taskId
+        ? TASK_LIBRARY.find(t => t.id === task.taskId)
+        : TASK_LIBRARY.find(t => t.code === task.code);
+      const override = libTask ? (userTaskDefs[libTask.id] || {}) : {};
+      const resolvedCode = override.code ?? task.code;
+      const resolvedTask = resolvedCode !== task.code ? { ...task, code: resolvedCode } : task;
+      map[roleId].push({ blockKey, task: resolvedTask, startMin });
     });
     return map;
-  }, [schedule, allRoles]);
+  }, [schedule, allRoles, userTaskDefs]);
 
   function handleBlockContextMenu(e, blockKey) {
     e.preventDefault();
@@ -160,6 +168,9 @@ export default function GridBody({ schedule, onEdit, onRemove, onSplit, onResize
           </div>
         );
       })}
+
+        {/* 32px spacer matches the + button width in GridHeader to keep columns aligned */}
+        <div style={{ width: 32, minWidth: 32, flexShrink: 0 }} />
 
       </div>{/* end grid rows */}
 

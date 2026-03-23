@@ -246,7 +246,7 @@ function TaskChip({ task, schedule, socpg, selpg, scCount, userTaskDefs, totalRo
           whiteSpace: 'nowrap',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
-        }}>{task.code}</div>
+        }}>{override?.code || task.code}</div>
         <div style={{
           fontSize: 9,
           opacity: 0.8,

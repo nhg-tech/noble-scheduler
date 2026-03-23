@@ -5,6 +5,13 @@ import { keyToRoleAndMin } from '../../utils/scheduling';
 
 const SLOT_H = 44;
 
+function fmtDuration(mins) {
+  if (mins < 60) return `${mins}m`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+}
+
 export default function TaskBlock({ blockKey, task, slotMin, onEdit, onRemove, onSplit, onResize }) {
   const { startMin } = keyToRoleAndMin(blockKey);
 
@@ -20,9 +27,10 @@ export default function TaskBlock({ blockKey, task, slotMin, onEdit, onRemove, o
     data: { type: 'block-over', blockKey, roleId, startMin: blockStartMin },
   });
 
-  const resizeRef      = useRef(null);
-  const startYRef      = useRef(null);
-  const origDurRef     = useRef(null);
+  const resizeRef       = useRef(null);
+  const startYRef       = useRef(null);
+  const origDurRef      = useRef(null);
+  const durationLabelRef = useRef(null);
 
   // Color resolution
   const effectiveColor = task.color || 'block-group';
@@ -45,20 +53,22 @@ export default function TaskBlock({ blockKey, task, slotMin, onEdit, onRemove, o
     startYRef.current  = e.clientY;
     origDurRef.current = durationMin;
 
+    function calcSnapped(ev) {
+      const dy         = ev.clientY - startYRef.current;
+      const rawNewMins = origDurRef.current + dy / (SLOT_H / 30);
+      return Math.max(5, Math.round(rawNewMins / 5) * 5);
+    }
+
     function onMove(ev) {
-      const dy      = ev.clientY - startYRef.current;
-      const addMins = Math.round(dy / (SLOT_H / 30) / 5) * 5;
-      const newMins = Math.max(10, origDurRef.current + addMins);
+      const newMins = calcSnapped(ev);
       if (resizeRef.current) resizeRef.current.style.height = `${Math.round((newMins / 30) * SLOT_H) - 2}px`;
+      if (durationLabelRef.current) durationLabelRef.current.textContent = fmtDuration(newMins);
     }
 
     function onUp(ev) {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
-      const dy      = ev.clientY - startYRef.current;
-      const addMins = Math.round(dy / (SLOT_H / 30) / 5) * 5;
-      const newMins = Math.max(10, origDurRef.current + addMins);
-      onResize(blockKey, newMins);
+      onResize(blockKey, calcSnapped(ev));
     }
 
     document.addEventListener('mousemove', onMove);
@@ -96,6 +106,12 @@ export default function TaskBlock({ blockKey, task, slotMin, onEdit, onRemove, o
     </div>
   );
 
+  const durLabel = task.merged ? null : (
+    <div ref={durationLabelRef} style={{ fontSize: 9, fontFamily: "'DM Mono', monospace", opacity: 0.65, lineHeight: 1.2 }}>
+      {fmtDuration(durationMin)}
+    </div>
+  );
+
   return (
     <div
       ref={(node) => { setDragRef(node); setDropRef(node); resizeRef.current = node; }}
@@ -125,6 +141,7 @@ export default function TaskBlock({ blockKey, task, slotMin, onEdit, onRemove, o
     >
       {colorBar}
       {codeLabel}
+      {durLabel}
       {/* Overflow indicator */}
       {task.overflow && (
         <div style={{ position: 'absolute', top: 2, left: 3, width: 6, height: 6,

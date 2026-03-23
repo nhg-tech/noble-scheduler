@@ -1,5 +1,4 @@
 import { useState, useRef } from 'react'; // useState kept for dragRoleId
-import { ROLES } from '../../data/roles';
 import { formatShiftTime, keyToRoleAndMin } from '../../utils/scheduling';
 import { useScheduler } from '../../context/SchedulerContext';
 
@@ -12,17 +11,28 @@ function arrayMove(arr, from, to) {
   return next;
 }
 
+// Compact shift-time formatter: 6.5 → "6:30a", 15.0 → "3p", 21.0 → "9p"
+function fmtShift(decimal) {
+  const total  = ((decimal % 24) + 24) % 24;
+  const h24    = Math.floor(total);
+  const m      = Math.round((total - h24) * 60);
+  const suffix = h24 < 12 ? 'a' : 'p';
+  const h12    = h24 % 12 || 12;
+  return m === 0 ? `${h12}${suffix}` : `${h12}:${String(m).padStart(2, '0')}${suffix}`;
+}
+
 export default function GridHeader({ onAddColumn }) {
-  const { schedule, extraRoles, setExtraRoles, columnOrder, setColumnOrder } = useScheduler();
+  const { schedule, extraRoles, setExtraRoles, columnOrder, setColumnOrder, getEffectiveRoles, hiddenColumns, hideColumn } = useScheduler();
   const [dragRoleId, setDragRoleId] = useState(null);
   const isDraggingRef  = useRef(false);
   const dragIdRef      = useRef(null);
 
-  const allRolesBase = [...ROLES, ...extraRoles];
-  const orderedRoles = [
-    ...columnOrder.map(id => allRolesBase.find(r => r.id === id)).filter(Boolean),
-    ...allRolesBase.filter(r => !columnOrder.includes(r.id)),
-  ];
+  const allRolesBase = [...getEffectiveRoles(), ...extraRoles];
+  // Only show roles in columnOrder that are not session-hidden
+  const orderedRoles = columnOrder
+    .map(id => allRolesBase.find(r => r.id === id))
+    .filter(Boolean)
+    .filter(r => !hiddenColumns.has(r.id));
 
   function getRoleRange(roleId) {
     let minStart = Infinity, maxEnd = -Infinity;
@@ -67,10 +77,16 @@ export default function GridHeader({ onAddColumn }) {
     });
   }
 
-  // ── Remove extra columns ─────────────────────────────────────────────────
-  function handleRemoveRole(id) {
-    setExtraRoles(prev => prev.filter(r => r.id !== id));
-    setColumnOrder(prev => prev.filter(x => x !== id));
+  // ── Hide any column from the current schedule view (session-only) ─────────
+  // Built-in/Role Config columns: add to hiddenColumns (transient, resets on reload).
+  // Quick-add extraRoles: purge entirely (they have no other home).
+  function handleHideColumn(id) {
+    if (extraRoles.some(r => r.id === id)) {
+      setColumnOrder(prev => prev.filter(x => x !== id));
+      setExtraRoles(prev => prev.filter(r => r.id !== id));
+    } else {
+      hideColumn(id);
+    }
   }
 
   return (
@@ -107,18 +123,18 @@ export default function GridHeader({ onAddColumn }) {
               userSelect: 'none',
             }}
           >
-            {/* Drag grip */}
+            {/* Drag grip — slightly darker so it's discoverable */}
             <div
               onPointerDown={e => handleGripPointerDown(e, role.id)}
               title="Drag to reorder"
               style={{
                 position: 'absolute', top: 3, left: 3,
                 cursor: isDragging ? 'grabbing' : 'grab',
-                color: 'var(--gray-light)',
+                color: '#b0adc8',
                 fontSize: 11, lineHeight: 1, padding: '1px 2px', borderRadius: 3,
               }}
               onMouseEnter={e => e.currentTarget.style.color = 'var(--purple)'}
-              onMouseLeave={e => e.currentTarget.style.color = 'var(--gray-light)'}
+              onMouseLeave={e => e.currentTarget.style.color = '#b0adc8'}
             >⠿</div>
 
             <div style={{
@@ -128,6 +144,19 @@ export default function GridHeader({ onAddColumn }) {
 
             <div style={{ fontSize: 10, color: 'var(--gray)', marginTop: 1 }}>{role.sub}</div>
 
+            {/* Shift window + hours from Role Config */}
+            {(role.shiftStart != null && role.shiftEnd != null) && (
+              <div style={{ fontSize: 10, color: 'var(--gray)', marginTop: 1 }}>
+                {fmtShift(role.shiftStart)}–{fmtShift(role.shiftEnd)}
+                {role.hours != null && (
+                  <span style={{ marginLeft: 3, opacity: 0.75 }}>
+                    / {role.hours % 1 === 0 ? role.hours : role.hours}h
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Purple dot-line: actual task span on this schedule */}
             <div style={{
               fontSize: 9, marginTop: 1,
               fontFamily: "'DM Mono', monospace",
@@ -138,20 +167,19 @@ export default function GridHeader({ onAddColumn }) {
                 : '–'}
             </div>
 
-            {role.custom && (
-              <button
-                onClick={() => handleRemoveRole(role.id)}
-                title="Remove column"
-                style={{
-                  position: 'absolute', top: 3, right: 3,
-                  background: 'none', border: 'none', cursor: 'pointer',
-                  fontSize: 9, color: 'var(--gray)', padding: '1px 3px',
-                  lineHeight: 1, borderRadius: 3,
-                }}
-                onMouseEnter={e => e.currentTarget.style.color = '#FF5252'}
-                onMouseLeave={e => e.currentTarget.style.color = 'var(--gray)'}
-              >✕</button>
-            )}
+            {/* ✕ shown on every column — hides from this schedule only */}
+            <button
+              onClick={() => handleHideColumn(role.id)}
+              title={extraRoles.some(r => r.id === role.id) ? 'Remove column' : 'Hide column from this schedule'}
+              style={{
+                position: 'absolute', top: 3, right: 3,
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 9, color: '#b0adc8', padding: '1px 3px',
+                lineHeight: 1, borderRadius: 3,
+              }}
+              onMouseEnter={e => e.currentTarget.style.color = '#FF5252'}
+              onMouseLeave={e => e.currentTarget.style.color = '#b0adc8'}
+            >✕</button>
           </div>
         );
       })}
