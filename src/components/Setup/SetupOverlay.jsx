@@ -542,7 +542,18 @@ function TaskDefaultsTab({ userTaskDefs, sessionTaskDefs, onChange, onCreateCust
                       <code style={{ fontSize: 10 }}>{override.code ?? task.code}</code>
                       {isCustom && <span style={{ marginLeft: 5, fontSize: 9, color: 'var(--purple)', fontWeight: 700, opacity: 0.7 }}>custom</span>}
                     </Td>
-                    <Td>{task.name}</Td>
+                    <Td>
+                      <input
+                        type="text"
+                        value={override.name ?? task.name}
+                        onChange={e => onChange(task.id, 'name', e.target.value)}
+                        onBlur={e => {
+                          const trimmed = e.target.value.trim();
+                          onChange(task.id, 'name', trimmed || task.name);
+                        }}
+                        style={{ ...inputStyle, width: '100%', minWidth: 120, padding: '3px 6px', fontSize: 11 }}
+                      />
+                    </Td>
                     <Td style={{ color: 'var(--gray)', fontSize: 11 }}>{task.unitBasis || '—'}</Td>
                     <Td>
                       <input type="number" min={1} step={isCustom ? 1 : 0.5}
@@ -556,11 +567,7 @@ function TaskDefaultsTab({ userTaskDefs, sessionTaskDefs, onChange, onCreateCust
                         value={minRes ?? ''}
                         placeholder="—"
                         onChange={e => onChange(task.id, 'minResources', e.target.value ? Number(e.target.value) : undefined)}
-                        style={{
-                          ...inputStyle, width: 60, padding: '3px 6px', fontSize: 11,
-                          borderColor: minRes != null ? 'var(--gold-dark)' : 'var(--gray-light)',
-                          background:  minRes != null ? 'var(--gold-light)' : '#fff',
-                        }}
+                        style={{ ...inputStyle, width: 60, padding: '3px 6px', fontSize: 11 }}
                       />
                     </Td>
                     <Td>
