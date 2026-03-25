@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useScheduler } from '../../context/SchedulerContext';
 
 const PANEL_TITLE = { fontFamily: "'Cormorant Garamond', serif", fontSize: 13, fontWeight: 600,
@@ -29,6 +29,14 @@ function LoadSchedule() {
   const templateKeys = Object.keys(userTemplates);
   const draftKeys    = Object.keys(userDrafts);
   const postingKeys  = Object.keys(userPostings);
+
+  // Auto-select first item when lists populate (e.g. after API hydration)
+  useEffect(() => {
+    if (!draftValue && draftKeys.length > 0) setDraftValue(draftKeys[0]);
+  }, [draftKeys.length]); // eslint-disable-line
+  useEffect(() => {
+    if (!postingValue && postingKeys.length > 0) setPostingValue(postingKeys[0]);
+  }, [postingKeys.length]); // eslint-disable-line
 
   const BUILTIN_LABELS = {
     t1:      'Template 1 — 2 SocPGs + 2 SelPGs (GM+MR)',

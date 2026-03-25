@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useCallback } from 'react';
+import { useState, useRef, useMemo, useCallback, useEffect } from 'react';
 import { useScheduler } from '../../context/SchedulerContext';
 import { TASK_LIBRARY } from '../../data/taskLibrary';
 import { ROLES } from '../../data/roles';
@@ -30,6 +30,15 @@ export default function SetupOverlay({ onClose }) {
   // Snapshot of role defs when overlay opened — used to detect new deletions on Save
   const initialRoleDefs = useRef(userRoleDefs);
   const importInputRef  = useRef(null);
+
+  // Close on Escape key
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (e.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   // ── Export all Setup data as a JSON backup file ───────────────────────────
   function handleExportSetup() {
@@ -133,21 +142,26 @@ export default function SetupOverlay({ onClose }) {
 
   return (
     <>
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 400,
-      background: 'rgba(26,26,46,0.6)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-    }}>
-      <div style={{
-        background: '#fff',
-        borderRadius: 14,
-        boxShadow: '0 12px 60px rgba(62,42,126,0.2)',
-        width: 780,
-        maxWidth: '96vw',
-        maxHeight: '90vh',
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 400,
+        background: 'rgba(26,26,46,0.6)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: '#fff',
+          borderRadius: 14,
+          boxShadow: '0 12px 60px rgba(62,42,126,0.2)',
+          width: 780,
+          maxWidth: '96vw',
+          maxHeight: '90vh',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
       }}>
         {/* Header */}
         <div style={{

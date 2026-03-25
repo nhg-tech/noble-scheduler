@@ -18,6 +18,7 @@ const LS_COL_ORDER   = 'noble_column_order';
 const LS_CAT_DEFS    = 'noble_cat_defs';    // { [catId]: { label?, deleted?, custom?, color? } }
 const LS_CAT_ORDER   = 'noble_cat_order';   // [catId, ...]
 const LS_TASK_ORDER  = 'noble_task_order';  // { [catId]: [taskId, ...] }
+const LS_SESSION     = 'noble_session_state'; // { schedule, assumptions } — auto-saved on every change
 
 const NOBLE_PROGRAM_DEFAULTS = { social: 65, select: 20, pf: 15, cats: 20, multipet: 15, multipetCats: 15 };
 
@@ -55,15 +56,16 @@ function saveLS(key, val) {
 const SchedulerContext = createContext(null);
 
 export function SchedulerProvider({ children }) {
-  const [schedule,       setSchedule]       = useState({});
-  const [assumptions,    setAssumptions]    = useState({
+  const [schedule,       setSchedule]       = useState(() => loadLS(LS_SESSION, null)?.schedule ?? {});
+  const [assumptions,    setAssumptions]    = useState(() => ({
     dogs: 65, socpg: 2, selpg: 2,
     roomsActual: null, roomsUserEdited: false,
     scActual: null, scUserEdited: false,
     catsActual: null, catsUserEdited: false,
     catRoomsActual: null, catRoomsUserEdited: false,
     date: new Date().toISOString().split('T')[0],
-  });
+    ...(loadLS(LS_SESSION, null)?.assumptions ?? {}),
+  }));
   const [userTaskDefs,   setUserTaskDefs]   = useState(() => loadLS(LS_TASKS, {}));
   const [userRoleDefs,   setUserRoleDefs]   = useState(() => loadLS(LS_ROLES, {}));
   const [userProgramDefs,setUserProgramDefs]= useState(() => loadLS(LS_PROGRAMS, {}));
@@ -99,11 +101,13 @@ export function SchedulerProvider({ children }) {
   useEffect(() => { saveLS(LS_ROLES,       userRoleDefs);    }, [userRoleDefs]);
   useEffect(() => { saveLS(LS_PROGRAMS,    userProgramDefs); }, [userProgramDefs]);
   useEffect(() => { saveLS(LS_EXTRA_ROLES, extraRoles);      }, [extraRoles]);
-  // columnOrder is saved explicitly on save actions only — NOT auto-saved, so
-  // hiding a column is session-only until the user explicitly saves the schedule.
+  useEffect(() => { saveLS(LS_COL_ORDER,   columnOrder);     }, [columnOrder]);
   useEffect(() => { saveLS(LS_CAT_DEFS,    userCatDefs);     }, [userCatDefs]);
   useEffect(() => { saveLS(LS_CAT_ORDER,   catOrder);        }, [catOrder]);
   useEffect(() => { saveLS(LS_TASK_ORDER,  taskOrder);       }, [taskOrder]);
+
+  // Auto-save current schedule + assumptions so they survive page reloads
+  useEffect(() => { saveLS(LS_SESSION, { schedule, assumptions }); }, [schedule, assumptions]);
 
   // ─── API hydration on mount ───────────────────────────────────────────────
   // Fetch all data from API and update state (API wins over localStorage cache)
@@ -388,14 +392,17 @@ export function SchedulerProvider({ children }) {
 
   // ─── Capture / apply state ────────────────────────────────────────────────
   const captureState = useCallback(
-    () => ({ schedule, assumptions, sessionTaskDefs }),
-    [schedule, assumptions, sessionTaskDefs]
+    () => ({ schedule, assumptions, sessionTaskDefs, columnOrder, extraRoles }),
+    [schedule, assumptions, sessionTaskDefs, columnOrder, extraRoles]
   );
 
   const applyState = useCallback((state) => {
-    if (state.schedule)         setSchedule(state.schedule);
-    if (state.assumptions)      setAssumptions(a => ({ ...a, ...state.assumptions }));
+    if (state.schedule)                                  setSchedule(state.schedule);
+    if (state.assumptions)                               setAssumptions(a => ({ ...a, ...state.assumptions }));
     setSessionTaskDefs(state.sessionTaskDefs || {});
+    if (Array.isArray(state.extraRoles))                 setExtraRoles(state.extraRoles);
+    if (Array.isArray(state.columnOrder) && state.columnOrder.length > 0)
+      setColumnOrder(state.columnOrder);
   }, []);
 
   // ─── Template / schedule getters (read from state — already API-hydrated) ──

@@ -160,7 +160,7 @@ export default function GridHeader({ onAddColumn }) {
             <div style={{
               fontSize: 9, marginTop: 1,
               fontFamily: "'DM Mono', monospace",
-              color: range ? 'var(--purple)' : 'var(--gray-light)',
+              color: range ? 'var(--purple)' : 'var(--gray)',
             }}>
               {range
                 ? `${formatShiftTime(range.startMin / 60)}–${formatShiftTime(range.endMin / 60)}`
