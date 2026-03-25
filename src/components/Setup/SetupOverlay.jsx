@@ -21,7 +21,7 @@ export default function SetupOverlay({ onClose }) {
     userProgramDefs, setUserProgramDefs,
     userRoleDefs,
     NOBLE_PROGRAM_DEFAULTS,
-    saveDefaults, resetDefaults,
+    saveDefaults, resetDefaults, persistDefaultsToApi,
     getFullCatList, taskOrder, setTaskOrder,
     userCatDefs, setUserCatDefs, catOrder, setCatOrder,
     getUserDrafts, getUserPostings, saveUserDrafts, saveUserPostings,
@@ -326,6 +326,7 @@ export default function SetupOverlay({ onClose }) {
                   }
                 }
                 saveDefaults();
+                persistDefaultsToApi(userTaskDefs, userRoleDefs, userProgramDefs, userCatDefs, catOrder, taskOrder);
                 onClose();
               }}
               style={{
