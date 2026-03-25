@@ -63,12 +63,12 @@ export function computeTaskDuration(task, derivedValues, assumptions) {
   const ub = task.unitBasis || '';
   const um = task.unitMin || (task.slots || 1) * 30;
 
-  if (ub.startsWith('per suite/bungalow'))  return Math.max(30, um * (suites + bungalows));
-  if (ub.startsWith('per suite (max 60)'))  return Math.max(30, Math.min(um * suites, 60));
-  if (ub.startsWith('per suite'))           return Math.max(30, um * suites);
-  if (ub.startsWith('per bungalow'))        return Math.max(30, um * Math.round(bungalows * 0.75));
-  if (ub.startsWith('per SocPG'))           return Math.max(30, um * Math.max(1, socpg));
-  if (ub.startsWith('per SelPG'))           return Math.max(30, um * Math.max(1, selpg));
+  if (ub.startsWith('per suite/bungalow'))  return um * (suites + bungalows);
+  if (ub.startsWith('per suite (max 60)'))  return Math.min(um * suites, 60);
+  if (ub.startsWith('per suite'))           return um * suites;
+  if (ub.startsWith('per bungalow'))        return um * Math.round(bungalows * 0.75);
+  if (ub.startsWith('per SocPG'))           return um * Math.max(1, socpg);
+  if (ub.startsWith('per SelPG'))           return um * Math.max(1, selpg);
   // fixed, per group, per play area, per employee, per shift block, custom — use unitMin
   return um;
 }
