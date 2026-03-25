@@ -539,21 +539,14 @@ function TaskDefaultsTab({ userTaskDefs, sessionTaskDefs, onChange, onCreateCust
                       >⠿</div>
                     </Td>
                     <Td>
-                      <code style={{ fontSize: 10 }}>{override.code ?? task.code}</code>
+                      <code style={{
+                        fontSize: 10,
+                        whiteSpace: (override.code ?? task.code).length <= 10 ? 'nowrap' : 'normal',
+                        wordBreak: 'break-all',
+                      }}>{override.code ?? task.code}</code>
                       {isCustom && <span style={{ marginLeft: 5, fontSize: 9, color: 'var(--purple)', fontWeight: 700, opacity: 0.7 }}>custom</span>}
                     </Td>
-                    <Td>
-                      <input
-                        type="text"
-                        value={override.name ?? task.name}
-                        onChange={e => onChange(task.id, 'name', e.target.value)}
-                        onBlur={e => {
-                          const trimmed = e.target.value.trim();
-                          onChange(task.id, 'name', trimmed || task.name);
-                        }}
-                        style={{ ...inputStyle, width: '100%', minWidth: 120, padding: '3px 6px', fontSize: 11 }}
-                      />
-                    </Td>
+                    <Td>{override.name ?? task.name}</Td>
                     <Td style={{ color: 'var(--gray)', fontSize: 11 }}>{task.unitBasis || '—'}</Td>
                     <Td>
                       <input type="number" min={1} step={isCustom ? 1 : 0.5}
@@ -1052,9 +1045,7 @@ function EditLibTaskModal({ task, override, onChange, onClose }) {
     onChange(task.id, 'expectedInstances', local.expectedInstances !== '' ? Number(local.expectedInstances) : undefined);
     onChange(task.id, 'countHours',        local.countHours);
     onChange(task.id, 'code', local.code.trim() || task.code);
-    if (isCustom) {
-      onChange(task.id, 'name', local.name.trim() || task.name);
-    }
+    onChange(task.id, 'name', local.name.trim() || task.name);
     onClose();
   }
 
@@ -1080,12 +1071,10 @@ function EditLibTaskModal({ task, override, onChange, onClose }) {
           </div>
         </div>
 
-        {isCustom && (
-          <div>
-            <label style={editLabelStyle}>Full Name</label>
-            <input value={local.name} onChange={e => setLocal(p => ({ ...p, name: e.target.value }))} style={editInputStyle} />
-          </div>
-        )}
+        <div>
+          <label style={editLabelStyle}>Full Name</label>
+          <input value={local.name} onChange={e => setLocal(p => ({ ...p, name: e.target.value }))} style={editInputStyle} />
+        </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div>
