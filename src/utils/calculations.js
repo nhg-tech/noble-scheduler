@@ -38,11 +38,15 @@ export function countTaskInSchedule(schedule, code) {
 
 /**
  * Get scheduling status for a task chip.
- * allRoleCount — optional total employee column count for dynamic 'roles'/99 resolution.
+ * allRoleCount  — optional total employee column count for dynamic 'roles'/99 resolution.
+ * userTaskDefs  — optional user overrides; when supplied, minResources overrides expectedInstances.
  */
-export function getSchedulingStatus(task, schedule, socpg, selpg, scCount, allRoleCount) {
-  const scheduled = countTaskInSchedule(schedule, task.code);
-  const expected  = getExpectedInstances(task, socpg, selpg, scCount, allRoleCount);
+export function getSchedulingStatus(task, schedule, socpg, selpg, scCount, allRoleCount, userTaskDefs) {
+  const scheduled     = countTaskInSchedule(schedule, task.code);
+  const expectedLib   = getExpectedInstances(task, socpg, selpg, scCount, allRoleCount);
+  const override      = userTaskDefs?.[task.id];
+  const overrideMin   = override?.minResources === 99 ? allRoleCount : override?.minResources;
+  const expected      = overrideMin != null ? overrideMin : expectedLib;
   return {
     scheduled,
     expected,

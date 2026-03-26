@@ -111,7 +111,7 @@ export default function TaskLibrary({ onCreateCustom }) {
           const allTasks = getOrderedTasksForCat(cat.id);
           const visibleTasks = filter === 'pending'
             ? allTasks.filter(t => {
-                const { done } = getSchedulingStatus(t, schedule, socpg, selpg, scCount, totalRoleCount);
+                const { done } = getSchedulingStatus(t, schedule, socpg, selpg, scCount, totalRoleCount, userTaskDefs);
                 return !done;
               })
             : allTasks;
@@ -194,11 +194,8 @@ function TaskChip({ task, schedule, socpg, selpg, scCount, userTaskDefs, totalRo
     data: { type: 'chip', task },
   });
 
-  const { scheduled, expected: expectedDefault, done, partial } = getSchedulingStatus(task, schedule, socpg, selpg, scCount, totalRoleCount);
+  const { scheduled, expected, done, partial } = getSchedulingStatus(task, schedule, socpg, selpg, scCount, totalRoleCount, userTaskDefs);
   const override = userTaskDefs[task.id];
-  // minResources=99 is a sentinel meaning "one per employee column"
-  const overrideMin = override?.minResources === 99 ? totalRoleCount : override?.minResources;
-  const expected = overrideMin != null ? overrideMin : expectedDefault;
   // Chip color uses the user's Task Defaults override color if set, otherwise the library default
   const bgHex = resolveBlockHex(override?.color || task.color);
   const textCol = resolveBlockText(bgHex);

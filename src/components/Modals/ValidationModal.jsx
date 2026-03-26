@@ -6,14 +6,14 @@ import { keyToRoleAndMin, formatMin } from '../../utils/scheduling';
 import { ROLES } from '../../data/roles';
 
 export default function ValidationModal({ onClose }) {
-  const { schedule, assumptions, getDerivedValues } = useScheduler();
+  const { schedule, assumptions, getDerivedValues, userTaskDefs } = useScheduler();
   const { scCount } = getDerivedValues();
   const { socpg, selpg } = assumptions;
 
   // Check 1: Missing or under-scheduled tasks
   const taskIssues = TASK_LIBRARY
     .map(task => {
-      const { scheduled, expected, done } = getSchedulingStatus(task, schedule, socpg, selpg, scCount);
+      const { scheduled, expected, done } = getSchedulingStatus(task, schedule, socpg, selpg, scCount, undefined, userTaskDefs);
       if (!done) return { task, scheduled, expected };
       return null;
     })
