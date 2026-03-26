@@ -189,7 +189,7 @@ function LoadSchedule() {
 
 // ─── Assumptions Panel ───────────────────────────────────────────────────────
 function Assumptions() {
-  const { assumptions, setAssumptions, getProgramPct } = useScheduler();
+  const { assumptions, setAssumptions, getProgramPct, getEffectiveRoles } = useScheduler();
   const pct = getProgramPct();
   const [open, setOpen] = useState(true);
 
@@ -203,10 +203,12 @@ function Assumptions() {
   const estCats  = Math.round(dogs * pct.cats / 100);
   const estBung  = Math.max(1, Math.round(estCats / (1 + pct.multipetCats / 100)));
 
-  const rooms = assumptions.roomsUserEdited ? assumptions.roomsActual : estRooms;
-  const scs   = assumptions.scUserEdited    ? assumptions.scActual    : estSC;
-  const cats  = assumptions.catsUserEdited  ? assumptions.catsActual  : estCats;
-  const bungs = assumptions.catRoomsUserEdited ? assumptions.catRoomsActual : estBung;
+  const rooms      = assumptions.roomsUserEdited    ? assumptions.roomsActual    : estRooms;
+  const scs        = assumptions.scUserEdited       ? assumptions.scActual       : estSC;
+  const cats       = assumptions.catsUserEdited     ? assumptions.catsActual     : estCats;
+  const bungs      = assumptions.catRoomsUserEdited ? assumptions.catRoomsActual : estBung;
+  const totalRooms = rooms + bungs;
+  const employees  = getEffectiveRoles().length;
 
   return (
     <div style={{ ...PANEL_SECTION, flex: 1 }}>
@@ -288,6 +290,18 @@ function Assumptions() {
                 update('catRoomsActual', isNaN(v) ? null : v);
                 update('catRoomsUserEdited', !isNaN(v) && v !== estBung);
               }} />
+          </InputRow>
+        </div>
+
+        {/* Read-only derived totals */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginTop: 6 }}>
+          <InputRow label="Total Rooms">
+            <Inp type="number" value={totalRooms} readOnly
+              style={{ background: 'var(--gray-light)', color: 'var(--gray)', cursor: 'default' }} />
+          </InputRow>
+          <InputRow label="# Employees">
+            <Inp type="number" value={employees} readOnly
+              style={{ background: 'var(--gray-light)', color: 'var(--gray)', cursor: 'default' }} />
           </InputRow>
         </div>
       </>}

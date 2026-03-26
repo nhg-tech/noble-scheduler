@@ -12,7 +12,7 @@ export default function TaskLibrary({ onCreateCustom }) {
   const [expanded, setExpanded] = useState({});
   const { schedule, assumptions, getDerivedValues, userTaskDefs, sessionTaskDefs,
           extraRoles, getFullCatList, taskOrder } = useScheduler();
-  const { scCount } = getDerivedValues();
+  const { scCount, totalRooms } = getDerivedValues();
   const { socpg, selpg } = assumptions;
 
   // Total employee columns = built-in TM/TL/PAW roles + any extra columns added by user

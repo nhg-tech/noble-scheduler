@@ -263,7 +263,8 @@ export function SchedulerProvider({ children }) {
       ? (assumptions.scActual ?? estSC)
       : estSC;
 
-    return { suites, cats, bungalows, scCount, estRooms, estCats, estBung, estSC, pct };
+    const totalRooms = suites + bungalows;
+    return { suites, cats, bungalows, scCount, totalRooms, estRooms, estCats, estBung, estSC, pct };
   }, [assumptions, getProgramPct]);
 
   // ─── Load template ────────────────────────────────────────────────────────

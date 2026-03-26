@@ -60,21 +60,40 @@ export function getSchedulingStatus(task, schedule, socpg, selpg, scCount, allRo
  * unitBasis and the current derived values / assumptions.
  * Returns unitMin directly for fixed or per-instance tasks.
  */
+// Canonical Unit Basis labels — used in task library, SetupOverlay dropdown, and here.
+export const UNIT_BASIS_OPTIONS = [
+  'Fixed',
+  'Total Dogs',
+  'Dog Rooms',
+  '# SocPGs',
+  '# SelPGs',
+  '# SCs',
+  'Cats',
+  'Cat Rooms',
+  'Total Rooms',
+  'Per Employee',
+];
+
 export function computeTaskDuration(task, derivedValues, assumptions) {
-  const { suites = 0, bungalows = 0 } = derivedValues || {};
+  const { suites = 0, bungalows = 0, scCount = 0, cats = 0, totalRooms = 0 } = derivedValues || {};
   const socpg = assumptions?.socpg || 0;
   const selpg = assumptions?.selpg || 0;
-  const ub = task.unitBasis || '';
-  const um = task.unitMin || (task.slots || 1) * 30;
+  const dogs  = assumptions?.dogs  || 0;
+  const ub    = task.unitBasis || '';
+  const um    = task.unitMin || (task.slots || 1) * 30;
 
-  if (ub.startsWith('per suite/bungalow'))  return um * (suites + bungalows);
-  if (ub.startsWith('per suite (max 60)'))  return Math.min(um * suites, 60);
-  if (ub.startsWith('per suite'))           return um * suites;
-  if (ub.startsWith('per bungalow'))        return um * Math.round(bungalows * 0.75);
-  if (ub.startsWith('per SocPG'))           return um * Math.max(1, socpg);
-  if (ub.startsWith('per SelPG'))           return um * Math.max(1, selpg);
-  // fixed, per group, per play area, per employee, per shift block, custom — use unitMin
-  return um;
+  switch (ub) {
+    case 'Total Dogs':   return um * dogs;
+    case 'Dog Rooms':    return um * suites;
+    case '# SocPGs':     return um * Math.max(1, socpg);
+    case '# SelPGs':     return um * Math.max(1, selpg);
+    case '# SCs':        return um * scCount;
+    case 'Cats':         return um * cats;
+    case 'Cat Rooms':    return um * bungalows;
+    case 'Total Rooms':  return um * totalRooms;
+    case 'Per Employee': return um;   // fixed per drop; chip counter uses employee count
+    default:             return um;   // 'Fixed' + any unrecognised legacy values
+  }
 }
 
 /**

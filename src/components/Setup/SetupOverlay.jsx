@@ -3,7 +3,7 @@ import { useScheduler } from '../../context/SchedulerContext';
 import { TASK_LIBRARY } from '../../data/taskLibrary';
 import { ROLES } from '../../data/roles';
 import { NOBLE_PALETTE, resolveBlockHex } from '../../data/palette';
-import { getExpectedInstances } from '../../utils/calculations';
+import { getExpectedInstances, UNIT_BASIS_OPTIONS } from '../../utils/calculations';
 import CreateTaskModal from '../Modals/CreateTaskModal';
 import Modal, { ModalFooter, Btn } from '../Modals/Modal';
 
@@ -1025,6 +1025,7 @@ function EditLibTaskModal({ task, override, onChange, onClose }) {
   const [local, setLocal] = useState({
     durationMin:       override.durationMin     ?? task.unitMin,
     minResources:      override.minResources     ?? '',
+    unitBasis:         override.unitBasis        ?? task.unitBasis ?? 'Fixed',
     color:             override.color            || task.color,
     cat:               override.cat              || task.cat,
     desc:              override.desc             ?? (task.desc || ''),
@@ -1040,6 +1041,7 @@ function EditLibTaskModal({ task, override, onChange, onClose }) {
   function handleSave() {
     onChange(task.id, 'durationMin',       Number(local.durationMin));
     onChange(task.id, 'minResources',      local.minResources !== '' ? Number(local.minResources) : undefined);
+    onChange(task.id, 'unitBasis',         local.unitBasis);
     onChange(task.id, 'color',             local.color);
     onChange(task.id, 'cat',               local.cat);
     onChange(task.id, 'desc',              local.desc || undefined);
@@ -1075,6 +1077,19 @@ function EditLibTaskModal({ task, override, onChange, onClose }) {
         <div>
           <label style={editLabelStyle}>Full Name</label>
           <input value={local.name} onChange={e => setLocal(p => ({ ...p, name: e.target.value }))} style={editInputStyle} />
+        </div>
+
+        <div style={{ marginBottom: 2 }}>
+          <label style={editLabelStyle}>Unit Basis</label>
+          <select
+            value={local.unitBasis}
+            onChange={e => setLocal(p => ({ ...p, unitBasis: e.target.value }))}
+            style={editInputStyle}
+          >
+            {UNIT_BASIS_OPTIONS.map(opt => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
