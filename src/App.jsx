@@ -320,14 +320,18 @@ export default function App() {
       });
     } else {
       // Time-based split at splitAt minutes from start
-      const totalDur = task.durationMin ?? task.slots * 30;
+      const totalDur  = task.durationMin ?? task.slots * 30;
       const firstDur  = splitAt;
       const secondDur = totalDur - splitAt;
       const key1 = makeKey(roleId, startMin);
       newSchedule[key1] = {
         ...task, durationMin: firstDur, slots: Math.ceil(firstDur / 30),
       };
-      const key2 = makeKey(roleId, startMin + firstDur);
+      // Use findNextFreeMinute so the second piece doesn't blindly overwrite
+      // an existing block (e.g. a task placed after the original overflow block)
+      const naturalSplit = startMin + firstDur;
+      const freeStart    = findNextFreeMinute(newSchedule, roleId, naturalSplit, secondDur) ?? naturalSplit;
+      const key2 = makeKey(roleId, freeStart);
       newSchedule[key2] = {
         ...task, durationMin: secondDur, slots: Math.ceil(secondDur / 30),
       };
