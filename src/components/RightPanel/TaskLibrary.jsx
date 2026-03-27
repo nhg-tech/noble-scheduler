@@ -11,7 +11,7 @@ export default function TaskLibrary({ onCreateCustom }) {
   // undefined entries treated as true — so any new/future category is expanded by default
   const [expanded, setExpanded] = useState({});
   const { schedule, assumptions, getDerivedValues, userTaskDefs, sessionTaskDefs,
-          extraRoles, getFullCatList, taskOrder } = useScheduler();
+          extraRoles, getFullCatList, taskOrder, skippedTasks, toggleSkipTask } = useScheduler();
   const { scCount, totalRooms } = getDerivedValues();
   const { socpg, selpg } = assumptions;
 
@@ -81,7 +81,7 @@ export default function TaskLibrary({ onCreateCustom }) {
           >{activeCats.some(c => expanded[c.id] === false) ? '⊞' : '⊟'}</button>
         </div>
         <div style={{ display: 'flex', gap: 4 }}>
-          {['pending', 'all'].map(f => (
+          {['pending', 'all', 'skipped'].map(f => (
             <button
               key={f}
               onClick={() => setFilter(f)}
@@ -99,7 +99,7 @@ export default function TaskLibrary({ onCreateCustom }) {
                 transition: 'all 0.15s',
               }}
             >
-              {f === 'pending' ? 'Pending' : 'All Tasks'}
+              {f === 'pending' ? 'Pending' : f === 'all' ? 'All Tasks' : 'Skipped'}
             </button>
           ))}
         </div>
@@ -111,9 +111,12 @@ export default function TaskLibrary({ onCreateCustom }) {
           const allTasks = getOrderedTasksForCat(cat.id);
           const visibleTasks = filter === 'pending'
             ? allTasks.filter(t => {
+                if (skippedTasks.has(t.id)) return false;
                 const { done } = getSchedulingStatus(t, schedule, socpg, selpg, scCount, totalRoleCount, userTaskDefs);
                 return !done;
               })
+            : filter === 'skipped'
+            ? allTasks.filter(t => skippedTasks.has(t.id))
             : allTasks;
 
           if (visibleTasks.length === 0) return null;
@@ -154,6 +157,9 @@ export default function TaskLibrary({ onCreateCustom }) {
                   scCount={scCount}
                   userTaskDefs={userTaskDefs}
                   totalRoleCount={totalRoleCount}
+                  filter={filter}
+                  skippedTasks={skippedTasks}
+                  toggleSkipTask={toggleSkipTask}
                 />
               ))}
             </div>
@@ -188,7 +194,7 @@ export default function TaskLibrary({ onCreateCustom }) {
   );
 }
 
-function TaskChip({ task, schedule, socpg, selpg, scCount, userTaskDefs, totalRoleCount }) {
+function TaskChip({ task, schedule, socpg, selpg, scCount, userTaskDefs, totalRoleCount, filter, skippedTasks, toggleSkipTask }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `chip:${task.id}`,
     data: { type: 'chip', task },
@@ -260,6 +266,27 @@ function TaskChip({ task, schedule, socpg, selpg, scCount, userTaskDefs, totalRo
       }}>
         {scheduled}/{expected}
       </div>
+      {filter !== 'skipped' ? (
+        <button
+          onClick={e => { e.stopPropagation(); toggleSkipTask(task.id); }}
+          title="Mark as Not Needed"
+          style={{
+            marginLeft: 'auto', background: 'none', border: 'none',
+            cursor: 'pointer', color: 'inherit', opacity: 0.6,
+            fontSize: 13, padding: '0 2px', lineHeight: 1,
+          }}
+        >✕</button>
+      ) : (
+        <button
+          onClick={e => { e.stopPropagation(); toggleSkipTask(task.id); }}
+          title="Mark as Needed"
+          style={{
+            marginLeft: 'auto', background: 'none', border: 'none',
+            cursor: 'pointer', color: 'inherit', opacity: 0.6,
+            fontSize: 11, padding: '0 2px', lineHeight: 1,
+          }}
+        >↩</button>
+      )}
     </div>
   );
 }

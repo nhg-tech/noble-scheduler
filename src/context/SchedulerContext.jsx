@@ -89,6 +89,10 @@ export function SchedulerProvider({ children }) {
   const [taskOrder,      setTaskOrder]      = useState(() => loadLS(LS_TASK_ORDER, {}));
   // Session-only custom tasks — not persisted to localStorage; saved/restored with schedule drafts/templates
   const [sessionTaskDefs, setSessionTaskDefs] = useState({});
+  const [skippedTasks, setSkippedTasks] = useState(() => {
+    const arr = loadLS(LS_SESSION, null)?.skippedTasks ?? [];
+    return new Set(arr);
+  });
 
   // In-memory stores for templates / schedules (populated from API on mount)
   const [masterTemplatesData, setMasterTemplatesData] = useState(() => loadLS(LS_MASTER_TEMPLATES, {}));
@@ -107,7 +111,7 @@ export function SchedulerProvider({ children }) {
   useEffect(() => { saveLS(LS_TASK_ORDER,  taskOrder);       }, [taskOrder]);
 
   // Auto-save current schedule + assumptions so they survive page reloads
-  useEffect(() => { saveLS(LS_SESSION, { schedule, assumptions }); }, [schedule, assumptions]);
+  useEffect(() => { saveLS(LS_SESSION, { schedule, assumptions, skippedTasks: [...skippedTasks] }); }, [schedule, assumptions, skippedTasks]);
 
   // ─── API hydration on mount ───────────────────────────────────────────────
   // Fetch all data from API and update state (API wins over localStorage cache)
@@ -204,12 +208,13 @@ export function SchedulerProvider({ children }) {
         const over = userRoleDefs[r.id] || {};
         return {
           ...r,
-          label:       over.label       ?? r.label,
-          sub:         over.sub         ?? r.sub,
-          shiftStart:  over.shiftStart  ?? r.shiftStart,
-          shiftEnd:    over.shiftEnd    ?? r.shiftEnd,
-          unpaidBreak: over.unpaidBreak ?? (r.unpaidBreak ?? 0),
-          hours:       over.hours       ?? r.hours,
+          label:        over.label        ?? r.label,
+          sub:          over.sub          ?? r.sub,
+          shiftStart:   over.shiftStart   ?? r.shiftStart,
+          shiftEnd:     over.shiftEnd     ?? r.shiftEnd,
+          unpaidBreak:  over.unpaidBreak  ?? (r.unpaidBreak ?? 0),
+          hours:        over.hours        ?? r.hours,
+          includeInHrs: over.includeInHrs ?? (r.type === 'TM' || r.type === 'TL'),
         };
       });
     // Custom roles added via Role Config
@@ -217,14 +222,15 @@ export function SchedulerProvider({ children }) {
       .filter(([, def]) => def.custom && !def.deleted)
       .map(([id, def]) => ({
         id,
-        label:       def.label       || id,
-        sub:         def.sub         || '',
-        type:        def.type        || 'TM',
-        shiftStart:  def.shiftStart  ?? 9,
-        shiftEnd:    def.shiftEnd    ?? 17,
-        unpaidBreak: def.unpaidBreak ?? 30,
-        hours:       def.hours       ?? 7.5,
-        custom:      true,
+        label:        def.label        || id,
+        sub:          def.sub          || '',
+        type:         def.type         || 'TM',
+        shiftStart:   def.shiftStart   ?? 9,
+        shiftEnd:     def.shiftEnd     ?? 17,
+        unpaidBreak:  def.unpaidBreak  ?? 30,
+        hours:        def.hours        ?? 7.5,
+        custom:       true,
+        includeInHrs: def.includeInHrs ?? true,
       }));
     return [...builtIn, ...custom];
   }, [userRoleDefs]);
@@ -393,8 +399,8 @@ export function SchedulerProvider({ children }) {
 
   // ─── Capture / apply state ────────────────────────────────────────────────
   const captureState = useCallback(
-    () => ({ schedule, assumptions, sessionTaskDefs, columnOrder, extraRoles }),
-    [schedule, assumptions, sessionTaskDefs, columnOrder, extraRoles]
+    () => ({ schedule, assumptions, sessionTaskDefs, columnOrder, extraRoles, skippedTasks: [...skippedTasks] }),
+    [schedule, assumptions, sessionTaskDefs, columnOrder, extraRoles, skippedTasks]
   );
 
   const applyState = useCallback((state) => {
@@ -404,6 +410,15 @@ export function SchedulerProvider({ children }) {
     if (Array.isArray(state.extraRoles))                 setExtraRoles(state.extraRoles);
     if (Array.isArray(state.columnOrder) && state.columnOrder.length > 0)
       setColumnOrder(state.columnOrder);
+    setSkippedTasks(new Set(Array.isArray(state.skippedTasks) ? state.skippedTasks : []));
+  }, []);
+
+  const toggleSkipTask = useCallback((taskId) => {
+    setSkippedTasks(prev => {
+      const next = new Set(prev);
+      if (next.has(taskId)) next.delete(taskId); else next.add(taskId);
+      return next;
+    });
   }, []);
 
   // ─── Template / schedule getters (read from state — already API-hydrated) ──
@@ -578,6 +593,8 @@ export function SchedulerProvider({ children }) {
       getTaskDefault, getRoleConfig, getProgramPct, getDerivedValues, getEffectiveRoles,
       // User defaults setters
       setUserTaskDefs, setUserRoleDefs, setUserProgramDefs,
+      // Skipped tasks
+      skippedTasks, toggleSkipTask,
       // Actions
       loadTemplate, captureState, applyState,
       getUserTemplates, getMasterTemplates, getUserPostings, getUserDrafts,

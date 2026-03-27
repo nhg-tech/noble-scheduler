@@ -105,10 +105,11 @@ export function computeTaskDuration(task, derivedValues, assumptions) {
 export function computeSummary({
   dogs, multipet, multipetCats, socpg, selpg,
   suites, cats, bungalows, scCount, schedule, countingSchedule, effectiveRoles,
+  taskLibrary, userTaskDefs, sessionTaskDefs, skippedTasks, roleCount, derivedValues, assumptions,
 }) {
   // Use effectiveRoles (from Role Config) if provided, otherwise fall back to raw ROLES
   const rolesForHours = effectiveRoles ?? ROLES;
-  const eligibleRoles = rolesForHours.filter(r => r.type === 'TM' || r.type === 'TL');
+  const eligibleRoles = rolesForHours.filter(r => r.includeInHrs !== false && (r.type === 'TM' || r.type === 'TL'));
   const hrsAvail = eligibleRoles.reduce((a, r) => a + (r.hours ?? 0), 0);
 
   const hrsSource = countingSchedule ?? schedule;
@@ -118,30 +119,31 @@ export function computeSummary({
   const openMins  = (hrsAvail * 60) - schedMins;
   const openSlots = Math.round(openMins / 30);
 
-  // Time required estimate
-  const brftDin  = suites * 3 * 2;
-  const lun      = Math.min(suites * 1, 60);
-  const hk       = suites * 3;
-  const pfSuites = Math.round(scCount * (1 - multipet / 100));
-  const sc1sc4   = pfSuites * 5 * 2;
-  const sc2sc3   = pfSuites * 15 * 2;
-  const cats_t   = Math.round(bungalows * 0.75) * 10;
-  const socPb    = socpg * 20 * 2;
-  const selPb    = selpg * 15 * 2;
-  const fixed    = 30 + 60 + 60 + 60 + 30 + 30;
-  const socPg    = socpg * 150 * 2;
-  const selPg    = selpg * 60 * 2;
-  const tuck     = suites * 2;
-  const reqMins  = brftDin + lun + hk + sc1sc4 + sc2sc3 + cats_t + socPb + selPb + fixed + socPg + selPg + tuck;
-  const reqHrs   = reqMins / 60;
+  // Est. time required — driven by task library
+  let reqMins = 0;
+  if (taskLibrary) {
+    const allTasks = [
+      ...taskLibrary,
+      ...Object.values(sessionTaskDefs || {}),
+    ];
+    allTasks.forEach(task => {
+      if (skippedTasks?.has(task.id)) return;
+      const override = userTaskDefs?.[task.id] || {};
+      if (override.hidden) return;
+      // Resolve effective unit min (custom tasks use durationMin)
+      const effectiveUnitMin   = override.durationMin ?? task.durationMin ?? task.unitMin;
+      const effectiveUnitBasis = override.unitBasis   ?? task.unitBasis   ?? 'Fixed';
+      const mergedTask = { ...task, unitMin: effectiveUnitMin, unitBasis: effectiveUnitBasis };
+      const duration     = computeTaskDuration(mergedTask, derivedValues, assumptions);
+      const instancesLib = getExpectedInstances(task, assumptions?.socpg, assumptions?.selpg, derivedValues?.scCount ?? scCount, roleCount ?? 0);
+      const overrideMin  = override.minResources === 99 ? (roleCount ?? 0) : override.minResources;
+      const instances    = overrideMin != null ? overrideMin : instancesLib;
+      if (duration > 0 && instances > 0) reqMins += duration * instances;
+    });
+  }
+  const reqHrs = reqMins / 60;
 
   const delta = schedMins - reqMins;
-
-  const missing = ['SC4', 'MB'].filter(code =>
-    !Object.values(schedule).some(t =>
-      t.code === code || (t.code && t.code.startsWith(code))
-    )
-  );
 
   return {
     hrsAvail,
@@ -152,7 +154,7 @@ export function computeSummary({
     reqHrs,
     reqMins,
     delta,
-    missing,
+    missing: [],
     taskCount: Object.values(schedule).length,
   };
 }

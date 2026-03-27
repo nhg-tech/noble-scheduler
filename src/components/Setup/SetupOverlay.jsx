@@ -829,6 +829,7 @@ function RoleConfigTab() {
         unpaidBreak: uBreak,
         hours:       calcShiftHours(sStart, sEnd, uBreak),
         deleted:     over.deleted ?? false,
+        includeInHrs: over.includeInHrs ?? (r.type === 'TM' || r.type === 'TL'),
       };
     });
     const custom = Object.entries(userRoleDefs)
@@ -842,6 +843,7 @@ function RoleConfigTab() {
         unpaidBreak: def.unpaidBreak ?? 30,
         hours:       calcShiftHours(def.shiftStart ?? 9, def.shiftEnd ?? 17, def.unpaidBreak ?? 30),
         deleted:     def.deleted ?? false,
+        includeInHrs: def.includeInHrs ?? true,
       }));
     return [...builtIn, ...custom];
   }, [userRoleDefs]);
@@ -888,7 +890,7 @@ function RoleConfigTab() {
   return (
     <div>
       <p style={{ fontSize: 12, color: 'var(--gray)', marginTop: 0 }}>
-        Edit role labels, shift times, and unpaid breaks. Hours auto-calculate. Deleted roles are hidden from the schedule grid.
+        Edit role labels, shift times, and unpaid breaks. Hours auto-calculate. &ldquo;In Hrs&rdquo; controls whether a role counts toward Hours Available and Hours Scheduled in the Schedule Summary. Deleted roles are hidden from the schedule grid.
       </p>
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 700 }}>
@@ -900,6 +902,7 @@ function RoleConfigTab() {
               <Th>Shift End</Th>
               <Th style={{ whiteSpace: 'nowrap' }}>Unpaid Brk (min)</Th>
               <Th>Hours</Th>
+              <Th style={{ whiteSpace: 'nowrap' }}>In Hrs</Th>
               <Th>Status</Th>
               <Th></Th>
             </tr>
@@ -960,6 +963,15 @@ function RoleConfigTab() {
                   <span style={{ fontFamily: "'DM Mono', monospace", color: 'var(--gray)', fontSize: 12 }}>
                     {role.hours != null ? `${role.hours}h` : '—'}
                   </span>
+                </Td>
+                <Td style={{ textAlign: 'center' }}>
+                  <input
+                    type="checkbox"
+                    checked={role.includeInHrs}
+                    disabled={role.deleted}
+                    onChange={e => updateField(role.id, 'includeInHrs', e.target.checked)}
+                    title="Include this role's hours in Schedule Summary"
+                  />
                 </Td>
                 <Td>
                   {role.deleted

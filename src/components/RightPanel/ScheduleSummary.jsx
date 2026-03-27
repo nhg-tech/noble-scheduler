@@ -3,6 +3,7 @@ import { useScheduler } from '../../context/SchedulerContext';
 import { computeSummary } from '../../utils/calculations';
 import { formatMin } from '../../utils/scheduling';
 import { TASK_LIBRARY } from '../../data/taskLibrary';
+import { ROLES } from '../../data/roles';
 
 function fmtDelta(mins) {
   const sign = mins >= 0 ? '+' : '-';
@@ -15,29 +16,44 @@ function fmtDelta(mins) {
 }
 
 export default function ScheduleSummary() {
-  const { schedule, assumptions, getDerivedValues, getProgramPct, getTaskDefault, getEffectiveRoles, columnOrder } = useScheduler();
-  const { suites, cats, bungalows, scCount } = getDerivedValues();
+  const { schedule, assumptions, getDerivedValues, getProgramPct, getTaskDefault, getEffectiveRoles, columnOrder,
+          skippedTasks, userTaskDefs, sessionTaskDefs, extraRoles } = useScheduler();
+  const { suites, cats, bungalows, scCount, totalRooms } = getDerivedValues();
   const { socpg, selpg, dogs } = assumptions;
   const { multipet, multipetCats } = getProgramPct();
   // Only count hours for roles currently visible (in columnOrder)
   const effectiveRoles = getEffectiveRoles().filter(r => columnOrder.includes(r.id));
+  const baseRoleCount = ROLES.filter(r => r.type === 'TM' || r.type === 'TL' || r.type === 'PAW').length;
+  const totalRoleCount = baseRoleCount + (extraRoles?.length || 0);
 
   // Subset of schedule blocks that count toward hours (excludes breaks, optional events, etc.)
   const countingSchedule = useMemo(() => {
+    const roleMap = Object.fromEntries(effectiveRoles.map(r => [r.id, r]));
     const out = {};
     Object.entries(schedule).forEach(([key, block]) => {
+      const roleId = key.split('|')[0];
+      const role = roleMap[roleId];
+      if (role && role.includeInHrs === false) return; // excluded role
       const libTask = TASK_LIBRARY.find(t => t.code === block.code);
       if (!libTask) { out[key] = block; return; } // unknown tasks count by default
       const def = getTaskDefault(libTask.id);
       if (def.countHours !== false) out[key] = block;
     });
     return out;
-  }, [schedule, getTaskDefault]);
+  }, [schedule, getTaskDefault, effectiveRoles]);
 
   const summary = useMemo(() => computeSummary({
     dogs, multipet, multipetCats, socpg, selpg,
-    suites, cats, bungalows, scCount, schedule, countingSchedule, effectiveRoles,
-  }), [schedule, countingSchedule, assumptions, suites, cats, bungalows, scCount, effectiveRoles]);
+    suites, cats, bungalows, scCount,
+    schedule, countingSchedule, effectiveRoles,
+    taskLibrary: TASK_LIBRARY,
+    userTaskDefs,
+    sessionTaskDefs,
+    skippedTasks,
+    roleCount: totalRoleCount,
+    derivedValues: { suites, cats, bungalows, scCount, totalRooms },
+    assumptions,
+  }), [schedule, countingSchedule, assumptions, suites, cats, bungalows, scCount, effectiveRoles, skippedTasks, userTaskDefs, sessionTaskDefs]);
 
   const deltaColor = summary.delta < 0 ? '#FF5252' : summary.delta > 60 ? '#4CAF50' : 'var(--gold-dark)';
 
