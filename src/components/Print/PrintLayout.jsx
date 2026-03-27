@@ -8,12 +8,13 @@ import { computeSummary } from '../../utils/calculations';
 import { TASK_LIBRARY } from '../../data/taskLibrary';
 
 // ─── Print layout constants ───────────────────────────────────────────────────
-const PRINT_SLOT_H   = 16;   // px per 30-min slot
+const MIN_SLOT_H     = 14;   // minimum px per 30-min slot
+const MAX_SLOT_H     = 30;   // maximum px per 30-min slot (don't over-expand)
 const PRINT_TIME_W   = 40;   // time gutter width
 const PRINT_COL_W    = 112;  // per-role column width
 const COL_HEADER_H   = 38;   // column header strip
 const PAGE_HEADER_H  = 34;   // facility / date banner
-const FOOTER_H       = 155;  // assumptions + summary footer
+const FOOTER_H       = 82;   // compact footer (title + 2 content rows)
 const FOOTER_GAP     = 6;    // gap between grid and footer
 const BETWEEN_GAP    = 10;   // gap between footer boxes
 
@@ -93,15 +94,24 @@ export default function PrintLayout({ opts }) {
     [activeStart, activeEnd]
   );
 
-  // ── Dimensions & scale ────────────────────────────────────────────────────
-  const numCols    = roles.length;
-  const contentW   = PRINT_TIME_W + numCols * PRINT_COL_W;
-  const gridH      = activeSlots.length * PRINT_SLOT_H;
-  const hasFooter  = inclSummary || inclAssumptions;
-  const contentH   = PAGE_HEADER_H + COL_HEADER_H + gridH + (hasFooter ? FOOTER_GAP + FOOTER_H : 0);
+  // ── Dimensions & dynamic slot height ────────────────────────────────────
+  const numCols   = roles.length;
+  const numSlots  = activeSlots.length;
+  const contentW  = PRINT_TIME_W + numCols * PRINT_COL_W;
+  const hasFooter = inclSummary || inclAssumptions;
+  const baseH     = PAGE_HEADER_H + COL_HEADER_H + (hasFooter ? FOOTER_GAP + FOOTER_H : 0);
 
-  const page  = PAPER[paperSize] || PAPER.legal;
-  const scale = Math.min(page.w / contentW, page.h / contentH, 1);
+  const page = PAPER[paperSize] || PAPER.legal;
+
+  // Expand slot height to fill available page height (when width-constrained).
+  // This eliminates blank space at the bottom and makes better use of the page.
+  const widthScale  = page.w / contentW;
+  const idealSlotH  = numSlots > 0 ? (page.h / widthScale - baseH) / numSlots : MIN_SLOT_H;
+  const slotH       = Math.min(MAX_SLOT_H, Math.max(MIN_SLOT_H, Math.floor(idealSlotH)));
+
+  const gridH    = numSlots * slotH;
+  const contentH = baseH + gridH;
+  const scale    = Math.min(page.w / contentW, page.h / contentH, 1);
 
   // ── Summary calculation (mirrors ScheduleSummary) ─────────────────────────
   const { suites, cats, bungalows, scCount, totalRooms } = getDerivedValues();
@@ -240,7 +250,7 @@ export default function PrintLayout({ opts }) {
               const isMidnight = slot.isMidnight;
               return (
                 <div key={i} style={{
-                  height: PRINT_SLOT_H, boxSizing: 'border-box',
+                  height: slotH, boxSizing: 'border-box',
                   borderBottom: isMidnight ? '1.5px solid #3E2A7E' : '1px solid #E8E6F0',
                   borderTop: isMidnight ? '1.5px solid #3E2A7E' : undefined,
                   display: 'flex', alignItems: 'flex-start',
@@ -272,49 +282,60 @@ export default function PrintLayout({ opts }) {
               activeSlots={activeSlots}
               activeStart={activeStart}
               colW={PRINT_COL_W}
-              slotH={PRINT_SLOT_H}
+              slotH={slotH}
               gridH={gridH}
             />
           ))}
         </div>
 
-        {/* ── Footer ───────────────────────────────────────────────────────── */}
+        {/* ── Footer (compact horizontal layout) ───────────────────────── */}
         {hasFooter && (
           <div style={{
             display: 'flex', gap: BETWEEN_GAP,
             marginTop: FOOTER_GAP,
             borderTop: '1.5px solid #3E2A7E',
-            paddingTop: 6,
-            minHeight: FOOTER_H,
+            paddingTop: 5,
+            height: FOOTER_H,
+            overflow: 'hidden',
           }}>
             {inclAssumptions && (
               <FooterBox title="Assumptions">
-                <SRow label="Total Dogs"   value={dogs} />
-                <SRow label="Dog Rooms"    value={aRooms} />
-                <SRow label="SocPGs"       value={socpg} />
-                <SRow label="SelPGs"       value={selpg} />
-                <SRow label="Svc Coaches"  value={aSCs} />
-                <SRow label="Cats"         value={aCats} />
-                <SRow label="Cat Rooms"    value={aBungs} />
-                <SRow label="Total Rooms"  value={(aRooms || 0) + (aBungs || 0)} />
+                {/* 4-column compact grid — 8 items in 2 rows */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(4, 1fr)',
+                  gap: '4px 12px',
+                }}>
+                  <KV label="Dogs"       value={dogs} />
+                  <KV label="Dog Rooms"  value={aRooms} />
+                  <KV label="SocPGs"     value={socpg} />
+                  <KV label="SelPGs"     value={selpg} />
+                  <KV label="Svc Coaches" value={aSCs} />
+                  <KV label="Cats"       value={aCats} />
+                  <KV label="Cat Rooms"  value={aBungs} />
+                  <KV label="Total Rooms" value={(aRooms || 0) + (aBungs || 0)} />
+                </div>
               </FooterBox>
             )}
             {inclSummary && (
               <FooterBox title="Schedule Summary">
-                <SRow label="Tasks placed"      value={summary.taskCount} />
-                <SRow label="Hours scheduled"   value={`${(summary.schedHrs ?? 0).toFixed(1)}h`} />
-                <SRow label="Hours available"   value={`${(summary.hrsAvail ?? 0).toFixed(1)}h`} />
-                <SRow label="Est. time required" value={`${(summary.reqHrs ?? 0).toFixed(1)}h`} />
-                <SRow
-                  label="Delta"
-                  value={fmtDelta(summary.delta)}
-                  bold
-                  valueColor={
-                    summary.delta < 0 ? '#C0392B'
-                    : summary.delta > 60 ? '#1E6B3C'
-                    : '#B8860B'
-                  }
-                />
+                {/* Single row of 5 key-value stats */}
+                <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+                  <KV label="Tasks Placed"    value={summary.taskCount} />
+                  <KV label="Hrs Scheduled"   value={`${(summary.schedHrs ?? 0).toFixed(1)}h`} />
+                  <KV label="Hrs Available"   value={`${(summary.hrsAvail ?? 0).toFixed(1)}h`} />
+                  <KV label="Est. Required"   value={`${(summary.reqHrs ?? 0).toFixed(1)}h`} />
+                  <KV
+                    label="Delta"
+                    value={fmtDelta(summary.delta)}
+                    bold
+                    valueColor={
+                      summary.delta < 0 ? '#C0392B'
+                      : summary.delta > 60 ? '#1E6B3C'
+                      : '#B8860B'
+                    }
+                  />
+                </div>
               </FooterBox>
             )}
           </div>
@@ -485,13 +506,14 @@ function FooterBox({ title, children }) {
   return (
     <div style={{
       flex: 1, background: '#F8F5F0',
-      borderRadius: 5, padding: '6px 10px',
+      borderRadius: 5, padding: '5px 10px 6px',
       overflow: 'hidden',
     }}>
       <div style={{
         fontFamily: "'Cormorant Garamond', serif",
-        fontSize: 11, fontWeight: 700, color: '#3E2A7E',
-        marginBottom: 5, borderBottom: '1px solid #E8E6F0', paddingBottom: 3,
+        fontSize: 10, fontWeight: 700, color: '#3E2A7E',
+        marginBottom: 6, borderBottom: '1px solid #E8E6F0', paddingBottom: 3,
+        letterSpacing: '0.03em',
       }}>
         {title}
       </div>
@@ -500,16 +522,17 @@ function FooterBox({ title, children }) {
   );
 }
 
-function SRow({ label, value, bold, valueColor }) {
+/** Compact vertical key-value cell used in the footer grid/flex layouts */
+function KV({ label, value, bold, valueColor }) {
   return (
-    <div style={{
-      display: 'flex', justifyContent: 'space-between',
-      alignItems: 'center', marginBottom: 3,
-    }}>
-      <span style={{ fontSize: 8, color: '#6B6B80' }}>{label}</span>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
       <span style={{
-        fontSize: 9,
-        fontWeight: bold ? 700 : 500,
+        fontSize: 7, color: '#9999AA',
+        textTransform: 'uppercase', letterSpacing: '0.05em', lineHeight: 1,
+      }}>{label}</span>
+      <span style={{
+        fontSize: 11, lineHeight: 1.1,
+        fontWeight: bold ? 700 : 600,
         color: valueColor || '#1A1A2E',
         fontFamily: "'DM Mono', monospace",
       }}>{value}</span>
