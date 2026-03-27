@@ -132,7 +132,13 @@ export function SchedulerProvider({ children }) {
           apiSchedules.getPostings(),
         ]);
         if (tasks.status    === 'fulfilled' && Object.keys(tasks.value).length)
-          setUserTaskDefs(tasks.value);
+          // Merge: API data for library overrides; preserve local custom default tasks not yet pushed to API
+          setUserTaskDefs(prev => {
+            const localCustom = Object.fromEntries(
+              Object.entries(prev).filter(([, def]) => def.custom)
+            );
+            return { ...tasks.value, ...localCustom };
+          });
         if (roles.status    === 'fulfilled' && Object.keys(roles.value).length)
           setUserRoleDefs(roles.value);
         if (progMix.status  === 'fulfilled')
