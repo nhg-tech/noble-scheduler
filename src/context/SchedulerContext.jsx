@@ -492,11 +492,15 @@ export function SchedulerProvider({ children }) {
     try {
       await apiSchedules.save({
         name,
-        scheduleDate: state.assumptions?.date || null,
+        scheduleDate:    state.assumptions?.date || null,
         status,
-        schedule:     state.schedule     || {},
-        assumptions:  state.assumptions  || {},
+        schedule:        state.schedule        || {},
+        assumptions:     state.assumptions     || {},
         sessionTaskDefs: state.sessionTaskDefs || {},
+        skippedTasks:    state.skippedTasks    || [],
+        hiddenColumns:   state.hiddenColumns   || [],
+        columnOrder:     state.columnOrder     || [],
+        extraRoles:      state.extraRoles      || [],
       });
       if (status === 'draft') {
         const updated = { ...draftsData, [name]: state };
