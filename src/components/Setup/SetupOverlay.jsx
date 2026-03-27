@@ -548,7 +548,6 @@ function TaskDefaultsTab({ userTaskDefs, sessionTaskDefs, onChange, onCreateCust
                         whiteSpace: (override.code ?? task.code).length <= 10 ? 'nowrap' : 'normal',
                         wordBreak: 'break-all',
                       }}>{override.code ?? task.code}</code>
-                      {isCustom && <span style={{ marginLeft: 5, fontSize: 9, color: 'var(--purple)', fontWeight: 700, opacity: 0.7 }}>custom</span>}
                     </Td>
                     <Td>{override.name ?? task.name}</Td>
                     <Td style={{ color: 'var(--gray)', fontSize: 11 }}>{task.unitBasis || '—'}</Td>
