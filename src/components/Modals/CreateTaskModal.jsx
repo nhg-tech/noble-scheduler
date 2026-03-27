@@ -2,6 +2,7 @@ import { useState } from 'react';
 import Modal, { ModalFooter, Btn } from './Modal';
 import { NOBLE_PALETTE } from '../../data/palette';
 import { useScheduler } from '../../context/SchedulerContext';
+import { UNIT_BASIS_OPTIONS } from '../../utils/calculations';
 
 /**
  * CreateTaskModal — create or edit a custom task.
@@ -13,12 +14,13 @@ export default function CreateTaskModal({ onSave, onClose, initialData }) {
   const cats = getFullCatList().filter(c => !c.deleted).map(c => ({ value: c.id, label: c.label }));
 
   const [form, setForm] = useState({
-    code: initialData?.code || '',
-    name: initialData?.name || '',
-    cat: initialData?.cat || 'fixed',
-    durationMin: initialData?.durationMin || 30,
-    color: initialData?.color || '#3E2A7E',
-    desc: initialData?.desc || '',
+    code:              initialData?.code              || '',
+    name:              initialData?.name              || '',
+    cat:               initialData?.cat               || 'fixed',
+    unitBasis:         initialData?.unitBasis         || 'Fixed',
+    durationMin:       initialData?.durationMin       || 30,
+    color:             initialData?.color             || '#3E2A7E',
+    desc:              initialData?.desc              || '',
     expectedInstances: initialData?.expectedInstances || 1,
   });
 
@@ -35,7 +37,7 @@ export default function CreateTaskModal({ onSave, onClose, initialData }) {
       expectedInstances: Number(form.expectedInstances),
       slots: Math.ceil(Number(form.durationMin) / 30),
       unitMin: Number(form.durationMin),
-      unitBasis: 'custom',
+      unitBasis: form.unitBasis,
       idealStart: 'Various',
       custom: true,
     });
@@ -73,26 +75,34 @@ export default function CreateTaskModal({ onSave, onClose, initialData }) {
         </Field>
 
         <Row>
-          <Field label="Duration (min)" style={{ flex: 1 }}>
+          <Field label="Unit Basis" style={{ flex: 1 }}>
+            <select value={form.unitBasis} onChange={e => set('unitBasis', e.target.value)} style={inputStyle}>
+              {UNIT_BASIS_OPTIONS.map(opt => (
+                <option key={opt} value={opt}>{opt}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label={form.unitBasis === 'Fixed' ? 'Duration (min)' : 'Min / Unit'} style={{ flex: 1 }}>
             <input
               type="number"
-              min={5}
-              step={5}
+              min={1}
+              step={form.unitBasis === 'Fixed' ? 5 : 1}
               value={form.durationMin}
               onChange={e => set('durationMin', e.target.value)}
               style={inputStyle}
             />
           </Field>
-          <Field label="Expected instances" style={{ flex: 1 }}>
-            <input
-              type="number"
-              min={1}
-              value={form.expectedInstances}
-              onChange={e => set('expectedInstances', e.target.value)}
-              style={inputStyle}
-            />
-          </Field>
         </Row>
+
+        <Field label="Expected instances">
+          <input
+            type="number"
+            min={1}
+            value={form.expectedInstances}
+            onChange={e => set('expectedInstances', e.target.value)}
+            style={{ ...inputStyle, width: '50%' }}
+          />
+        </Field>
 
         <Field label="Description">
           <textarea
