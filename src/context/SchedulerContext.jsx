@@ -87,8 +87,8 @@ export function SchedulerProvider({ children }) {
   const [userCatDefs,    setUserCatDefs]    = useState(() => loadLS(LS_CAT_DEFS,   {}));
   const [catOrder,       setCatOrder]       = useState(() => loadLS(LS_CAT_ORDER,  [...CAT_ORDER]));
   const [taskOrder,      setTaskOrder]      = useState(() => loadLS(LS_TASK_ORDER, {}));
-  // Session-only custom tasks — not persisted to localStorage; saved/restored with schedule drafts/templates
-  const [sessionTaskDefs, setSessionTaskDefs] = useState({});
+  // Custom tasks — persisted in LS_SESSION so they survive page reloads; also saved/restored with drafts/templates
+  const [sessionTaskDefs, setSessionTaskDefs] = useState(() => loadLS(LS_SESSION, null)?.sessionTaskDefs ?? {});
   const [skippedTasks, setSkippedTasks] = useState(() => {
     const arr = loadLS(LS_SESSION, null)?.skippedTasks ?? [];
     return new Set(arr);
@@ -112,8 +112,8 @@ export function SchedulerProvider({ children }) {
 
   // Auto-save current schedule + assumptions so they survive page reloads
   useEffect(() => {
-    saveLS(LS_SESSION, { schedule, assumptions, skippedTasks: [...skippedTasks], hiddenColumns: [...hiddenColumns] });
-  }, [schedule, assumptions, skippedTasks, hiddenColumns]);
+    saveLS(LS_SESSION, { schedule, assumptions, skippedTasks: [...skippedTasks], hiddenColumns: [...hiddenColumns], sessionTaskDefs });
+  }, [schedule, assumptions, skippedTasks, hiddenColumns, sessionTaskDefs]);
 
   // ─── API hydration on mount ───────────────────────────────────────────────
   // Fetch all data from API and update state (API wins over localStorage cache)
