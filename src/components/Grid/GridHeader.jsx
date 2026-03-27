@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'; // useState kept for dragRoleId
 import { formatShiftTime, keyToRoleAndMin } from '../../utils/scheduling';
 import { useScheduler } from '../../context/SchedulerContext';
+import { TASK_LIBRARY } from '../../data/taskLibrary';
 
 const ROLE_COL_W = 120;
 const TIME_COL_W = 52;
@@ -22,7 +23,7 @@ function fmtShift(decimal) {
 }
 
 export default function GridHeader({ onAddColumn }) {
-  const { schedule, extraRoles, setExtraRoles, columnOrder, setColumnOrder, getEffectiveRoles, hiddenColumns, hideColumn } = useScheduler();
+  const { schedule, extraRoles, setExtraRoles, columnOrder, setColumnOrder, getEffectiveRoles, hiddenColumns, hideColumn, getTaskDefault } = useScheduler();
   const [dragRoleId, setDragRoleId] = useState(null);
   const isDraggingRef  = useRef(false);
   const dragIdRef      = useRef(null);
@@ -35,16 +36,20 @@ export default function GridHeader({ onAddColumn }) {
     .filter(r => !hiddenColumns.has(r.id));
 
   function getRoleRange(roleId) {
-    let minStart = Infinity, maxEnd = -Infinity;
+    let minStart = Infinity, maxEnd = -Infinity, countedMins = 0;
     Object.entries(schedule).forEach(([key, task]) => {
       const { roleId: rid, startMin } = keyToRoleAndMin(key);
       if (rid !== roleId) return;
-      const dur = task.durationMin ?? task.slots * 30;
+      const dur = Number(task.durationMin ?? task.slots * 30);
       minStart = Math.min(minStart, startMin);
       maxEnd   = Math.max(maxEnd, startMin + dur);
+      // Only add to counted hours if task is not marked countHours:false
+      const libTask = TASK_LIBRARY.find(t => t.code === task.code || t.id === task.taskId);
+      const counts  = libTask ? (getTaskDefault(libTask.id)?.countHours !== false) : true;
+      if (counts) countedMins += dur;
     });
     if (minStart === Infinity) return null;
-    return { startMin: minStart, endMin: maxEnd };
+    return { startMin: minStart, endMin: maxEnd, countedMins };
   }
 
   // ── Custom pointer-based column drag (no nested DndContext) ──────────────
@@ -156,15 +161,15 @@ export default function GridHeader({ onAddColumn }) {
               </div>
             )}
 
-            {/* Purple dot-line: actual task span + scheduled hours on this schedule */}
+            {/* Purple dot-line: actual task span + counted scheduled hours */}
             <div style={{
               fontSize: 9, marginTop: 1,
               fontFamily: "'DM Mono', monospace",
               color: range ? 'var(--purple)' : 'var(--gray)',
             }}>
               {range ? (() => {
-                const spanH = (range.endMin - range.startMin) / 60;
-                const hStr  = spanH % 1 === 0 ? `${spanH}h` : `${spanH.toFixed(1).replace(/\.0$/, '')}h`;
+                const countedH = range.countedMins / 60;
+                const hStr     = countedH % 1 === 0 ? `${countedH}h` : `${countedH.toFixed(1)}h`;
                 return `${formatShiftTime(range.startMin / 60)}–${formatShiftTime(range.endMin / 60)} / ${hStr}`;
               })() : '–'}
             </div>

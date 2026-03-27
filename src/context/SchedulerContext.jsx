@@ -81,8 +81,8 @@ export function SchedulerProvider({ children }) {
     const missing = customIds.filter(id => !base.includes(id));
     return [...base, ...missing];
   });
-  // Transient session-only — resets on page load, never written to localStorage
-  const [hiddenColumns,  setHiddenColumns]  = useState(() => new Set());
+  // Persisted in LS_SESSION so it survives page reload; also saved with templates/drafts
+  const [hiddenColumns,  setHiddenColumns]  = useState(() => new Set(loadLS(LS_SESSION, null)?.hiddenColumns ?? []));
   const [scheduleLabel,  setScheduleLabel]  = useState('Template 1 — 2 SocPGs + 2 SelPGs');
   const [userCatDefs,    setUserCatDefs]    = useState(() => loadLS(LS_CAT_DEFS,   {}));
   const [catOrder,       setCatOrder]       = useState(() => loadLS(LS_CAT_ORDER,  [...CAT_ORDER]));
@@ -111,7 +111,9 @@ export function SchedulerProvider({ children }) {
   useEffect(() => { saveLS(LS_TASK_ORDER,  taskOrder);       }, [taskOrder]);
 
   // Auto-save current schedule + assumptions so they survive page reloads
-  useEffect(() => { saveLS(LS_SESSION, { schedule, assumptions, skippedTasks: [...skippedTasks] }); }, [schedule, assumptions, skippedTasks]);
+  useEffect(() => {
+    saveLS(LS_SESSION, { schedule, assumptions, skippedTasks: [...skippedTasks], hiddenColumns: [...hiddenColumns] });
+  }, [schedule, assumptions, skippedTasks, hiddenColumns]);
 
   // ─── API hydration on mount ───────────────────────────────────────────────
   // Fetch all data from API and update state (API wins over localStorage cache)
@@ -399,8 +401,8 @@ export function SchedulerProvider({ children }) {
 
   // ─── Capture / apply state ────────────────────────────────────────────────
   const captureState = useCallback(
-    () => ({ schedule, assumptions, sessionTaskDefs, columnOrder, extraRoles, skippedTasks: [...skippedTasks] }),
-    [schedule, assumptions, sessionTaskDefs, columnOrder, extraRoles, skippedTasks]
+    () => ({ schedule, assumptions, sessionTaskDefs, columnOrder, extraRoles, skippedTasks: [...skippedTasks], hiddenColumns: [...hiddenColumns] }),
+    [schedule, assumptions, sessionTaskDefs, columnOrder, extraRoles, skippedTasks, hiddenColumns]
   );
 
   const applyState = useCallback((state) => {
@@ -411,6 +413,7 @@ export function SchedulerProvider({ children }) {
     if (Array.isArray(state.columnOrder) && state.columnOrder.length > 0)
       setColumnOrder(state.columnOrder);
     setSkippedTasks(new Set(Array.isArray(state.skippedTasks) ? state.skippedTasks : []));
+    setHiddenColumns(new Set(Array.isArray(state.hiddenColumns) ? state.hiddenColumns : []));
   }, []);
 
   const toggleSkipTask = useCallback((taskId) => {

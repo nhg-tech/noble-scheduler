@@ -35,14 +35,11 @@ export function inShift(role, slotIdx) {
     // Regular (non-overnight) shift
     return t >= shiftStart && t < shiftEnd;
   }
-  // Overnight shift (shiftStart > shiftEnd, e.g. 21→6.5)
-  // TIME_SLOTS extended past midnight use h≥24 (h=24 = midnight, h=30 = 6am next day)
-  if (t >= 24) {
-    // Post-midnight slot: compare wrapped time against shiftEnd
-    return (t - 24) < shiftEnd;
-  }
-  // Pre-midnight slot: in shift if at or after shiftStart
-  return t >= shiftStart;
+  // Overnight shift (shiftStart > shiftEnd, e.g. 21→6.5):
+  // Post-midnight extended slots (h≥24) use wrapped comparison so the shift-end
+  // boundary is exact. Same-day early-morning slots (h<24) use the classic wrap.
+  if (t >= 24) return (t - 24) < shiftEnd; // post-midnight: compare wrapped hour
+  return t >= shiftStart || t < shiftEnd;   // pre-midnight or early-morning same-day
 }
 
 // ─── Duration helpers ───────────────────────────────────────────────────────
