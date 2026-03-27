@@ -50,9 +50,10 @@ export default function TaskLibrary({ onCreateCustom }) {
       const effectiveCat = userTaskDefs[t.id]?.cat || t.cat;
       return effectiveCat === catId && !userTaskDefs[t.id]?.hidden;
     });
-    // Custom tasks come from session only — not the persistent library
-    const customTasks = Object.values(sessionTaskDefs).filter(t => (t.cat || '') === catId);
-    const all = [...libTasks, ...customTasks];
+    // Default tasks from Setup (userTaskDefs, custom: true) + schedule-specific custom tasks (sessionTaskDefs)
+    const defaultCustom   = Object.values(userTaskDefs).filter(t => t.custom && (t.cat || '') === catId);
+    const scheduleCustom  = Object.values(sessionTaskDefs).filter(t => (t.cat || '') === catId && !userTaskDefs[t.id]?.custom);
+    const all = [...libTasks, ...defaultCustom, ...scheduleCustom];
     const order = taskOrder[catId] || [];
     const byId = Object.fromEntries(all.map(t => [t.id, t]));
     const ordered = order.map(id => byId[id]).filter(Boolean);

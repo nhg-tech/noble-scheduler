@@ -88,9 +88,9 @@ export default function SetupOverlay({ onClose }) {
     e.target.value = '';
   }
 
-  // Custom tasks are session-only — route to sessionTaskDefs, not userTaskDefs
+  // Default tasks created in Setup → stored in userTaskDefs (global, survives template changes)
   function handleCreateCustom(taskData) {
-    setSessionTaskDefs(prev => ({ ...prev, [taskData.id]: taskData }));
+    setUserTaskDefs(prev => ({ ...prev, [taskData.id]: taskData }));
     setShowCreateModal(false);
     setEditingTask(null);
   }
@@ -101,12 +101,13 @@ export default function SetupOverlay({ onClose }) {
   }
 
   function handleDeleteCustom(taskId) {
-    if (!window.confirm('Delete this custom task?')) return;
-    setSessionTaskDefs(prev => {
-      const updated = { ...prev };
-      delete updated[taskId];
-      return updated;
-    });
+    if (!window.confirm('Delete this default task?')) return;
+    if (userTaskDefs[taskId]?.custom) {
+      setUserTaskDefs(prev => { const u = { ...prev }; delete u[taskId]; return u; });
+    } else {
+      // Legacy: may still be in sessionTaskDefs from before this fix
+      setSessionTaskDefs(prev => { const u = { ...prev }; delete u[taskId]; return u; });
+    }
   }
 
   function handleDeleteLibTask(taskId) {
@@ -126,13 +127,14 @@ export default function SetupOverlay({ onClose }) {
   }
 
   function setTaskDefault(taskId, field, val) {
-    // If this is a session-only custom task, update sessionTaskDefs; otherwise update persistent userTaskDefs
-    if (sessionTaskDefs[taskId]) {
+    if (sessionTaskDefs[taskId] && !userTaskDefs[taskId]?.custom) {
+      // Schedule-specific custom task (not a setup default) — update in sessionTaskDefs
       setSessionTaskDefs(prev => ({
         ...prev,
         [taskId]: { ...(prev[taskId] || {}), [field]: val },
       }));
     } else {
+      // Library task override OR setup-created default task — both live in userTaskDefs
       setUserTaskDefs(prev => ({
         ...prev,
         [taskId]: { ...(prev[taskId] || {}), [field]: val },
@@ -452,9 +454,9 @@ function TaskDefaultsTab({ userTaskDefs, sessionTaskDefs, onChange, onCreateCust
       const effectiveCat = userTaskDefs[t.id]?.cat || t.cat;
       return effectiveCat === catId && !userTaskDefs[t.id]?.hidden;
     });
-    // Also include session-only custom tasks that belong to this category
-    const customTasks = Object.values(sessionTaskDefs).filter(t => t.custom && t.cat === catId);
-    const all = [...libTasks, ...customTasks];
+    // Also include setup-created default tasks for this category (stored in userTaskDefs with custom: true)
+    const defaultCustomTasks = Object.values(userTaskDefs).filter(t => t.custom && t.cat === catId);
+    const all = [...libTasks, ...defaultCustomTasks];
     const order = taskOrder[catId] || [];
     const byId = Object.fromEntries(all.map(t => [t.id, t]));
     const ordered = order.map(id => byId[id]).filter(Boolean);

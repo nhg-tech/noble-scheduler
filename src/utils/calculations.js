@@ -125,6 +125,8 @@ export function computeSummary({
     const allTasks = [
       ...taskLibrary,
       ...Object.values(sessionTaskDefs || {}),
+      // Setup-created default tasks live in userTaskDefs (custom: true); exclude any already in sessionTaskDefs
+      ...Object.values(userTaskDefs || {}).filter(t => t.custom && !sessionTaskDefs?.[t.id]),
     ];
     allTasks.forEach(task => {
       if (skippedTasks?.has(task.id)) return;
