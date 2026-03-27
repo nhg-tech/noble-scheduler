@@ -67,7 +67,7 @@ export default function App() {
   const [showChecklist, setShowChecklist] = useState(false);
   const [showSetup, setShowSetup]         = useState(false);
   const [showPrint, setShowPrint]         = useState(false);
-  const [printOpts, setPrintOpts]         = useState({ paperSize: 'legal', inclSummary: true, inclAssumptions: true });
+  const [printOpts, setPrintOpts]         = useState({ paperSize: 'legal', inclSummary: true, inclAssumptions: true, excludedCols: [] });
 
   // Drag overlay label + meta
   const [dragLabel, setDragLabel] = useState(null);

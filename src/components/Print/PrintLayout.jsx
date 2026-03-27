@@ -13,7 +13,7 @@ const PRINT_TIME_W   = 40;   // time gutter width
 const PRINT_COL_W    = 112;  // per-role column width
 const COL_HEADER_H   = 38;   // column header strip
 const PAGE_HEADER_H  = 34;   // facility / date banner
-const FOOTER_H       = 110;  // assumptions + summary footer
+const FOOTER_H       = 155;  // assumptions + summary footer
 const FOOTER_GAP     = 6;    // gap between grid and footer
 const BETWEEN_GAP    = 10;   // gap between footer boxes
 
@@ -58,14 +58,16 @@ export default function PrintLayout({ opts }) {
     userTaskDefs, sessionTaskDefs, skippedTasks,
   } = useScheduler();
 
-  const { paperSize = 'legal', inclSummary = true, inclAssumptions = true } = opts || {};
+  const { paperSize = 'legal', inclSummary = true, inclAssumptions = true, excludedCols = [] } = opts || {};
+  const excludedSet = new Set(excludedCols);
 
-  // ── Visible columns ────────────────────────────────────────────────────────
+  // ── Visible columns (screen-visible minus any print-excluded ones) ─────────
   const allRolesBase = [...getEffectiveRoles(), ...extraRoles];
   const roles = columnOrder
     .map(id => allRolesBase.find(r => r.id === id))
     .filter(Boolean)
-    .filter(r => !hiddenColumns.has(r.id));
+    .filter(r => !hiddenColumns.has(r.id))
+    .filter(r => !excludedSet.has(r.id));
 
   // ── Active slot range — trim to actual task content ────────────────────────
   const { activeStart, activeEnd } = useMemo(() => {
@@ -283,7 +285,7 @@ export default function PrintLayout({ opts }) {
             marginTop: FOOTER_GAP,
             borderTop: '1.5px solid #3E2A7E',
             paddingTop: 6,
-            height: FOOTER_H,
+            minHeight: FOOTER_H,
           }}>
             {inclAssumptions && (
               <FooterBox title="Assumptions">
