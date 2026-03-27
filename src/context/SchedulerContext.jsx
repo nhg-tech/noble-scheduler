@@ -140,7 +140,18 @@ export function SchedulerProvider({ children }) {
             return { ...tasks.value, ...localCustom };
           });
         if (roles.status    === 'fulfilled' && Object.keys(roles.value).length)
-          setUserRoleDefs(roles.value);
+          // Merge: API is authoritative for base fields; local overrides win for any
+          // field the API didn't return (e.g. includeInHrs before first Save Defaults,
+          // or custom roles not yet pushed to API).
+          setUserRoleDefs(prev => {
+            const merged = { ...roles.value };
+            Object.entries(prev).forEach(([id, localDef]) => {
+              merged[id] = merged[id]
+                ? { ...merged[id], ...localDef }   // local fields layer on top of API
+                : localDef;                         // custom role not yet in API
+            });
+            return merged;
+          });
         if (progMix.status  === 'fulfilled')
           setUserProgramDefs(progMix.value);
         if (cats.status     === 'fulfilled') {
