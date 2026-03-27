@@ -119,8 +119,8 @@ export default function App() {
       const { roleId, startMin } = overData;
       const libTask = activeData.task;
       const override = userTaskDefs[libTask.id] || {};
-      const taskWithOverride = override.durationMin ? { ...libTask, unitMin: override.durationMin } : libTask;
-      const durationMin = computeTaskDuration(taskWithOverride, getDerivedValues(), assumptions);
+      const taskWithOverride = override.durationMin ? { ...libTask, unitMin: Number(override.durationMin) } : libTask;
+      const durationMin = Number(computeTaskDuration(taskWithOverride, getDerivedValues(), assumptions));
       const colorHex = resolveBlockHex(override.color || libTask.color);
       attemptPlaceInSchedule(schedule, null, roleId, startMin, libTask, durationMin, colorHex);
       return;
@@ -136,9 +136,9 @@ export default function App() {
       const override = userTaskDefs[libTask.id] || {};
       // Merge override unitMin into task before computing duration (so variable-basis tasks still multiply correctly)
       const taskWithOverride = override.durationMin
-        ? { ...libTask, unitMin: override.durationMin }
+        ? { ...libTask, unitMin: Number(override.durationMin) }
         : libTask;
-      const durationMin = computeTaskDuration(taskWithOverride, getDerivedValues(), assumptions);
+      const durationMin = Number(computeTaskDuration(taskWithOverride, getDerivedValues(), assumptions));
       const colorHex = resolveBlockHex(override.color || libTask.color);
       attemptPlaceInSchedule(schedule, null, targetRoleId, targetSlotMin, libTask, durationMin, colorHex);
       return;

@@ -80,7 +80,7 @@ export function computeTaskDuration(task, derivedValues, assumptions) {
   const selpg = assumptions?.selpg || 0;
   const dogs  = assumptions?.dogs  || 0;
   const ub    = task.unitBasis || '';
-  const um    = task.unitMin || (task.slots || 1) * 30;
+  const um    = Number(task.unitMin) || (task.slots || 1) * 30;
 
   switch (ub) {
     case 'Total Dogs':   return um * dogs;
@@ -114,7 +114,7 @@ export function computeSummary({
 
   const hrsSource = countingSchedule ?? schedule;
   let schedMins = 0;
-  Object.values(hrsSource).forEach(t => { schedMins += t.durationMin ?? (t.slots * 30); });
+  Object.values(hrsSource).forEach(t => { schedMins += Number(t.durationMin ?? (t.slots * 30)); });
   const schedHrs  = schedMins / 60;
   const openMins  = (hrsAvail * 60) - schedMins;
   const openSlots = Math.round(openMins / 30);

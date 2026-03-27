@@ -178,7 +178,7 @@ export function SchedulerProvider({ children }) {
     const user    = userTaskDefs[taskId] || {};
     return {
       slots:      user.slots      ?? base.slots,
-      unitMin:    user.unitMin    ?? base.unitMin,
+      unitMin:    user.durationMin ?? user.unitMin ?? base.unitMin,
       unitBasis:  user.unitBasis  ?? base.unitBasis,
       idealStart: user.idealStart ?? base.idealStart,
       color:      user.color      ?? base.color,
@@ -281,7 +281,7 @@ export function SchedulerProvider({ children }) {
       if (!t) return;
       const startMin    = hour * 60 + min;
       const def         = getTaskDefault(t.id);
-      const durationMin = overrideSlots ? overrideSlots * 30 : (def.unitMin ?? t.slots * 30);
+      const durationMin = overrideSlots ? overrideSlots * 30 : Number(def.unitMin ?? t.slots * 30);
       const hexColor    = resolveBlockHex(def.color ?? t.color);
       const key         = makeKey(roleId, startMin);
       newSchedule[key]  = { name: t.name, code: t.code, color: hexColor,
