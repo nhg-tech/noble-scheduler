@@ -94,20 +94,29 @@ export default function PrintLayout({ opts }) {
     [activeStart, activeEnd]
   );
 
-  // ── Dimensions & dynamic slot height ────────────────────────────────────
+  // ── Dimensions & dynamic sizing ──────────────────────────────────────────
   const numCols   = roles.length;
   const numSlots  = activeSlots.length;
-  const contentW  = PRINT_TIME_W + numCols * PRINT_COL_W;
   const hasFooter = inclSummary || inclAssumptions;
   const baseH     = PAGE_HEADER_H + COL_HEADER_H + (hasFooter ? FOOTER_GAP + FOOTER_H : 0);
 
   const page = PAPER[paperSize] || PAPER.legal;
 
-  // Expand slot height to fill available page height (when width-constrained).
-  // This eliminates blank space at the bottom and makes better use of the page.
-  const widthScale  = page.w / contentW;
-  const idealSlotH  = numSlots > 0 ? (page.h / widthScale - baseH) / numSlots : MIN_SLOT_H;
-  const slotH       = Math.min(MAX_SLOT_H, Math.max(MIN_SLOT_H, Math.floor(idealSlotH)));
+  // Dynamic column width: expand columns to fill page width when there's
+  // leftover horizontal space (i.e. fewer columns than usual). Capped at 180px.
+  const baseContentW = PRINT_TIME_W + numCols * PRINT_COL_W;
+  const colW = (numCols > 0 && baseContentW < page.w)
+    ? Math.min(180, Math.floor((page.w - PRINT_TIME_W) / numCols))
+    : PRINT_COL_W;
+  const contentW = PRINT_TIME_W + numCols * colW;
+
+  // Dynamic slot height: expand slots to fill available page height.
+  // When widthScale ≥ 1 (content narrower than page, scale capped at 1),
+  // use page.h directly; otherwise use page.h / widthScale (pre-zoom budget).
+  const widthScale     = page.w / contentW;
+  const effectivePageH = widthScale >= 1 ? page.h : page.h / widthScale;
+  const idealSlotH     = numSlots > 0 ? (effectivePageH - baseH) / numSlots : MIN_SLOT_H;
+  const slotH          = Math.min(MAX_SLOT_H, Math.max(MIN_SLOT_H, Math.floor(idealSlotH)));
 
   const gridH    = numSlots * slotH;
   const contentH = baseH + gridH;
@@ -217,7 +226,7 @@ export default function PrintLayout({ opts }) {
           {/* Role headers */}
           {roles.map(role => (
             <div key={role.id} style={{
-              width: PRINT_COL_W, minWidth: PRINT_COL_W,
+              width: colW, minWidth: colW,
               height: COL_HEADER_H,
               borderLeft: '1px solid #E8E6F0',
               display: 'flex', flexDirection: 'column',
@@ -281,7 +290,7 @@ export default function PrintLayout({ opts }) {
               schedule={schedule}
               activeSlots={activeSlots}
               activeStart={activeStart}
-              colW={PRINT_COL_W}
+              colW={colW}
               slotH={slotH}
               gridH={gridH}
             />
