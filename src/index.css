@@ -51,8 +51,17 @@ body {
 
 /* Print */
 @media print {
-  .no-print { display: none !important; }
-  .app-layout { grid-template-columns: 0 1fr 0 !important; height: auto !important; }
-  .main-area { overflow: visible !important; }
-  body { background: white; }
+  /* Hide all direct body children (React root, modals, portals, etc.) */
+  body > * { display: none !important; }
+
+  /* Show only the Noble print layout — rendered as a portal directly on body */
+  #noble-print-root {
+    display: block !important;
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+    z-index: auto !important;
+    pointer-events: auto !important;
+    width: auto !important;
+  }
 }

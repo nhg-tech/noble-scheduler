@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { flushSync } from 'react-dom';
 import {
   DndContext,
   PointerSensor,
@@ -26,6 +27,9 @@ import Header from './components/Header/Header';
 import LeftPanel from './components/LeftPanel/LeftPanel';
 import GridBody from './components/Grid/GridBody';
 import RightPanel from './components/RightPanel/RightPanel';
+
+import PrintModal from './components/Print/PrintModal';
+import PrintLayout from './components/Print/PrintLayout';
 
 import ConflictModal from './components/Modals/ConflictModal';
 import SplitModal from './components/Modals/SplitModal';
@@ -62,6 +66,8 @@ export default function App() {
   const [showValidate, setShowValidate]   = useState(false);
   const [showChecklist, setShowChecklist] = useState(false);
   const [showSetup, setShowSetup]         = useState(false);
+  const [showPrint, setShowPrint]         = useState(false);
+  const [printOpts, setPrintOpts]         = useState({ paperSize: 'legal', inclSummary: true, inclAssumptions: true });
 
   // Drag overlay label + meta
   const [dragLabel, setDragLabel] = useState(null);
@@ -386,6 +392,25 @@ export default function App() {
     setShowAddColumn(false);
   }
 
+  // ─── Print ────────────────────────────────────────────────────────────────
+  function handlePrint(opts) {
+    // flushSync ensures React synchronously re-renders PrintLayout with the new opts
+    // before window.print() reads the DOM.
+    flushSync(() => setPrintOpts(opts));
+
+    // Inject @page rule with the selected paper size (landscape)
+    let styleEl = document.getElementById('noble-print-style');
+    if (!styleEl) {
+      styleEl = document.createElement('style');
+      styleEl.id = 'noble-print-style';
+      document.head.appendChild(styleEl);
+    }
+    const size = opts.paperSize === 'letter' ? 'letter' : 'legal';
+    styleEl.textContent = `@page { size: ${size} landscape; margin: 0.4in; }`;
+
+    window.print();
+  }
+
   // Restore a session-hidden column — removes from hiddenColumns (transient state)
   function handleRestoreColumn(roleId) {
     restoreColumn(roleId);
@@ -405,7 +430,7 @@ export default function App() {
         onPostSchedule={() => setSaveMode('post')}
         onValidate={() => setShowValidate(true)}
         onChecklist={() => setShowChecklist(true)}
-        onPrint={() => window.print()}
+        onPrint={() => setShowPrint(true)}
       />
 
       <DndContext
@@ -493,6 +518,16 @@ export default function App() {
       {showValidate && <ValidationModal onClose={() => setShowValidate(false)} />}
       {showChecklist && <ChecklistModal onClose={() => setShowChecklist(false)} />}
       {showSetup && <SetupOverlay onClose={() => setShowSetup(false)} />}
+      {showPrint && (
+        <PrintModal
+          onPrint={handlePrint}
+          onClose={() => setShowPrint(false)}
+        />
+      )}
+
+      {/* Always in DOM so @media print can reveal it */}
+      <PrintLayout opts={printOpts} />
+
       {showAddColumn && (
         <AddColumnModal
           onSave={handleAddColumnSave}
