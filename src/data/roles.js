@@ -13,10 +13,21 @@ export const ROLES = [
   { id: 'ON',      label: 'ON',          sub: 'Overnight',   type: 'ON',  shiftStart: 21.0, shiftEnd: 6.5,  hours: 9.5, unpaidBreak: 0  },
 ];
 
-// Build time slots: 5:00am to 9:30pm in 30-min increments
+// Build time slots: 5:00am → 6:30am next day (covers full overnight shift)
+// Hours 24+ represent post-midnight (24=midnight, 25=1am, 30=6am next day)
 export const TIME_SLOTS = [];
-for (let h = 5; h <= 21; h++) {
-  TIME_SLOTS.push({ hour: h, min: 0, label: h <= 12 ? `${h}:00a` : `${h-12}:00p`, isHour: true });
-  if (h < 21) TIME_SLOTS.push({ hour: h, min: 30, label: h < 12 ? `${h}:30a` : `${h-12}:30p`, isHour: false });
+function _slotLabel(h, m) {
+  const d = h % 24; // display hour (0–23)
+  const isPM = d >= 12;
+  const h12 = d === 0 ? 12 : d > 12 ? d - 12 : d;
+  const suffix = isPM ? 'p' : 'a';
+  return m === 0 ? `${h12}:00${suffix}` : `${h12}:30${suffix}`;
 }
-TIME_SLOTS.push({ hour: 21, min: 30, label: '9:30p', isHour: false });
+for (let h = 5; h <= 30; h++) {
+  const isMidnight = h === 24;
+  TIME_SLOTS.push({ hour: h, min: 0,  label: _slotLabel(h, 0),  isHour: true,  isMidnight });
+  // :30 for all except the last hour (we close at 6:30am next day = h=30 min=30)
+  TIME_SLOTS.push({ hour: h, min: 30, label: _slotLabel(h, 30), isHour: false, isMidnight: false });
+}
+// Remove last half-slot beyond 6:30am (h=30 min=30 is exactly 6:30am — keep it; h=31 would be 7am, not needed)
+// The loop above already adds h=30 min=30 (6:30am) as the final entry — correct.

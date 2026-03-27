@@ -31,8 +31,18 @@ export function inShift(role, slotIdx) {
   const t = slotToHour(slotIdx);
   if (t === null) return false;
   const { shiftStart, shiftEnd } = role;
-  if (shiftStart < shiftEnd) return t >= shiftStart && t < shiftEnd;
-  return t >= shiftStart || t < shiftEnd; // overnight wraps
+  if (shiftStart < shiftEnd) {
+    // Regular (non-overnight) shift
+    return t >= shiftStart && t < shiftEnd;
+  }
+  // Overnight shift (shiftStart > shiftEnd, e.g. 21→6.5)
+  // TIME_SLOTS extended past midnight use h≥24 (h=24 = midnight, h=30 = 6am next day)
+  if (t >= 24) {
+    // Post-midnight slot: compare wrapped time against shiftEnd
+    return (t - 24) < shiftEnd;
+  }
+  // Pre-midnight slot: in shift if at or after shiftStart
+  return t >= shiftStart;
 }
 
 // ─── Duration helpers ───────────────────────────────────────────────────────
@@ -154,13 +164,15 @@ export function placeBlock(schedule, roleId, startMin, task, durationMin, hexCol
 
 // ─── Formatting ─────────────────────────────────────────────────────────────
 export function formatMin(totalMin) {
-  const h = Math.floor(totalMin / 60), m = totalMin % 60;
+  const hRaw = Math.floor(totalMin / 60), m = totalMin % 60;
+  const h = hRaw % 24; // wrap post-midnight hours (e.g. 25 → 1, 24 → 0)
   const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
   return `${h12}:${m.toString().padStart(2, '0')}${h < 12 ? 'am' : 'pm'}`;
 }
 
 export function formatShiftTime(decimalHour) {
-  const h    = Math.floor(decimalHour);
+  const hRaw = Math.floor(decimalHour);
+  const h    = hRaw % 24; // wrap post-midnight (e.g. 25.5 → h=1, 24 → 0)
   const m    = Math.round((decimalHour % 1) * 60);
   const ampm = h < 12 ? 'a' : 'p';
   const h12  = h === 0 ? 12 : h > 12 ? h - 12 : h;

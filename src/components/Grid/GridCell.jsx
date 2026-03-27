@@ -1,6 +1,6 @@
 import { useDroppable } from '@dnd-kit/core';
 
-export default function GridCell({ roleId, slotIdx, slotMin, isInShift, onContextMenu, children }) {
+export default function GridCell({ roleId, slotIdx, slotMin, isInShift, isMidnight, onContextMenu, children }) {
   const id = `cell:${roleId}:${slotMin}`;
 
   const { isOver, setNodeRef } = useDroppable({ id, data: { type: 'cell', roleId, slotMin } });
@@ -19,12 +19,15 @@ export default function GridCell({ roleId, slotIdx, slotMin, isInShift, onContex
       style={{
         position: 'relative',
         height: '44px',
-        borderBottom: '1px solid var(--gray-light)',
+        borderBottom: isMidnight ? '2px solid var(--purple)' : '1px solid var(--gray-light)',
+        borderTop: isMidnight ? '2px solid var(--purple)' : undefined,
         background: isOver
           ? 'rgba(62,42,126,0.08)'
-          : isInShift
-            ? 'transparent'
-            : 'rgba(0,0,0,0.03)',
+          : isMidnight
+            ? 'rgba(62,42,126,0.06)'
+            : isInShift
+              ? 'transparent'
+              : 'rgba(0,0,0,0.03)',
         transition: 'background 0.1s',
         boxSizing: 'border-box',
       }}

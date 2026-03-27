@@ -79,6 +79,7 @@ export default function GridBody({ schedule, onEdit, onRemove, onSplit, onResize
       }}>
         {TIME_SLOTS.map((slot, idx) => {
           const isHour = slot.min === 0;
+          const isMidnight = slot.isMidnight;
           return (
             <div
               key={idx}
@@ -88,19 +89,24 @@ export default function GridBody({ schedule, onEdit, onRemove, onSplit, onResize
                 alignItems: 'flex-start',
                 justifyContent: 'flex-end',
                 paddingRight: 6,
-                paddingTop: 3,
-                borderBottom: '1px solid var(--gray-light)',
+                paddingTop: isMidnight ? 2 : 3,
+                borderBottom: isMidnight
+                  ? '2px solid var(--purple)'
+                  : '1px solid var(--gray-light)',
+                borderTop: isMidnight ? '2px solid var(--purple)' : undefined,
                 boxSizing: 'border-box',
+                background: isMidnight ? 'rgba(62,42,126,0.04)' : undefined,
               }}
             >
               {isHour && (
                 <span style={{
                   fontSize: 9,
                   fontFamily: "'DM Mono', monospace",
-                  color: 'var(--gray)',
+                  color: isMidnight ? 'var(--purple)' : 'var(--gray)',
+                  fontWeight: isMidnight ? 700 : 400,
                   letterSpacing: '-0.02em',
                 }}>
-                  {formatMin(slot.hour * 60 + slot.min)}
+                  {isMidnight ? 'MID' : formatMin(slot.hour * 60 + slot.min)}
                 </span>
               )}
             </div>
@@ -133,6 +139,7 @@ export default function GridBody({ schedule, onEdit, onRemove, onSplit, onResize
                   slotIdx={slotIdx}
                   slotMin={slotMin}
                   isInShift={isInShiftVal}
+                  isMidnight={slot.isMidnight}
                   onContextMenu={handleCellContextMenu}
                 />
               );

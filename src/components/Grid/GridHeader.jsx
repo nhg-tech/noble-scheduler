@@ -156,15 +156,17 @@ export default function GridHeader({ onAddColumn }) {
               </div>
             )}
 
-            {/* Purple dot-line: actual task span on this schedule */}
+            {/* Purple dot-line: actual task span + scheduled hours on this schedule */}
             <div style={{
               fontSize: 9, marginTop: 1,
               fontFamily: "'DM Mono', monospace",
               color: range ? 'var(--purple)' : 'var(--gray)',
             }}>
-              {range
-                ? `${formatShiftTime(range.startMin / 60)}–${formatShiftTime(range.endMin / 60)}`
-                : '–'}
+              {range ? (() => {
+                const spanH = (range.endMin - range.startMin) / 60;
+                const hStr  = spanH % 1 === 0 ? `${spanH}h` : `${spanH.toFixed(1).replace(/\.0$/, '')}h`;
+                return `${formatShiftTime(range.startMin / 60)}–${formatShiftTime(range.endMin / 60)} / ${hStr}`;
+              })() : '–'}
             </div>
 
             {/* ✕ shown on every column — hides from this schedule only */}
