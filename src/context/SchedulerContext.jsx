@@ -152,8 +152,18 @@ export function SchedulerProvider({ children }) {
             });
             return merged;
           });
-        if (progMix.status  === 'fulfilled')
+        if (progMix.status  === 'fulfilled') {
           setUserProgramDefs(progMix.value);
+          // Apply "Today's Actuals" defaults to assumptions — only fills gaps,
+          // never overwrites values the user has already set this session.
+          const pm = progMix.value;
+          setAssumptions(prev => ({
+            ...prev,
+            ...(prev.dogs  == null && pm.defaultDogs  != null && { dogs:  pm.defaultDogs  }),
+            ...(prev.socpg == null && pm.defaultSocpg != null && { socpg: pm.defaultSocpg }),
+            ...(prev.selpg == null && pm.defaultSelpg != null && { selpg: pm.defaultSelpg }),
+          }));
+        }
         if (cats.status     === 'fulfilled') {
           const { catDefs, catOrder: co, taskOrder: to } = cats.value;
           if (catDefs  && Object.keys(catDefs).length)  setUserCatDefs(catDefs);
@@ -578,16 +588,23 @@ export function SchedulerProvider({ children }) {
   const persistDefaultsToApi = useCallback(async (tasks, roles, progMix, cats, co, to) => {
     if (!isLoggedIn()) return;
     try {
+      // Include "Today's Actuals" from assumptions so they persist as defaults in the DB
+      const progMixWithActuals = {
+        ...progMix,
+        defaultDogs:  assumptions.dogs  ?? null,
+        defaultSocpg: assumptions.socpg ?? null,
+        defaultSelpg: assumptions.selpg ?? null,
+      };
       await Promise.all([
         Object.keys(tasks).length  && apiSetup.saveTasks(tasks),
         Object.keys(roles).length  && apiSetup.saveRoles(roles),
-        apiSetup.saveProgramMix(progMix),
+        apiSetup.saveProgramMix(progMixWithActuals),
         apiSetup.saveCategories({ catDefs: cats, catOrder: co, taskOrder: to }),
       ].filter(Boolean));
     } catch (err) {
       console.warn('API defaults save failed — saved locally only:', err.message);
     }
-  }, []);
+  }, [assumptions]);
 
   const resetDefaults = useCallback(() => {
     setUserTaskDefs({}); setUserRoleDefs({}); setUserProgramDefs({});
