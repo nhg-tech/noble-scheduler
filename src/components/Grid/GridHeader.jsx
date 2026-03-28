@@ -149,29 +149,18 @@ export default function GridHeader({ onAddColumn }) {
 
             <div style={{ fontSize: 10, color: 'var(--gray)', marginTop: 1 }}>{role.sub}</div>
 
-            {/* Shift window + hours from Role Config */}
-            {(role.shiftStart != null && role.shiftEnd != null) && (
-              <div style={{ fontSize: 10, color: 'var(--gray)', marginTop: 1 }}>
-                {fmtShift(role.shiftStart)}–{fmtShift(role.shiftEnd)}
-                {role.hours != null && (
-                  <span style={{ marginLeft: 3, opacity: 0.75 }}>
-                    / {role.hours % 1 === 0 ? role.hours : role.hours}h
-                  </span>
-                )}
-              </div>
-            )}
-
-            {/* Purple dot-line: actual task span + counted scheduled hours */}
-            <div style={{
-              fontSize: 9, marginTop: 1,
-              fontFamily: "'DM Mono', monospace",
-              color: range ? 'var(--purple)' : 'var(--gray)',
-            }}>
+            {/* Time window: actual first→last task span + counted hours.
+                Falls back to configured shift when nothing is scheduled. */}
+            <div style={{ fontSize: 10, color: 'var(--gray)', marginTop: 1 }}>
               {range ? (() => {
                 const countedH = range.countedMins / 60;
                 const hStr     = countedH % 1 === 0 ? `${countedH}h` : `${countedH.toFixed(1)}h`;
                 return `${formatShiftTime(range.startMin / 60)}–${formatShiftTime(range.endMin / 60)} / ${hStr}`;
-              })() : '–'}
+              })() : (
+                role.shiftStart != null && role.shiftEnd != null
+                  ? `${fmtShift(role.shiftStart)}–${fmtShift(role.shiftEnd)}${role.hours != null ? ` / ${role.hours}h` : ''}`
+                  : '–'
+              )}
             </div>
 
             {/* ✕ shown on every column — hides from this schedule only */}
