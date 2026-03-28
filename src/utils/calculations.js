@@ -24,12 +24,21 @@ export function getExpectedInstances(task, socpg, selpg, scCount, allRoleCount) 
 /**
  * Count how many times a task code appears in the schedule (including merged blocks).
  */
+// Returns true when blockCode belongs to the task family identified by taskCode.
+// Exact match always counts. Prefix match only counts when the prefix is followed
+// by a separator (- or _), preventing "ON" from matching "ON-WT" as a false positive.
+function codeMatches(blockCode, taskCode) {
+  if (!blockCode) return false;
+  if (blockCode === taskCode) return true;
+  return blockCode.startsWith(taskCode + '-') || blockCode.startsWith(taskCode + '_');
+}
+
 export function countTaskInSchedule(schedule, code) {
   let count = 0;
   Object.values(schedule).forEach(t => {
     if (t.merged && t.codes) {
-      count += t.codes.filter(c => c === code || c.startsWith(code)).length;
-    } else if (t.code === code || (t.code && t.code.startsWith(code))) {
+      count += t.codes.filter(c => codeMatches(c, code)).length;
+    } else if (codeMatches(t.code, code)) {
       count++;
     }
   });
