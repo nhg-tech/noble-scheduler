@@ -313,7 +313,7 @@ export function SchedulerProvider({ children }) {
       const durationMin = overrideSlots ? overrideSlots * 30 : Number(def.unitMin ?? t.slots * 30);
       const hexColor    = resolveBlockHex(def.color ?? t.color);
       const key         = makeKey(roleId, startMin);
-      newSchedule[key]  = { name: t.name, code: t.code, color: hexColor,
+      newSchedule[key]  = { name: t.name, code: t.code, taskId: t.id, color: hexColor,
         slots: Math.ceil(durationMin / 30), durationMin, notes: t.desc };
     };
 

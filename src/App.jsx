@@ -242,8 +242,8 @@ export default function App() {
     const existDur = existingTask.durationMin ?? existingTask.slots * 30;
     const existConst = existingTask.merged
       ? existingTask.constituents
-      : [{ code: existingTask.code, name: existingTask.name, durationMin: existDur, color: existingTask.color }];
-    const newConst = [...existConst, { code: task.code, name: task.name, durationMin, color: colorHex }];
+      : [{ code: existingTask.code, taskId: existingTask.taskId, name: existingTask.name, durationMin: existDur, color: existingTask.color }];
+    const newConst = [...existConst, { code: task.code, taskId: task.id, name: task.name, durationMin, color: colorHex }];
     const codes  = newConst.map(c => c.code);
     const colors = newConst.map(c => resolveBlockHex(c.color));
     const total  = newConst.reduce((s, c) => s + c.durationMin, 0);

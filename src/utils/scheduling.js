@@ -132,6 +132,7 @@ export function doMerge(schedule, existingKey, codes, colors, totalDuration, con
     name:         codes.join(' + '),
     code:         codes.join('+'),
     codes,
+    taskIds:      constituents.map(c => c.taskId).filter(Boolean),
     colors,
     constituents,
     color:        colors[0],

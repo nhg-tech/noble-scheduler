@@ -34,7 +34,9 @@ export default function ScheduleSummary() {
       const roleId = key.split('|')[0];
       const role = roleMap[roleId];
       if (role && role.includeInHrs === false) return; // excluded role
-      const libTask = TASK_LIBRARY.find(t => t.code === block.code);
+      const libTask = block.taskId
+        ? TASK_LIBRARY.find(t => t.id === block.taskId)
+        : TASK_LIBRARY.find(t => t.code === block.code);
       if (!libTask) { out[key] = block; return; } // unknown tasks count by default
       const def = getTaskDefault(libTask.id);
       if (def.countHours !== false) out[key] = block;
@@ -62,7 +64,9 @@ export default function ScheduleSummary() {
         const dur = Number(block.durationMin ?? (block.slots * 30));
         minStart = Math.min(minStart, startMin);
         maxEnd   = Math.max(maxEnd, startMin + dur);
-        const libTask = TASK_LIBRARY.find(t => t.code === block.code);
+        const libTask = block.taskId
+          ? TASK_LIBRARY.find(t => t.id === block.taskId)
+          : TASK_LIBRARY.find(t => t.code === block.code);
         const def     = libTask ? getTaskDefault(libTask.id) : null;
         if (def && def.countHours === false) nonCountedMins += dur;
       });

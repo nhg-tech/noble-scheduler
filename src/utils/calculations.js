@@ -24,13 +24,20 @@ export function getExpectedInstances(task, socpg, selpg, scCount, allRoleCount) 
 /**
  * Count how many times a task code appears in the schedule (including merged blocks).
  */
-export function countTaskInSchedule(schedule, code) {
+// Match by unique taskId when available; fall back to code for older saved blocks
+// that pre-date taskId storage. This prevents collisions between tasks that share
+// a display code or whose code is a prefix of another task's code.
+export function countTaskInSchedule(schedule, taskId, taskCode) {
   let count = 0;
   Object.values(schedule).forEach(t => {
-    if (t.merged && t.codes) {
-      count += t.codes.filter(c => c === code).length;
-    } else if (t.code === code) {
-      count++;
+    if (t.merged) {
+      if (t.taskIds && t.taskIds.length > 0) {
+        count += t.taskIds.filter(id => id === taskId).length;
+      } else if (t.codes) {
+        count += t.codes.filter(c => c === taskCode).length;
+      }
+    } else {
+      count += t.taskId ? (t.taskId === taskId ? 1 : 0) : (t.code === taskCode ? 1 : 0);
     }
   });
   return count;
@@ -42,7 +49,7 @@ export function countTaskInSchedule(schedule, code) {
  * userTaskDefs  — optional user overrides; when supplied, minResources overrides expectedInstances.
  */
 export function getSchedulingStatus(task, schedule, socpg, selpg, scCount, allRoleCount, userTaskDefs) {
-  const scheduled     = countTaskInSchedule(schedule, task.code);
+  const scheduled     = countTaskInSchedule(schedule, task.id, task.code);
   const expectedLib   = getExpectedInstances(task, socpg, selpg, scCount, allRoleCount);
   const override      = userTaskDefs?.[task.id];
   const overrideMin   = override?.minResources === 99 ? allRoleCount : override?.minResources;
