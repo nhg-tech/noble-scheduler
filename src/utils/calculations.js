@@ -106,15 +106,23 @@ export function computeSummary({
   dogs, multipet, multipetCats, socpg, selpg,
   suites, cats, bungalows, scCount, schedule, countingSchedule, effectiveRoles,
   taskLibrary, userTaskDefs, sessionTaskDefs, skippedTasks, roleCount, derivedValues, assumptions,
+  schedMinsOverride,
 }) {
   // Use effectiveRoles (from Role Config) if provided, otherwise fall back to raw ROLES
   const rolesForHours = effectiveRoles ?? ROLES;
   const eligibleRoles = rolesForHours.filter(r => r.includeInHrs !== false && (r.type === 'TM' || r.type === 'TL'));
   const hrsAvail = eligibleRoles.reduce((a, r) => a + (r.hours ?? 0), 0);
 
-  const hrsSource = countingSchedule ?? schedule;
-  let schedMins = 0;
-  Object.values(hrsSource).forEach(t => { schedMins += Number(t.durationMin ?? (t.slots * 30)); });
+  // If a span-based pre-computed value is provided (from the caller), use it;
+  // otherwise fall back to summing counted task durations.
+  let schedMins;
+  if (schedMinsOverride !== undefined) {
+    schedMins = schedMinsOverride;
+  } else {
+    const hrsSource = countingSchedule ?? schedule;
+    schedMins = 0;
+    Object.values(hrsSource).forEach(t => { schedMins += Number(t.durationMin ?? (t.slots * 30)); });
+  }
   const schedHrs  = schedMins / 60;
   const openMins  = (hrsAvail * 60) - schedMins;
   const openSlots = Math.round(openMins / 30);
