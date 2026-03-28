@@ -36,20 +36,20 @@ export default function GridHeader({ onAddColumn }) {
     .filter(r => !hiddenColumns.has(r.id));
 
   function getRoleRange(roleId) {
-    let minStart = Infinity, maxEnd = -Infinity, countedMins = 0;
+    let minStart = Infinity, maxEnd = -Infinity, nonCountedMins = 0;
     Object.entries(schedule).forEach(([key, task]) => {
       const { roleId: rid, startMin } = keyToRoleAndMin(key);
       if (rid !== roleId) return;
       const dur = Number(task.durationMin ?? task.slots * 30);
       minStart = Math.min(minStart, startMin);
       maxEnd   = Math.max(maxEnd, startMin + dur);
-      // Only add to counted hours if task is not marked countHours:false
+      // Accumulate durations for tasks that do NOT count toward hours (breaks, lunch, etc.)
       const libTask = TASK_LIBRARY.find(t => t.code === task.code || t.id === task.taskId);
       const counts  = libTask ? (getTaskDefault(libTask.id)?.countHours !== false) : true;
-      if (counts) countedMins += dur;
+      if (!counts) nonCountedMins += dur;
     });
     if (minStart === Infinity) return null;
-    return { startMin: minStart, endMin: maxEnd, countedMins };
+    return { startMin: minStart, endMin: maxEnd, nonCountedMins };
   }
 
   // ── Custom pointer-based column drag (no nested DndContext) ──────────────
@@ -149,18 +149,30 @@ export default function GridHeader({ onAddColumn }) {
 
             <div style={{ fontSize: 10, color: 'var(--gray)', marginTop: 1 }}>{role.sub}</div>
 
-            {/* Time window: actual first→last task span + counted hours.
-                Falls back to configured shift when nothing is scheduled. */}
-            <div style={{ fontSize: 10, color: 'var(--gray)', marginTop: 1 }}>
+            {/* Shift window + hours from Role Config */}
+            {(role.shiftStart != null && role.shiftEnd != null) && (
+              <div style={{ fontSize: 10, color: 'var(--gray)', marginTop: 1 }}>
+                {fmtShift(role.shiftStart)}–{fmtShift(role.shiftEnd)}
+                {role.hours != null && (
+                  <span style={{ marginLeft: 3, opacity: 0.75 }}>
+                    / {role.hours}h
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Actual task span: first task start → last task end, hours exclude countHours:false tasks */}
+            <div style={{
+              fontSize: 9, marginTop: 1,
+              fontFamily: "'DM Mono', monospace",
+              color: range ? 'var(--purple)' : 'var(--gray)',
+            }}>
               {range ? (() => {
-                const countedH = range.countedMins / 60;
-                const hStr     = countedH % 1 === 0 ? `${countedH}h` : `${countedH.toFixed(1)}h`;
+                const spanMins   = range.endMin - range.startMin;
+                const countedH   = (spanMins - range.nonCountedMins) / 60;
+                const hStr       = countedH % 1 === 0 ? `${countedH}h` : `${countedH.toFixed(1)}h`;
                 return `${formatShiftTime(range.startMin / 60)}–${formatShiftTime(range.endMin / 60)} / ${hStr}`;
-              })() : (
-                role.shiftStart != null && role.shiftEnd != null
-                  ? `${fmtShift(role.shiftStart)}–${fmtShift(role.shiftEnd)}${role.hours != null ? ` / ${role.hours}h` : ''}`
-                  : '–'
-              )}
+              })() : '–'}
             </div>
 
             {/* ✕ shown on every column — hides from this schedule only */}
