@@ -1,7 +1,6 @@
 import { useState, useRef } from 'react'; // useState kept for dragRoleId
 import { formatShiftTime, keyToRoleAndMin } from '../../utils/scheduling';
 import { useScheduler } from '../../context/SchedulerContext';
-import { TASK_LIBRARY } from '../../data/taskLibrary';
 
 const ROLE_COL_W = 120;
 const TIME_COL_W = 52;
@@ -23,7 +22,7 @@ function fmtShift(decimal) {
 }
 
 export default function GridHeader({ onAddColumn }) {
-  const { schedule, extraRoles, setExtraRoles, columnOrder, setColumnOrder, getEffectiveRoles, hiddenColumns, hideColumn, getTaskDefault } = useScheduler();
+  const { schedule, extraRoles, setExtraRoles, columnOrder, setColumnOrder, getEffectiveRoles, hiddenColumns, hideColumn, getTaskDefault, taskLibrary } = useScheduler();
   const [dragRoleId, setDragRoleId] = useState(null);
   const isDraggingRef  = useRef(false);
   const dragIdRef      = useRef(null);
@@ -44,7 +43,7 @@ export default function GridHeader({ onAddColumn }) {
       minStart = Math.min(minStart, startMin);
       maxEnd   = Math.max(maxEnd, startMin + dur);
       // Accumulate durations for tasks that do NOT count toward hours (breaks, lunch, etc.)
-      const libTask = TASK_LIBRARY.find(t => t.code === task.code || t.id === task.taskId);
+      const libTask = taskLibrary.find(t => t.code === task.code || t.id === task.taskId);
       const counts  = libTask ? (getTaskDefault(libTask.id)?.countHours !== false) : true;
       if (!counts) nonCountedMins += dur;
     });

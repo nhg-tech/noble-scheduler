@@ -1,22 +1,21 @@
 import { useState } from 'react';
 import { useDraggable } from '@dnd-kit/core';
-import { TASK_LIBRARY } from '../../data/taskLibrary';
 import { useScheduler } from '../../context/SchedulerContext';
 import { getSchedulingStatus } from '../../utils/calculations';
 import { resolveBlockHex, resolveBlockText } from '../../data/palette';
-import { ROLES } from '../../data/roles';
 
 export default function TaskLibrary({ onCreateCustom }) {
   const [filter, setFilter] = useState('pending'); // 'pending' | 'all'
   // undefined entries treated as true — so any new/future category is expanded by default
   const [expanded, setExpanded] = useState({});
   const { schedule, assumptions, getDerivedValues, userTaskDefs, sessionTaskDefs,
-          extraRoles, getFullCatList, taskOrder, skippedTasks, toggleSkipTask } = useScheduler();
+          extraRoles, getFullCatList, taskOrder, skippedTasks, toggleSkipTask,
+          getEffectiveRoles, taskLibrary } = useScheduler();
   const { scCount, totalRooms } = getDerivedValues();
   const { socpg, selpg } = assumptions;
 
   // Total employee columns = built-in TM/TL/PAW roles + any extra columns added by user
-  const baseRoleCount = ROLES.filter(r => r.type === 'TM' || r.type === 'TL' || r.type === 'PAW').length;
+  const baseRoleCount = getEffectiveRoles().filter(r => r.type === 'TM' || r.type === 'TL' || r.type === 'PAW').length;
   const totalRoleCount = baseRoleCount + (extraRoles?.length || 0);
 
   // Full cat list for label lookup; active-only for display
@@ -46,13 +45,13 @@ export default function TaskLibrary({ onCreateCustom }) {
 
   // Build ordered task list per category
   function getOrderedTasksForCat(catId) {
-    const libTasks = TASK_LIBRARY.filter(t => {
+    const libTasks = taskLibrary.filter(t => {
       const effectiveCat = userTaskDefs[t.id]?.cat || t.cat;
       return effectiveCat === catId && !userTaskDefs[t.id]?.hidden;
     });
-    // User-created default tasks (in userTaskDefs but not in TASK_LIBRARY)
+    // User-created default tasks (in userTaskDefs but not in taskLibrary)
     const defaultUserTasks = Object.entries(userTaskDefs)
-      .filter(([id, t]) => !TASK_LIBRARY.find(lib => lib.id === id) && !t.hidden && (t.cat || '') === catId)
+      .filter(([id, t]) => !taskLibrary.find(lib => lib.id === id) && !t.hidden && (t.cat || '') === catId)
       .map(([id, t]) => ({ ...t, id }));
     // Schedule-specific custom tasks (in sessionTaskDefs but not in userTaskDefs)
     const scheduleCustom = Object.entries(sessionTaskDefs)

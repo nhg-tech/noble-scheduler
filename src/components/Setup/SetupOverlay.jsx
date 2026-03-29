@@ -1,7 +1,5 @@
 import { useState, useRef, useMemo, useCallback, useEffect } from 'react';
 import { useScheduler } from '../../context/SchedulerContext';
-import { TASK_LIBRARY } from '../../data/taskLibrary';
-import { ROLES } from '../../data/roles';
 import { NOBLE_PALETTE, resolveBlockHex } from '../../data/palette';
 import { getExpectedInstances, UNIT_BASIS_OPTIONS } from '../../utils/calculations';
 import CreateTaskModal from '../Modals/CreateTaskModal';
@@ -422,7 +420,7 @@ function ProgramMixTab({ assumptions, onAssumption, userProgramDefs, defaults, o
 const CAT_BG = { group: '#EDE8F7', suite: '#E3F2FD', meals: '#FFF8E1', fixed: '#F1F8E9', on: '#F3E5F5' };
 
 function TaskDefaultsTab({ userTaskDefs, sessionTaskDefs, onChange, onCreateTask, onEditTask, onDeleteTask }) {
-  const { getFullCatList, taskOrder, setTaskOrder, getTaskDefault } = useScheduler();
+  const { getFullCatList, taskOrder, setTaskOrder, getTaskDefault, taskLibrary } = useScheduler();
   const isDraggingRef = useRef(false);
   const dragIdRef     = useRef(null);
   const dragCatRef    = useRef(null);
@@ -430,13 +428,13 @@ function TaskDefaultsTab({ userTaskDefs, sessionTaskDefs, onChange, onCreateTask
   const activeCats = getFullCatList().filter(c => !c.deleted);
 
   function getOrderedTasksForCat(catId) {
-    const libTasks = TASK_LIBRARY.filter(t => {
+    const libTasks = taskLibrary.filter(t => {
       const effectiveCat = userTaskDefs[t.id]?.cat || t.cat;
       return effectiveCat === catId && !userTaskDefs[t.id]?.hidden;
     });
-    // Also include user-created default tasks for this category (in userTaskDefs but not in TASK_LIBRARY)
+    // Also include user-created default tasks for this category (in userTaskDefs but not in taskLibrary)
     const userCreatedTasks = Object.entries(userTaskDefs)
-      .filter(([id, t]) => !TASK_LIBRARY.find(lib => lib.id === id) && !t.hidden && (t.cat || '') === catId)
+      .filter(([id, t]) => !taskLibrary.find(lib => lib.id === id) && !t.hidden && (t.cat || '') === catId)
       .map(([id, t]) => ({ ...t, id }));
     const all = [...libTasks, ...userCreatedTasks];
     const order = taskOrder[catId] || [];
@@ -795,39 +793,26 @@ function RoleConfigTab() {
     columnOrder,  setColumnOrder,
   } = useScheduler();
 
-  // Build display list: built-in roles (with overrides) + custom roles
+  // Build display list: all roles from DB (built-in and custom)
   const displayRoles = useMemo(() => {
-    const builtIn = ROLES.map(r => {
-      const over   = userRoleDefs[r.id] || {};
-      const sStart = over.shiftStart  ?? r.shiftStart;
-      const sEnd   = over.shiftEnd    ?? r.shiftEnd;
-      const uBreak = over.unpaidBreak ?? (r.unpaidBreak ?? 0);
+    return Object.entries(userRoleDefs).map(([id, def]) => {
+      const sStart = def.shiftStart  ?? 9;
+      const sEnd   = def.shiftEnd    ?? 17;
+      const uBreak = def.unpaidBreak ?? 0;
+      const type   = def.type || 'TM';
       return {
-        id: r.id, type: r.type, isCustom: false,
-        label:       over.label ?? r.label,
-        sub:         over.sub   ?? r.sub,
+        id, type,
+        isCustom:    def.custom ?? false,
+        label:       def.label       || id,
+        sub:         def.sub         || '',
         shiftStart:  sStart,
         shiftEnd:    sEnd,
         unpaidBreak: uBreak,
         hours:       calcShiftHours(sStart, sEnd, uBreak),
-        deleted:     over.deleted ?? false,
-        includeInHrs: over.includeInHrs ?? (r.type === 'TM' || r.type === 'TL'),
+        deleted:     def.deleted ?? false,
+        includeInHrs: def.includeInHrs ?? (type === 'TM' || type === 'TL'),
       };
     });
-    const custom = Object.entries(userRoleDefs)
-      .filter(([, def]) => def.custom)
-      .map(([id, def]) => ({
-        id, isCustom: true, type: 'TM',
-        label:       def.label       || '',
-        sub:         def.sub         || '',
-        shiftStart:  def.shiftStart  ?? 9,
-        shiftEnd:    def.shiftEnd    ?? 17,
-        unpaidBreak: def.unpaidBreak ?? 30,
-        hours:       calcShiftHours(def.shiftStart ?? 9, def.shiftEnd ?? 17, def.unpaidBreak ?? 30),
-        deleted:     def.deleted ?? false,
-        includeInHrs: def.includeInHrs ?? true,
-      }));
-    return [...builtIn, ...custom];
   }, [userRoleDefs]);
 
   function updateField(id, field, value) {
@@ -836,9 +821,9 @@ function RoleConfigTab() {
       const updated = { ...cur, [field]: value };
       // Auto-recalc hours when shift times or break change
       if (['shiftStart', 'shiftEnd', 'unpaidBreak'].includes(field)) {
-        const sStart = field === 'shiftStart' ? value : (cur.shiftStart ?? ROLES.find(r=>r.id===id)?.shiftStart ?? 9);
-        const sEnd   = field === 'shiftEnd'   ? value : (cur.shiftEnd   ?? ROLES.find(r=>r.id===id)?.shiftEnd   ?? 17);
-        const uBreak = field === 'unpaidBreak'? value : (cur.unpaidBreak?? ROLES.find(r=>r.id===id)?.unpaidBreak ?? 0);
+        const sStart = field === 'shiftStart' ? value : (cur.shiftStart ?? 9);
+        const sEnd   = field === 'shiftEnd'   ? value : (cur.shiftEnd   ?? 17);
+        const uBreak = field === 'unpaidBreak'? value : (cur.unpaidBreak ?? 0);
         updated.hours = calcShiftHours(sStart, sEnd, uBreak);
       }
       return { ...prev, [id]: updated };

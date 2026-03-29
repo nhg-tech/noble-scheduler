@@ -1,11 +1,10 @@
 import { useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useScheduler } from '../../context/SchedulerContext';
-import { TIME_SLOTS, ROLES } from '../../data/roles';
+import { TIME_SLOTS } from '../../data/roles';
 import { keyToRoleAndMin, formatMin, inShift } from '../../utils/scheduling';
 import { resolveBlockHex, resolveBlockText } from '../../data/palette';
 import { computeSummary } from '../../utils/calculations';
-import { TASK_LIBRARY } from '../../data/taskLibrary';
 
 // ─── Print layout constants ───────────────────────────────────────────────────
 const MIN_SLOT_H     = 14;   // minimum px per 30-min slot
@@ -56,7 +55,7 @@ export default function PrintLayout({ opts }) {
     schedule, assumptions, scheduleLabel,
     getEffectiveRoles, extraRoles, columnOrder, hiddenColumns,
     getDerivedValues, getProgramPct, getTaskDefault,
-    userTaskDefs, sessionTaskDefs, skippedTasks,
+    userTaskDefs, sessionTaskDefs, skippedTasks, taskLibrary,
   } = useScheduler();
 
   const { paperSize = 'legal', inclSummary = true, inclAssumptions = true, excludedCols = [] } = opts || {};
@@ -127,7 +126,7 @@ export default function PrintLayout({ opts }) {
   const { socpg, selpg, dogs } = assumptions;
   const { multipet, multipetCats } = getProgramPct();
   const effectiveRoles = getEffectiveRoles().filter(r => columnOrder.includes(r.id));
-  const baseRoleCount  = ROLES.filter(r => r.type === 'TM' || r.type === 'TL' || r.type === 'PAW').length;
+  const baseRoleCount  = getEffectiveRoles().filter(r => r.type === 'TM' || r.type === 'TL' || r.type === 'PAW').length;
   const totalRoleCount = baseRoleCount + (extraRoles?.length || 0);
 
   const countingSchedule = useMemo(() => {
@@ -137,7 +136,7 @@ export default function PrintLayout({ opts }) {
       const roleId = key.split('|')[0];
       const role = roleMap[roleId];
       if (role && role.includeInHrs === false) return;
-      const libTask = TASK_LIBRARY.find(t => t.code === block.code);
+      const libTask = taskLibrary.find(t => t.code === block.code);
       if (!libTask) { out[key] = block; return; }
       const def = getTaskDefault(libTask.id);
       if (def.countHours !== false) out[key] = block;
@@ -149,7 +148,7 @@ export default function PrintLayout({ opts }) {
     dogs, multipet, multipetCats, socpg, selpg,
     suites, cats, bungalows, scCount,
     schedule, countingSchedule, effectiveRoles,
-    taskLibrary: TASK_LIBRARY,
+    taskLibrary,
     userTaskDefs,
     sessionTaskDefs,
     skippedTasks,

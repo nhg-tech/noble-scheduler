@@ -6,14 +6,13 @@ import GridCell from './GridCell';
 import TaskBlock from './TaskBlock';
 import GridHeader from './GridHeader';
 import { useScheduler } from '../../context/SchedulerContext';
-import { TASK_LIBRARY } from '../../data/taskLibrary';
 
 const TIME_COL_W = 52;
 const ROLE_COL_W = 120;
 const SLOT_H = 44;
 
 export default function GridBody({ schedule, onEdit, onRemove, onSplit, onResize, onCopy, onPasteAt, hasClipboard, onCreateHere, onAddColumn }) {
-  const { extraRoles, columnOrder, getEffectiveRoles, userTaskDefs, hiddenColumns } = useScheduler();
+  const { extraRoles, columnOrder, getEffectiveRoles, userTaskDefs, hiddenColumns, taskLibrary } = useScheduler();
   const allRolesBase = [...getEffectiveRoles(), ...extraRoles];
   // Only render columns in columnOrder that are not session-hidden
   const allRoles = columnOrder
@@ -30,10 +29,10 @@ export default function GridBody({ schedule, onEdit, onRemove, onSplit, onResize
     Object.entries(schedule).forEach(([blockKey, task]) => {
       const { roleId, startMin } = keyToRoleAndMin(blockKey);
       if (!map[roleId]) return;
-      // Resolve display code from userTaskDefs — use stored taskId, fall back to TASK_LIBRARY lookup by code
+      // Resolve display code from userTaskDefs — use stored taskId, fall back to taskLibrary lookup by code
       const libTask = task.taskId
-        ? TASK_LIBRARY.find(t => t.id === task.taskId)
-        : TASK_LIBRARY.find(t => t.code === task.code);
+        ? taskLibrary.find(t => t.id === task.taskId)
+        : taskLibrary.find(t => t.code === task.code);
       const override = libTask ? (userTaskDefs[libTask.id] || {}) : {};
       const resolvedCode = override.code ?? task.code;
       const resolvedTask = resolvedCode !== task.code ? { ...task, code: resolvedCode } : task;

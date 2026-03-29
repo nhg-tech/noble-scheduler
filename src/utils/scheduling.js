@@ -1,4 +1,4 @@
-import { TIME_SLOTS, ROLES } from '../data/roles';
+import { TIME_SLOTS } from '../data/roles';
 
 // ─── Key helpers ───────────────────────────────────────────────────────────
 export function makeKey(roleId, startMin) {
@@ -81,8 +81,8 @@ export function findOverlapInRange(schedule, roleId, startMin, durationMin) {
   return found;
 }
 
-export function findNextFreeMinute(schedule, roleId, fromMin, durationMin) {
-  const role = ROLES.find(r => r.id === roleId);
+export function findNextFreeMinute(schedule, roleId, fromMin, durationMin, roles = []) {
+  const role = roles.find(r => r.id === roleId);
 
   const occupied = [];
   Object.entries(schedule).forEach(([key, task]) => {

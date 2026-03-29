@@ -1,17 +1,16 @@
 import Modal, { ModalFooter, Btn } from './Modal';
 import { useScheduler } from '../../context/SchedulerContext';
-import { TASK_LIBRARY } from '../../data/taskLibrary';
 import { getSchedulingStatus } from '../../utils/calculations';
 import { keyToRoleAndMin, formatMin } from '../../utils/scheduling';
-import { ROLES } from '../../data/roles';
 
 export default function ValidationModal({ onClose }) {
-  const { schedule, assumptions, getDerivedValues, userTaskDefs } = useScheduler();
+  const { schedule, assumptions, getDerivedValues, userTaskDefs, taskLibrary, getEffectiveRoles } = useScheduler();
+  const effectiveRoles = getEffectiveRoles();
   const { scCount } = getDerivedValues();
   const { socpg, selpg } = assumptions;
 
   // Check 1: Missing or under-scheduled tasks
-  const taskIssues = TASK_LIBRARY
+  const taskIssues = taskLibrary
     .map(task => {
       const { scheduled, expected, done } = getSchedulingStatus(task, schedule, socpg, selpg, scCount, undefined, userTaskDefs);
       if (!done) return { task, scheduled, expected };
@@ -21,7 +20,7 @@ export default function ValidationModal({ onClose }) {
 
   // Check 2: Overlapping blocks per role
   const overlapIssues = [];
-  ROLES.forEach(role => {
+  effectiveRoles.forEach(role => {
     const blocks = Object.entries(schedule)
       .filter(([key]) => keyToRoleAndMin(key).roleId === role.id)
       .map(([key, task]) => {
@@ -47,7 +46,7 @@ export default function ValidationModal({ onClose }) {
     .filter(([, t]) => t.overflow)
     .map(([key, t]) => {
       const { roleId, startMin } = keyToRoleAndMin(key);
-      const role = ROLES.find(r => r.id === roleId);
+      const role = effectiveRoles.find(r => r.id === roleId);
       return { roleLabel: role?.label || roleId, code: t.code, startMin };
     });
 

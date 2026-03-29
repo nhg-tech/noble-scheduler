@@ -1,13 +1,11 @@
 import { useState } from 'react';
 import Modal, { ModalFooter, Btn } from './Modal';
-import { TASK_LIBRARY, CAT_LABELS, CAT_ORDER } from '../../data/taskLibrary';
 import { useScheduler } from '../../context/SchedulerContext';
-import { getSchedulingStatus } from '../../utils/calculations';
 import { keyToRoleAndMin, formatMin } from '../../utils/scheduling';
-import { ROLES } from '../../data/roles';
 
 export default function ChecklistModal({ onClose }) {
-  const { schedule, assumptions } = useScheduler();
+  const { schedule, assumptions, getEffectiveRoles } = useScheduler();
+  const effectiveRoles = getEffectiveRoles();
   const [checked, setChecked] = useState({});
 
   function toggle(key) {
@@ -16,7 +14,7 @@ export default function ChecklistModal({ onClose }) {
 
   // Group placed blocks by role
   const blocksByRole = {};
-  ROLES.forEach(r => { blocksByRole[r.id] = []; });
+  effectiveRoles.forEach(r => { blocksByRole[r.id] = []; });
   Object.entries(schedule).forEach(([key, task]) => {
     const { roleId, startMin } = keyToRoleAndMin(key);
     if (blocksByRole[roleId]) {
@@ -27,7 +25,7 @@ export default function ChecklistModal({ onClose }) {
   return (
     <Modal title="Daily Checklist" onClose={onClose} width={560}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-        {ROLES.map(role => {
+        {effectiveRoles.map(role => {
           const blocks = blocksByRole[role.id] || [];
           if (blocks.length === 0) return null;
           const sorted = [...blocks].sort((a, b) => a.startMin - b.startMin);
