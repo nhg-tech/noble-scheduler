@@ -132,12 +132,12 @@ export function SchedulerProvider({ children }) {
           apiSchedules.getPostings(),
         ]);
         if (tasks.status    === 'fulfilled' && Object.keys(tasks.value).length)
-          // Merge: API data for library overrides; preserve local custom default tasks not yet pushed to API
+          // API is authoritative; preserve any local entries not yet pushed to API (e.g. created but not yet saved)
           setUserTaskDefs(prev => {
-            const localCustom = Object.fromEntries(
-              Object.entries(prev).filter(([, def]) => def.custom)
+            const localOnly = Object.fromEntries(
+              Object.entries(prev).filter(([id]) => !(id in tasks.value))
             );
-            return { ...tasks.value, ...localCustom };
+            return { ...tasks.value, ...localOnly };
           });
         if (roles.status    === 'fulfilled' && Object.keys(roles.value).length)
           // Merge: API is authoritative for base fields; local overrides win for any
@@ -206,13 +206,14 @@ export function SchedulerProvider({ children }) {
     const libTask = TASK_LIBRARY.find(t => t.id === taskId);
     const user    = userTaskDefs[taskId] || {};
     return {
-      slots:      user.slots      ?? base.slots,
-      unitMin:    user.durationMin ?? user.unitMin ?? base.unitMin,
-      unitBasis:  user.unitBasis  ?? base.unitBasis,
-      idealStart: user.idealStart ?? base.idealStart,
-      color:      user.color      ?? base.color,
-      countHours: user.countHours ?? base.countHours ?? true,
-      code:       user.code       ?? libTask?.code ?? taskId,
+      slots:        user.slots        ?? base.slots,
+      unitMin:      user.durationMin  ?? user.unitMin ?? base.unitMin,
+      unitBasis:    user.unitBasis    ?? base.unitBasis,
+      idealStart:   user.idealStart   ?? base.idealStart,
+      color:        user.color        ?? base.color,
+      countHours:   user.countHours   ?? base.countHours ?? true,
+      code:         user.code         ?? libTask?.code ?? taskId,
+      minResources: user.minResources ?? null,
     };
   }, [userTaskDefs]);
 

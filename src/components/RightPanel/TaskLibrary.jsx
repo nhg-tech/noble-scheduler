@@ -50,10 +50,15 @@ export default function TaskLibrary({ onCreateCustom }) {
       const effectiveCat = userTaskDefs[t.id]?.cat || t.cat;
       return effectiveCat === catId && !userTaskDefs[t.id]?.hidden;
     });
-    // Default tasks from Setup (userTaskDefs, custom: true) + schedule-specific custom tasks (sessionTaskDefs)
-    const defaultCustom   = Object.values(userTaskDefs).filter(t => t.custom && (t.cat || '') === catId);
-    const scheduleCustom  = Object.values(sessionTaskDefs).filter(t => (t.cat || '') === catId && !userTaskDefs[t.id]?.custom);
-    const all = [...libTasks, ...defaultCustom, ...scheduleCustom];
+    // User-created default tasks (in userTaskDefs but not in TASK_LIBRARY)
+    const defaultUserTasks = Object.entries(userTaskDefs)
+      .filter(([id, t]) => !TASK_LIBRARY.find(lib => lib.id === id) && !t.hidden && (t.cat || '') === catId)
+      .map(([id, t]) => ({ ...t, id }));
+    // Schedule-specific custom tasks (in sessionTaskDefs but not in userTaskDefs)
+    const scheduleCustom = Object.entries(sessionTaskDefs)
+      .filter(([id, t]) => (t.cat || '') === catId && !userTaskDefs[id])
+      .map(([id, t]) => ({ ...t, id }));
+    const all = [...libTasks, ...defaultUserTasks, ...scheduleCustom];
     const order = taskOrder[catId] || [];
     const byId = Object.fromEntries(all.map(t => [t.id, t]));
     const ordered = order.map(id => byId[id]).filter(Boolean);

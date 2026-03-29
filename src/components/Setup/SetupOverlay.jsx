@@ -100,18 +100,8 @@ export default function SetupOverlay({ onClose }) {
     setShowCreateModal(true);
   }
 
-  function handleDeleteCustom(taskId) {
-    if (!window.confirm('Delete this default task?')) return;
-    if (userTaskDefs[taskId]?.custom) {
-      setUserTaskDefs(prev => { const u = { ...prev }; delete u[taskId]; return u; });
-    } else {
-      // Legacy: may still be in sessionTaskDefs from before this fix
-      setSessionTaskDefs(prev => { const u = { ...prev }; delete u[taskId]; return u; });
-    }
-  }
-
-  function handleDeleteLibTask(taskId) {
-    if (!window.confirm('Hide this task from the schedule? It will be removed from the Task Library and this table. Use "Reset to defaults" to restore all hidden tasks.')) return;
+  function handleDeleteTask(taskId) {
+    if (!window.confirm('Remove this task from Setup? It will no longer appear in the task library or this table.')) return;
     setUserTaskDefs(prev => ({
       ...prev,
       [taskId]: { ...(prev[taskId] || {}), hidden: true },
@@ -127,19 +117,11 @@ export default function SetupOverlay({ onClose }) {
   }
 
   function setTaskDefault(taskId, field, val) {
-    if (sessionTaskDefs[taskId] && !userTaskDefs[taskId]?.custom) {
-      // Schedule-specific custom task (not a setup default) — update in sessionTaskDefs
-      setSessionTaskDefs(prev => ({
-        ...prev,
-        [taskId]: { ...(prev[taskId] || {}), [field]: val },
-      }));
-    } else {
-      // Library task override OR setup-created default task — both live in userTaskDefs
-      setUserTaskDefs(prev => ({
-        ...prev,
-        [taskId]: { ...(prev[taskId] || {}), [field]: val },
-      }));
-    }
+    // All default tasks in Setup live in userTaskDefs regardless of origin
+    setUserTaskDefs(prev => ({
+      ...prev,
+      [taskId]: { ...(prev[taskId] || {}), [field]: val },
+    }));
   }
 
   return (
@@ -230,11 +212,9 @@ export default function SetupOverlay({ onClose }) {
               userTaskDefs={userTaskDefs}
               sessionTaskDefs={sessionTaskDefs}
               onChange={setTaskDefault}
-              onCreateCustom={() => setShowCreateModal(true)}
-              onEditCustom={handleEditCustom}
-              onDeleteCustom={handleDeleteCustom}
-              onEditLibTask={task => setEditingLibTask(task)}
-              onDeleteLibTask={handleDeleteLibTask}
+              onCreateTask={() => setShowCreateModal(true)}
+              onEditTask={task => setEditingLibTask(task)}
+              onDeleteTask={handleDeleteTask}
             />
           )}
 
@@ -441,7 +421,7 @@ function ProgramMixTab({ assumptions, onAssumption, userProgramDefs, defaults, o
 // ─── Task Defaults Tab ───────────────────────────────────────────────────────
 const CAT_BG = { group: '#EDE8F7', suite: '#E3F2FD', meals: '#FFF8E1', fixed: '#F1F8E9', on: '#F3E5F5' };
 
-function TaskDefaultsTab({ userTaskDefs, sessionTaskDefs, onChange, onCreateCustom, onEditCustom, onDeleteCustom, onEditLibTask, onDeleteLibTask }) {
+function TaskDefaultsTab({ userTaskDefs, sessionTaskDefs, onChange, onCreateTask, onEditTask, onDeleteTask }) {
   const { getFullCatList, taskOrder, setTaskOrder, getTaskDefault } = useScheduler();
   const isDraggingRef = useRef(false);
   const dragIdRef     = useRef(null);
@@ -454,9 +434,11 @@ function TaskDefaultsTab({ userTaskDefs, sessionTaskDefs, onChange, onCreateCust
       const effectiveCat = userTaskDefs[t.id]?.cat || t.cat;
       return effectiveCat === catId && !userTaskDefs[t.id]?.hidden;
     });
-    // Also include setup-created default tasks for this category (stored in userTaskDefs with custom: true)
-    const defaultCustomTasks = Object.values(userTaskDefs).filter(t => t.custom && t.cat === catId);
-    const all = [...libTasks, ...defaultCustomTasks];
+    // Also include user-created default tasks for this category (in userTaskDefs but not in TASK_LIBRARY)
+    const userCreatedTasks = Object.entries(userTaskDefs)
+      .filter(([id, t]) => !TASK_LIBRARY.find(lib => lib.id === id) && !t.hidden && (t.cat || '') === catId)
+      .map(([id, t]) => ({ ...t, id }));
+    const all = [...libTasks, ...userCreatedTasks];
     const order = taskOrder[catId] || [];
     const byId = Object.fromEntries(all.map(t => [t.id, t]));
     const ordered = order.map(id => byId[id]).filter(Boolean);
@@ -524,15 +506,14 @@ function TaskDefaultsTab({ userTaskDefs, sessionTaskDefs, onChange, onCreateCust
                 }}>{cat.label}</td>
               </tr>,
               ...tasks.map(task => {
-                const isCustom  = !!task.custom;
-                const override  = userTaskDefs[task.id] || {};
-                const minVal    = isCustom ? (task.durationMin ?? 30) : (override.durationMin ?? task.unitMin);
-                const minRes    = isCustom ? task.minResources : override.minResources;
-                const colorVal  = isCustom ? task.color : (override.color || task.color);
+                const def      = getTaskDefault(task.id);
+                const minVal   = def.unitMin ?? task.durationMin ?? 30;
+                const minRes   = def.minResources;
+                const colorVal = def.color ?? task.color;
                 return (
                   <tr
                     key={task.id}
-                    style={{ borderBottom: '1px solid var(--gray-light)', background: isCustom ? '#F8F5FF' : undefined }}
+                    style={{ borderBottom: '1px solid var(--gray-light)' }}
                     onPointerEnter={() => handleRowPointerEnter(task.id, cat.id)}
                   >
                     <Td>
@@ -552,7 +533,7 @@ function TaskDefaultsTab({ userTaskDefs, sessionTaskDefs, onChange, onCreateCust
                     <Td>{override.name ?? task.name}</Td>
                     <Td style={{ color: 'var(--gray)', fontSize: 11 }}>{task.unitBasis || '—'}</Td>
                     <Td>
-                      <input type="number" min={1} step={isCustom ? 1 : 0.5}
+                      <input type="number" min={1} step={1}
                         value={minVal}
                         onChange={e => onChange(task.id, 'durationMin', e.target.value ? Number(e.target.value) : undefined)}
                         style={{ ...inputStyle, width: 60, padding: '3px 6px', fontSize: 11 }}
@@ -572,9 +553,7 @@ function TaskDefaultsTab({ userTaskDefs, sessionTaskDefs, onChange, onCreateCust
                     <Td style={{ textAlign: 'center' }}>
                       <input
                         type="checkbox"
-                        checked={isCustom
-                          ? (task.countHours ?? true)
-                          : getTaskDefault(task.id).countHours}
+                        checked={def.countHours}
                         onChange={e => onChange(task.id, 'countHours', e.target.checked)}
                         title={getTaskDefault(task.id).countHours === false ? 'Excluded from hours total' : 'Counts toward hours total'}
                         style={{ cursor: 'pointer', accentColor: 'var(--purple)', width: 14, height: 14 }}
@@ -582,8 +561,8 @@ function TaskDefaultsTab({ userTaskDefs, sessionTaskDefs, onChange, onCreateCust
                     </Td>
                     <Td>
                       <div style={{ display: 'flex', gap: 4 }}>
-                        <button onClick={() => isCustom ? onEditCustom(task) : onEditLibTask(task)} title="Edit" style={actionBtnStyle}>✏</button>
-                        <button onClick={() => isCustom ? onDeleteCustom(task.id) : onDeleteLibTask(task.id)} title="Delete" style={{ ...actionBtnStyle, color: 'var(--red)' }}>🗑</button>
+                        <button onClick={() => onEditTask(task)} title="Edit" style={actionBtnStyle}>✏</button>
+                        <button onClick={() => onDeleteTask(task.id)} title="Delete" style={{ ...actionBtnStyle, color: 'var(--red)' }}>🗑</button>
                       </div>
                     </Td>
                   </tr>
@@ -594,7 +573,7 @@ function TaskDefaultsTab({ userTaskDefs, sessionTaskDefs, onChange, onCreateCust
         </tbody>
       </table>
       <div style={{ marginTop: 14 }}>
-        <button onClick={onCreateCustom} style={{
+        <button onClick={onCreateTask} style={{
           padding: '8px 16px', borderRadius: 7, border: '1.5px dashed var(--purple-light)',
           background: 'transparent', color: 'var(--purple)', fontSize: 12,
           fontWeight: 600, fontFamily: "'DM Sans', sans-serif", cursor: 'pointer',
@@ -1049,8 +1028,6 @@ function EditLibTaskModal({ task, override, onChange, onClose }) {
     expectedInstances: override.expectedInstances ?? task.expectedInstances ?? 1,
     countHours:        getTaskDefault(task.id).countHours,
   });
-
-  const isCustom = !!task.custom;
 
   function handleSave() {
     onChange(task.id, 'durationMin',       Number(local.durationMin));

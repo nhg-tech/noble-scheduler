@@ -31,7 +31,7 @@ export default function CreateTaskModal({ onSave, onClose, initialData }) {
   function handleSave() {
     if (!form.code.trim() || !form.name.trim()) return;
     onSave({
-      id: initialData?.id || `custom_${Date.now()}`,
+      id: initialData?.id || `default_${Date.now()}`,
       ...form,
       durationMin: Number(form.durationMin),
       expectedInstances: Number(form.expectedInstances),
@@ -39,7 +39,6 @@ export default function CreateTaskModal({ onSave, onClose, initialData }) {
       unitMin: Number(form.durationMin),
       unitBasis: form.unitBasis,
       idealStart: 'Various',
-      custom: true,
     });
   }
 
