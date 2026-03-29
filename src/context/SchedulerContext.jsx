@@ -54,7 +54,7 @@ export function SchedulerProvider({ children }) {
     const customIds  = Object.entries(savedRoles)
       .filter(([, def]) => def.custom && !def.deleted)
       .map(([id]) => id);
-    const base    = stored ?? ROLES.map(r => r.id);
+    const base    = stored ?? Object.keys(savedRoles).filter(id => !savedRoles[id].deleted && !savedRoles[id].custom);
     const missing = customIds.filter(id => !base.includes(id));
     return [...base, ...missing];
   });
@@ -62,7 +62,7 @@ export function SchedulerProvider({ children }) {
   const [hiddenColumns,  setHiddenColumns]  = useState(() => new Set(loadLS(LS_SESSION, null)?.hiddenColumns ?? []));
   const [scheduleLabel,  setScheduleLabel]  = useState('Template 1 — 2 SocPGs + 2 SelPGs');
   const [userCatDefs,    setUserCatDefs]    = useState(() => loadLS(LS_CAT_DEFS,   {}));
-  const [catOrder,       setCatOrder]       = useState(() => loadLS(LS_CAT_ORDER,  [...CAT_ORDER]));
+  const [catOrder,       setCatOrder]       = useState(() => loadLS(LS_CAT_ORDER,  []));
   const [taskOrder,      setTaskOrder]      = useState(() => loadLS(LS_TASK_ORDER, {}));
   // Custom tasks — persisted in LS_SESSION so they survive page reloads; also saved/restored with drafts/templates
   const [sessionTaskDefs, setSessionTaskDefs] = useState(() => loadLS(LS_SESSION, null)?.sessionTaskDefs ?? {});
