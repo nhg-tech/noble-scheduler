@@ -66,31 +66,54 @@ describe('getExpectedInstances', () => {
 
 // ─── countTaskInSchedule ──────────────────────────────────────────────────────
 describe('countTaskInSchedule', () => {
-  it('counts a simple matching task', () => {
+  // Legacy blocks (no taskId) — fall back to code matching
+  it('counts a legacy block by code fallback', () => {
     const sched = { 'GM|540': { code: 'BRK-30' } };
-    expect(countTaskInSchedule(sched, 'BRK-30')).toBe(1);
+    expect(countTaskInSchedule(sched, 'BRK30', 'BRK-30')).toBe(1);
   });
-  it('counts multiple instances across roles', () => {
+  it('counts multiple legacy instances across roles', () => {
     const sched = {
-      'GM|540': { code: 'BRK-30' },
-      'MR|540': { code: 'BRK-30' },
+      'GM|540':  { code: 'BRK-30' },
+      'MR|540':  { code: 'BRK-30' },
       'PAW|540': { code: 'HUD' },
     };
-    expect(countTaskInSchedule(sched, 'BRK-30')).toBe(2);
+    expect(countTaskInSchedule(sched, 'BRK30', 'BRK-30')).toBe(2);
   });
-  it('returns 0 when task not scheduled', () => {
+  it('returns 0 when task not scheduled (legacy)', () => {
     const sched = { 'GM|540': { code: 'HUD' } };
-    expect(countTaskInSchedule(sched, 'BRK-30')).toBe(0);
+    expect(countTaskInSchedule(sched, 'BRK30', 'BRK-30')).toBe(0);
   });
-  it('counts task inside a merged block', () => {
+  it('counts a task inside a legacy merged block (codes array fallback)', () => {
     const sched = {
       'GM|540': { merged: true, codes: ['BRK-30', 'LUN'] },
     };
-    expect(countTaskInSchedule(sched, 'BRK-30')).toBe(1);
-    expect(countTaskInSchedule(sched, 'LUN')).toBe(1);
+    expect(countTaskInSchedule(sched, 'BRK30', 'BRK-30')).toBe(1);
+    expect(countTaskInSchedule(sched, 'LUN',   'LUN'  )).toBe(1);
   });
   it('returns 0 for empty schedule', () => {
-    expect(countTaskInSchedule({}, 'BRK-30')).toBe(0);
+    expect(countTaskInSchedule({}, 'BRK30', 'BRK-30')).toBe(0);
+  });
+
+  // Modern blocks (with taskId) — match by id, ignore code
+  it('counts by taskId and ignores code when taskId present', () => {
+    const sched = {
+      'GM|540': { code: 'ON-WT', taskId: 'ON_WT' },
+      'MR|540': { code: 'ON',    taskId: 'ON'    },  // different task, same-ish code prefix
+    };
+    expect(countTaskInSchedule(sched, 'ON_WT', 'ON-WT')).toBe(1);  // only the ON_WT block
+    expect(countTaskInSchedule(sched, 'ON',    'ON'   )).toBe(1);  // only the ON block
+  });
+  it('does not match ON-WT block when searching for ON task', () => {
+    const sched = { 'TL_PM|1260': { code: 'ON-WT', taskId: 'ON_WT' } };
+    expect(countTaskInSchedule(sched, 'ON', 'ON')).toBe(0);
+  });
+  it('counts by taskIds array in modern merged blocks', () => {
+    const sched = {
+      'GM|540': { merged: true, taskIds: ['ON_WT', 'ON'], codes: ['ON-WT', 'ON'] },
+    };
+    expect(countTaskInSchedule(sched, 'ON_WT', 'ON-WT')).toBe(1);
+    expect(countTaskInSchedule(sched, 'ON',    'ON'   )).toBe(1);
+    expect(countTaskInSchedule(sched, 'BRK30', 'BRK-30')).toBe(0);
   });
 });
 
