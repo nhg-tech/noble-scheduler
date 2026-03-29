@@ -507,6 +507,7 @@ function TaskDefaultsTab({ userTaskDefs, sessionTaskDefs, onChange, onCreateTask
               </tr>,
               ...tasks.map(task => {
                 const def      = getTaskDefault(task.id);
+                const override = userTaskDefs[task.id] || {};
                 const minVal   = def.unitMin ?? task.durationMin ?? 30;
                 const minRes   = def.minResources;
                 const colorVal = def.color ?? task.color;
