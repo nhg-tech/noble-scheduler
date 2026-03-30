@@ -15,12 +15,12 @@ function fmtDelta(mins) {
 
 export default function ScheduleSummary() {
   const { schedule, assumptions, getDerivedValues, getProgramPct, getTaskDefault, getEffectiveRoles, columnOrder,
-          skippedTasks, userTaskDefs, sessionTaskDefs, extraRoles, taskLibrary } = useScheduler();
+          skippedTasks, userTaskDefs, sessionTaskDefs, extraRoles, taskLibrary, hiddenColumns } = useScheduler();
   const { suites, cats, bungalows, scCount, totalRooms } = getDerivedValues();
   const { socpg, selpg, dogs } = assumptions;
   const { multipet, multipetCats } = getProgramPct();
-  // Only count hours for roles currently visible (in columnOrder)
-  const effectiveRoles = getEffectiveRoles().filter(r => columnOrder.includes(r.id));
+  // Only count hours for roles currently visible (in columnOrder and not hidden)
+  const effectiveRoles = getEffectiveRoles().filter(r => columnOrder.includes(r.id) && !hiddenColumns.has(r.id));
   const allEffectiveRoles = getEffectiveRoles();
   const baseRoleCount = allEffectiveRoles.filter(r => r.type === 'TM' || r.type === 'TL' || r.type === 'PAW').length;
   const totalRoleCount = baseRoleCount + (extraRoles?.length || 0);
