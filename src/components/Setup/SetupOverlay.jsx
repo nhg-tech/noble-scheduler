@@ -875,7 +875,7 @@ function RoleConfigTab() {
         label: 'New Role', sub: '', type: 'TM',
         shiftStart: sS, shiftEnd: sE, unpaidBreak: uB,
         hours: calcShiftHours(sS, sE, uB),
-        custom: true, deleted: false,
+        deleted: false,
       },
     }));
     setColumnOrder(prev => [...prev, id]);
