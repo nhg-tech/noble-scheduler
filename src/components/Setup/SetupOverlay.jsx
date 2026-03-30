@@ -236,6 +236,9 @@ export default function SetupOverlay({ onClose }) {
               setUserCatDefs={setUserCatDefs}
               catOrder={catOrder}
               setCatOrder={setCatOrder}
+              onSave={(newDefs, newOrder) =>
+                persistDefaultsToApi(userTaskDefs, userRoleDefs, userProgramDefs, newDefs, newOrder, taskOrder)
+              }
             />
           )}
         </div>
@@ -595,27 +598,40 @@ function TaskDefaultsTab({ userTaskDefs, sessionTaskDefs, onChange, onCreateTask
 }
 
 // ─── Categories Tab ───────────────────────────────────────────────────────────
-function CategoriesTab({ getFullCatList, userCatDefs, setUserCatDefs, catOrder, setCatOrder }) {
+function CategoriesTab({ getFullCatList, userCatDefs, setUserCatDefs, catOrder, setCatOrder, onSave }) {
   const [newLabel, setNewLabel] = useState('');
-  const isDraggingRef = useRef(false);
-  const dragIdRef     = useRef(null);
+  const isDraggingRef    = useRef(false);
+  const dragIdRef        = useRef(null);
+  const latestOrderRef   = useRef(catOrder);  // track latest order for drag-end save
+  const latestDefsRef    = useRef(userCatDefs);
+
+  // Keep refs in sync with latest props
+  useEffect(() => { latestOrderRef.current = catOrder; }, [catOrder]);
+  useEffect(() => { latestDefsRef.current  = userCatDefs; }, [userCatDefs]);
 
   const cats = getFullCatList(); // includes deleted ones (for restore)
 
   function handleLabelChange(catId, label) {
-    setUserCatDefs(prev => ({ ...prev, [catId]: { ...(prev[catId] || {}), label } }));
+    const newDefs = { ...userCatDefs, [catId]: { ...(userCatDefs[catId] || {}), label } };
+    setUserCatDefs(newDefs);
+    onSave(newDefs, catOrder);
   }
 
   function handleToggleDelete(catId, currentlyDeleted) {
-    setUserCatDefs(prev => ({ ...prev, [catId]: { ...(prev[catId] || {}), deleted: !currentlyDeleted } }));
+    const newDefs = { ...userCatDefs, [catId]: { ...(userCatDefs[catId] || {}), deleted: !currentlyDeleted } };
+    setUserCatDefs(newDefs);
+    onSave(newDefs, catOrder);
   }
 
   function handleAdd() {
     if (!newLabel.trim()) return;
-    const id = `cat_${Date.now()}`;
-    setUserCatDefs(prev => ({ ...prev, [id]: { label: newLabel.trim(), deleted: false } }));
-    setCatOrder(prev => [...prev, id]);
+    const id      = `cat_${Date.now()}`;
+    const newDefs = { ...userCatDefs, [id]: { label: newLabel.trim(), deleted: false } };
+    const newOrder = [...catOrder, id];
+    setUserCatDefs(newDefs);
+    setCatOrder(newOrder);
     setNewLabel('');
+    onSave(newDefs, newOrder);
   }
 
   function handleGripPointerDown(e, catId) {
@@ -624,6 +640,8 @@ function CategoriesTab({ getFullCatList, userCatDefs, setUserCatDefs, catOrder, 
     dragIdRef.current     = catId;
     function onUp() {
       isDraggingRef.current = false; dragIdRef.current = null;
+      // Save final order after drag completes
+      onSave(latestDefsRef.current, latestOrderRef.current);
       document.removeEventListener('pointerup', onUp);
     }
     document.addEventListener('pointerup', onUp);
