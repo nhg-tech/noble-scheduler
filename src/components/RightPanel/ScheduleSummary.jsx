@@ -2,8 +2,6 @@ import { useMemo } from 'react';
 import { useScheduler } from '../../context/SchedulerContext';
 import { computeSummary } from '../../utils/calculations';
 import { formatMin } from '../../utils/scheduling';
-import { TASK_LIBRARY } from '../../data/taskLibrary';
-import { ROLES } from '../../data/roles';
 
 function fmtDelta(mins) {
   const sign = mins >= 0 ? '+' : '-';
@@ -17,13 +15,14 @@ function fmtDelta(mins) {
 
 export default function ScheduleSummary() {
   const { schedule, assumptions, getDerivedValues, getProgramPct, getTaskDefault, getEffectiveRoles, columnOrder,
-          skippedTasks, userTaskDefs, sessionTaskDefs, extraRoles } = useScheduler();
+          skippedTasks, userTaskDefs, sessionTaskDefs, extraRoles, taskLibrary, hiddenColumns } = useScheduler();
   const { suites, cats, bungalows, scCount, totalRooms } = getDerivedValues();
   const { socpg, selpg, dogs } = assumptions;
   const { multipet, multipetCats } = getProgramPct();
-  // Only count hours for roles currently visible (in columnOrder)
-  const effectiveRoles = getEffectiveRoles().filter(r => columnOrder.includes(r.id));
-  const baseRoleCount = ROLES.filter(r => r.type === 'TM' || r.type === 'TL' || r.type === 'PAW').length;
+  // Only count hours for roles currently visible (in columnOrder and not hidden)
+  const effectiveRoles = getEffectiveRoles().filter(r => columnOrder.includes(r.id) && !hiddenColumns.has(r.id));
+  const allEffectiveRoles = getEffectiveRoles();
+  const baseRoleCount = allEffectiveRoles.filter(r => r.type === 'TM' || r.type === 'TL' || r.type === 'PAW').length;
   const totalRoleCount = baseRoleCount + (extraRoles?.length || 0);
 
   // Subset of schedule blocks that count toward hours (excludes breaks, optional events, etc.)
@@ -35,8 +34,8 @@ export default function ScheduleSummary() {
       const role = roleMap[roleId];
       if (role && role.includeInHrs === false) return; // excluded role
       const libTask = block.taskId
-        ? TASK_LIBRARY.find(t => t.id === block.taskId)
-        : TASK_LIBRARY.find(t => t.code === block.code);
+        ? taskLibrary.find(t => t.id === block.taskId)
+        : taskLibrary.find(t => t.code === block.code);
       if (!libTask) { out[key] = block; return; } // unknown tasks count by default
       const def = getTaskDefault(libTask.id);
       if (def.countHours !== false) out[key] = block;
@@ -65,8 +64,8 @@ export default function ScheduleSummary() {
         minStart = Math.min(minStart, startMin);
         maxEnd   = Math.max(maxEnd, startMin + dur);
         const libTask = block.taskId
-          ? TASK_LIBRARY.find(t => t.id === block.taskId)
-          : TASK_LIBRARY.find(t => t.code === block.code);
+          ? taskLibrary.find(t => t.id === block.taskId)
+          : taskLibrary.find(t => t.code === block.code);
         const def     = libTask ? getTaskDefault(libTask.id) : null;
         if (def && def.countHours === false) nonCountedMins += dur;
       });
@@ -79,7 +78,7 @@ export default function ScheduleSummary() {
     dogs, multipet, multipetCats, socpg, selpg,
     suites, cats, bungalows, scCount,
     schedule, countingSchedule, effectiveRoles,
-    taskLibrary: TASK_LIBRARY,
+    taskLibrary,
     userTaskDefs,
     sessionTaskDefs,
     skippedTasks,

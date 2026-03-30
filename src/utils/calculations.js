@@ -1,15 +1,9 @@
-import { ROLES } from '../data/roles';
-import { TASK_LIBRARY } from '../data/taskLibrary';
-
 /**
  * Resolve expected instance count for a task given current assumptions.
- * allRoleCount — optional total employee column count (built-in + extra columns added by user).
- * When provided, tasks with expectedInstances:'roles' or the sentinel value 99 resolve
- * to this dynamic count rather than the static ROLES array length.
+ * allRoleCount — total employee column count (built-in + extra columns added by user).
  */
 export function getExpectedInstances(task, socpg, selpg, scCount, allRoleCount) {
-  const defaultRoleCount = ROLES.filter(r => r.type === 'TM' || r.type === 'TL' || r.type === 'PAW').length;
-  const roleCount = allRoleCount ?? defaultRoleCount;
+  const roleCount = allRoleCount ?? 0;
   const ei = task.expectedInstances;
   if (ei === 'socpg*2') return socpg * 2;
   if (ei === 'selpg*2') return selpg * 2;
@@ -115,8 +109,7 @@ export function computeSummary({
   taskLibrary, userTaskDefs, sessionTaskDefs, skippedTasks, roleCount, derivedValues, assumptions,
   schedMinsOverride,
 }) {
-  // Use effectiveRoles (from Role Config) if provided, otherwise fall back to raw ROLES
-  const rolesForHours = effectiveRoles ?? ROLES;
+  const rolesForHours = effectiveRoles ?? [];
   const eligibleRoles = rolesForHours.filter(r => r.includeInHrs !== false && (r.type === 'TM' || r.type === 'TL'));
   const hrsAvail = eligibleRoles.reduce((a, r) => a + (r.hours ?? 0), 0);
 

@@ -1,6 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { ROLES } from '../data/roles';
-import { TASK_LIBRARY, CAT_ORDER, CAT_LABELS } from '../data/taskLibrary';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { resolveBlockHex } from '../data/palette';
 import { makeKey, keyToRoleAndMin } from '../utils/scheduling';
 import { apiSetup, apiTemplates, apiSchedules, isLoggedIn } from '../api';
@@ -22,28 +20,7 @@ const LS_SESSION     = 'noble_session_state'; // { schedule, assumptions } — a
 
 const NOBLE_PROGRAM_DEFAULTS = { social: 65, select: 20, pf: 15, cats: 20, multipet: 15, multipetCats: 15 };
 
-// Tasks that should NOT count toward scheduled hours totals (unpaid breaks etc.)
-const COUNT_HOURS_FALSE = new Set(['BRK30', 'LUN']);
 
-// Build Noble baseline defaults from task library and roles
-const NOBLE_TASK_DEFAULTS = {};
-TASK_LIBRARY.forEach(t => {
-  NOBLE_TASK_DEFAULTS[t.id] = {
-    slots: t.slots, unitMin: t.unitMin ?? null,
-    unitBasis: t.unitBasis ?? '', idealStart: t.idealStart ?? '',
-    color: t.color ?? 'block-group',
-    countHours: !COUNT_HOURS_FALSE.has(t.id),
-  };
-});
-const NOBLE_ROLE_DEFAULTS = {};
-ROLES.forEach(r => {
-  NOBLE_ROLE_DEFAULTS[r.id] = {
-    shiftStart:   r.shiftStart,
-    shiftEnd:     r.shiftEnd,
-    hours:        r.hours,
-    includeInHrs: r.type === 'TM' || r.type === 'TL',
-  };
-});
 
 function loadLS(key, fallback) {
   try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
@@ -77,7 +54,7 @@ export function SchedulerProvider({ children }) {
     const customIds  = Object.entries(savedRoles)
       .filter(([, def]) => def.custom && !def.deleted)
       .map(([id]) => id);
-    const base    = stored ?? ROLES.map(r => r.id);
+    const base    = stored ?? Object.keys(savedRoles).filter(id => !savedRoles[id].deleted && !savedRoles[id].custom);
     const missing = customIds.filter(id => !base.includes(id));
     return [...base, ...missing];
   });
@@ -85,7 +62,7 @@ export function SchedulerProvider({ children }) {
   const [hiddenColumns,  setHiddenColumns]  = useState(() => new Set(loadLS(LS_SESSION, null)?.hiddenColumns ?? []));
   const [scheduleLabel,  setScheduleLabel]  = useState('Template 1 — 2 SocPGs + 2 SelPGs');
   const [userCatDefs,    setUserCatDefs]    = useState(() => loadLS(LS_CAT_DEFS,   {}));
-  const [catOrder,       setCatOrder]       = useState(() => loadLS(LS_CAT_ORDER,  [...CAT_ORDER]));
+  const [catOrder,       setCatOrder]       = useState(() => loadLS(LS_CAT_ORDER,  []));
   const [taskOrder,      setTaskOrder]      = useState(() => loadLS(LS_TASK_ORDER, {}));
   // Custom tasks — persisted in LS_SESSION so they survive page reloads; also saved/restored with drafts/templates
   const [sessionTaskDefs, setSessionTaskDefs] = useState(() => loadLS(LS_SESSION, null)?.sessionTaskDefs ?? {});
@@ -181,88 +158,75 @@ export function SchedulerProvider({ children }) {
     hydrate();
   }, []); // eslint-disable-line
 
+  // ─── Phase 2: taskLibrary — DB-driven array, replaces hardcoded TASK_LIBRARY ─
+  // All non-hidden tasks from DB (base library + user-created defaults).
+  const taskLibrary = useMemo(() =>
+    Object.entries(userTaskDefs)
+      .filter(([, t]) => !t.hidden)
+      .map(([id, t]) => ({ id, ...t })),
+    [userTaskDefs]
+  );
+
   // ─── Category helpers ─────────────────────────────────────────────────────
-  // Returns merged, ordered list of all categories (built-in + custom).
+  // Returns merged, ordered list of all categories.
   // Each entry: { id, label, deleted }
   const getFullCatList = useCallback(() => {
-    // catOrder may not yet include custom cats added after initial load — append any missing ones
     const customIds = Object.keys(userCatDefs).filter(id => userCatDefs[id]?.custom && !catOrder.includes(id));
     const allIds    = [...catOrder, ...customIds];
     return allIds.map(id => {
-      const override  = userCatDefs[id] || {};
-      const isBuiltin = CAT_ORDER.includes(id);
-      if (!isBuiltin && !override.custom) return null; // unknown id, skip
+      const cat = userCatDefs[id] || {};
+      if (!catOrder.includes(id) && !cat.custom) return null;
       return {
         id,
-        label:   override.label   ?? CAT_LABELS[id] ?? id,
-        deleted: override.deleted ?? false,
+        label:   cat.label   ?? id,
+        deleted: cat.deleted ?? false,
       };
     }).filter(Boolean);
   }, [userCatDefs, catOrder]);
 
   // ─── Getters ─────────────────────────────────────────────────────────────
+  // Phase 2: DB is source of truth — userTaskDefs contains full task data.
   const getTaskDefault = useCallback((taskId) => {
-    const base    = NOBLE_TASK_DEFAULTS[taskId] || {};
-    const libTask = TASK_LIBRARY.find(t => t.id === taskId);
-    const user    = userTaskDefs[taskId] || {};
+    const task = userTaskDefs[taskId] || {};
     return {
-      slots:        user.slots        ?? base.slots,
-      unitMin:      user.durationMin  ?? user.unitMin ?? base.unitMin,
-      unitBasis:    user.unitBasis    ?? base.unitBasis,
-      idealStart:   user.idealStart   ?? base.idealStart,
-      color:        user.color        ?? base.color,
-      countHours:   user.countHours   ?? base.countHours ?? true,
-      code:         user.code         ?? libTask?.code ?? taskId,
-      minResources: user.minResources ?? null,
+      slots:        task.slots,
+      unitMin:      task.durationMin ?? task.unitMin,
+      unitBasis:    task.unitBasis,
+      idealStart:   task.idealStart,
+      color:        task.color,
+      countHours:   task.countHours ?? true,
+      code:         task.code ?? taskId,
+      minResources: task.minResources ?? null,
     };
   }, [userTaskDefs]);
 
   const getRoleConfig = useCallback((roleId) => {
-    const base = NOBLE_ROLE_DEFAULTS[roleId] || {};
-    const user = userRoleDefs[roleId] || {};
+    const role = userRoleDefs[roleId] || {};
     return {
-      shiftStart:   user.shiftStart   ?? base.shiftStart,
-      shiftEnd:     user.shiftEnd     ?? base.shiftEnd,
-      hours:        user.hours        ?? base.hours,
-      includeInHrs: user.includeInHrs ?? base.includeInHrs,
+      shiftStart:   role.shiftStart,
+      shiftEnd:     role.shiftEnd,
+      hours:        role.hours,
+      includeInHrs: role.includeInHrs ?? (role.type === 'TM' || role.type === 'TL'),
     };
   }, [userRoleDefs]);
 
-  // Returns all active roles: built-in with overrides, then custom roles.
-  // Deleted roles are excluded. Consumed by GridHeader/GridBody instead of raw ROLES.
+  // Phase 2: all roles (base + custom) live in userRoleDefs from DB.
+  // Deleted roles are excluded.
   const getEffectiveRoles = useCallback(() => {
-    // Built-in roles with any user overrides applied
-    const builtIn = ROLES
-      .filter(r => !userRoleDefs[r.id]?.deleted)
-      .map(r => {
-        const over = userRoleDefs[r.id] || {};
-        return {
-          ...r,
-          label:        over.label        ?? r.label,
-          sub:          over.sub          ?? r.sub,
-          shiftStart:   over.shiftStart   ?? r.shiftStart,
-          shiftEnd:     over.shiftEnd     ?? r.shiftEnd,
-          unpaidBreak:  over.unpaidBreak  ?? (r.unpaidBreak ?? 0),
-          hours:        over.hours        ?? r.hours,
-          includeInHrs: over.includeInHrs ?? (r.type === 'TM' || r.type === 'TL'),
-        };
-      });
-    // Custom roles added via Role Config
-    const custom = Object.entries(userRoleDefs)
-      .filter(([, def]) => def.custom && !def.deleted)
-      .map(([id, def]) => ({
+    return Object.entries(userRoleDefs)
+      .filter(([, r]) => !r.deleted)
+      .map(([id, r]) => ({
         id,
-        label:        def.label        || id,
-        sub:          def.sub          || '',
-        type:         def.type         || 'TM',
-        shiftStart:   def.shiftStart   ?? 9,
-        shiftEnd:     def.shiftEnd     ?? 17,
-        unpaidBreak:  def.unpaidBreak  ?? 30,
-        hours:        def.hours        ?? 7.5,
-        custom:       true,
-        includeInHrs: def.includeInHrs ?? true,
+        label:        r.label        || id,
+        sub:          r.sub          || '',
+        type:         r.type         || 'TM',
+        shiftStart:   r.shiftStart   ?? 9,
+        shiftEnd:     r.shiftEnd     ?? 17,
+        unpaidBreak:  r.unpaidBreak  ?? 0,
+        hours:        r.hours        ?? 7.5,
+        custom:       r.custom       ?? false,
+        includeInHrs: r.includeInHrs ?? (r.type === 'TM' || r.type === 'TL'),
       }));
-    return [...builtIn, ...custom];
   }, [userRoleDefs]);
 
   const getProgramPct = useCallback(() => ({
@@ -307,8 +271,9 @@ export function SchedulerProvider({ children }) {
   const loadTemplate = useCallback((tpl) => {
     let newSchedule = {};
     const add = (roleId, hour, min, taskId, overrideSlots) => {
-      const t = TASK_LIBRARY.find(x => x.id === taskId);
-      if (!t) return;
+      const taskData = userTaskDefs[taskId];
+      if (!taskData) return;
+      const t = { id: taskId, ...taskData };
       const startMin    = hour * 60 + min;
       const def         = getTaskDefault(t.id);
       const durationMin = overrideSlots ? overrideSlots * 30 : Number(def.unitMin ?? t.slots * 30);
@@ -425,7 +390,7 @@ export function SchedulerProvider({ children }) {
     // Reset column order to all effective roles (built-in + custom) and clear session hides
     setColumnOrder(getEffectiveRoles().map(r => r.id));
     setHiddenColumns(new Set());
-  }, [getTaskDefault, getEffectiveRoles, assumptions]); // eslint-disable-line
+  }, [getTaskDefault, getEffectiveRoles, assumptions, userTaskDefs]); // eslint-disable-line
 
   // ─── Capture / apply state ────────────────────────────────────────────────
   const captureState = useCallback(
@@ -555,17 +520,13 @@ export function SchedulerProvider({ children }) {
       let changed = false;
       const updated = {};
       Object.entries(prev).forEach(([key, block]) => {
-        // Find library task by original code; fall back to reverse-lookup via userTaskDefs
-        // (handles blocks whose code was already overridden in a previous save)
-        let libTask = TASK_LIBRARY.find(t => t.code === block.code);
-        if (!libTask) {
-          const entry = Object.entries(userTaskDefs).find(([, def]) => def.code === block.code);
-          if (entry) libTask = TASK_LIBRARY.find(t => t.id === entry[0]);
-        }
-        if (!libTask) { updated[key] = block; return; }
-        const def     = getTaskDefault(libTask.id);
-        const newHex  = resolveBlockHex(def.color ?? libTask.color);
-        const newCode = def.code ?? libTask.code;
+        // Look up task by code from userTaskDefs (DB is source of truth in Phase 2)
+        const entry = Object.entries(userTaskDefs).find(([, def]) => def.code === block.code);
+        if (!entry) { updated[key] = block; return; }
+        const [taskId, taskData] = entry;
+        const def     = getTaskDefault(taskId);
+        const newHex  = resolveBlockHex(def.color ?? taskData.color);
+        const newCode = def.code ?? taskData.code;
         if (newHex !== block.color || newCode !== block.code) {
           const oldCode  = block.code;
           const newBlock = { ...block, color: newHex, code: newCode };
@@ -626,11 +587,13 @@ export function SchedulerProvider({ children }) {
       catOrder, setCatOrder,
       taskOrder, setTaskOrder,
       getFullCatList,
+      // Phase 2: DB-driven task library (array format, replaces hardcoded TASK_LIBRARY)
+      taskLibrary,
       // Defaults
       userTaskDefs, userRoleDefs, userProgramDefs,
       // Session-only custom tasks (not persisted; saved/restored with schedule)
       sessionTaskDefs, setSessionTaskDefs,
-      NOBLE_TASK_DEFAULTS, NOBLE_ROLE_DEFAULTS, NOBLE_PROGRAM_DEFAULTS,
+      NOBLE_PROGRAM_DEFAULTS,
       // Getters
       getTaskDefault, getRoleConfig, getProgramPct, getDerivedValues, getEffectiveRoles,
       // User defaults setters

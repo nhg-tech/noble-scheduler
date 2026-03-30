@@ -1,9 +1,7 @@
-import { useState, useRef } from 'react'; // useState kept for dragRoleId
+import { useState, useRef } from 'react';
 import { formatShiftTime, keyToRoleAndMin } from '../../utils/scheduling';
 import { useScheduler } from '../../context/SchedulerContext';
-import { TASK_LIBRARY } from '../../data/taskLibrary';
 
-const ROLE_COL_W = 120;
 const TIME_COL_W = 52;
 
 function arrayMove(arr, from, to) {
@@ -22,11 +20,12 @@ function fmtShift(decimal) {
   return m === 0 ? `${h12}${suffix}` : `${h12}:${String(m).padStart(2, '0')}${suffix}`;
 }
 
-export default function GridHeader({ onAddColumn }) {
-  const { schedule, extraRoles, setExtraRoles, columnOrder, setColumnOrder, getEffectiveRoles, hiddenColumns, hideColumn, getTaskDefault } = useScheduler();
+export default function GridHeader({ onAddColumn, colWidth, onColWidthChange }) {
+  const { schedule, extraRoles, setExtraRoles, columnOrder, setColumnOrder, getEffectiveRoles, hiddenColumns, hideColumn, getTaskDefault, taskLibrary } = useScheduler();
   const [dragRoleId, setDragRoleId] = useState(null);
   const isDraggingRef  = useRef(false);
   const dragIdRef      = useRef(null);
+  const resizeRef      = useRef({ active: false, startX: 0, startWidth: 120 });
 
   const allRolesBase = [...getEffectiveRoles(), ...extraRoles];
   // Only show roles in columnOrder that are not session-hidden
@@ -44,7 +43,7 @@ export default function GridHeader({ onAddColumn }) {
       minStart = Math.min(minStart, startMin);
       maxEnd   = Math.max(maxEnd, startMin + dur);
       // Accumulate durations for tasks that do NOT count toward hours (breaks, lunch, etc.)
-      const libTask = TASK_LIBRARY.find(t => t.code === task.code || t.id === task.taskId);
+      const libTask = taskLibrary.find(t => t.code === task.code || t.id === task.taskId);
       const counts  = libTask ? (getTaskDefault(libTask.id)?.countHours !== false) : true;
       if (!counts) nonCountedMins += dur;
     });
@@ -94,6 +93,27 @@ export default function GridHeader({ onAddColumn }) {
     }
   }
 
+  // ── Column resize — drag right edge of any header to resize ALL columns ───
+  function handleResizePointerDown(e) {
+    e.stopPropagation();
+    e.preventDefault();
+    resizeRef.current = { active: true, startX: e.clientX, startWidth: colWidth };
+
+    function onMove(ev) {
+      if (!resizeRef.current.active) return;
+      const delta    = ev.clientX - resizeRef.current.startX;
+      const newWidth = Math.max(80, Math.min(320, resizeRef.current.startWidth + delta));
+      onColWidthChange(newWidth);
+    }
+    function onUp() {
+      resizeRef.current.active = false;
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup',   onUp);
+    }
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup',   onUp);
+  }
+
   return (
     <div style={{
       display: 'flex', position: 'sticky', top: 0, zIndex: 50,
@@ -117,7 +137,8 @@ export default function GridHeader({ onAddColumn }) {
             key={role.id}
             onPointerEnter={() => handleColumnPointerEnter(role.id)}
             style={{
-              flex: '1 0 0', minWidth: ROLE_COL_W, padding: '6px 8px',
+              width: colWidth, minWidth: colWidth, flexShrink: 0,
+              padding: '6px 8px',
               borderRight: '1px solid var(--gray-light)',
               display: 'flex', flexDirection: 'column',
               alignItems: 'center', justifyContent: 'center',
@@ -188,6 +209,16 @@ export default function GridHeader({ onAddColumn }) {
               onMouseEnter={e => e.currentTarget.style.color = '#FF5252'}
               onMouseLeave={e => e.currentTarget.style.color = '#b0adc8'}
             >✕</button>
+
+            {/* Resize handle — drag to resize all columns simultaneously */}
+            <div
+              onPointerDown={handleResizePointerDown}
+              title="Drag to resize columns"
+              style={{
+                position: 'absolute', top: 0, right: -3, bottom: 0,
+                width: 6, cursor: 'col-resize', zIndex: 10,
+              }}
+            />
           </div>
         );
       })}

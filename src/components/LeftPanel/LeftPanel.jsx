@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useScheduler } from '../../context/SchedulerContext';
+import { apiSchedules } from '../../api';
 
 const PANEL_TITLE = { fontFamily: "'Cormorant Garamond', serif", fontSize: 13, fontWeight: 600,
   letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--purple)', marginBottom: 8 };
@@ -66,9 +67,17 @@ function LoadSchedule() {
     }
   }
 
-  function handleLoad(storeObj, name, labelPrefix) {
-    const state = storeObj[name];
+  async function handleLoad(storeObj, name, labelPrefix) {
+    let state = storeObj[name];
     if (!state) return;
+    // If the entry is metadata-only (from list endpoint hydration), fetch full data by ID
+    if (state.id && !state.schedule) {
+      try {
+        state = await apiSchedules.getOne(state.id);
+      } catch (err) {
+        console.warn('Failed to fetch full schedule, using cached state:', err.message);
+      }
+    }
     setScheduleLabel(`${labelPrefix}${name}`);
     applyState(state);
   }

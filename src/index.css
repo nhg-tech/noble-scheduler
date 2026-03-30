@@ -44,10 +44,10 @@ body {
 }
 
 /* Scrollbar */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--gray-light); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--purple-pale); }
+::-webkit-scrollbar { width: 8px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--gray-light); border-radius: 5px; }
+::-webkit-scrollbar-thumb { background: #b0adc8; border-radius: 5px; border: 2px solid var(--gray-light); }
+::-webkit-scrollbar-thumb:hover { background: var(--purple); }
 
 /* Print */
 @media print {
