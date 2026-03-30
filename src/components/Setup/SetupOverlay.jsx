@@ -625,9 +625,19 @@ function CategoriesTab({ getFullCatList, userCatDefs, setUserCatDefs, catOrder, 
 
   function handleAdd() {
     if (!newLabel.trim()) return;
-    const id      = `cat_${Date.now()}`;
-    const newDefs = { ...userCatDefs, [id]: { label: newLabel.trim(), deleted: false } };
-    const newOrder = [...catOrder, id];
+    // Derive a clean slug from the label: "Cat Test 1" → "cat_test_1"
+    const base = newLabel.trim().toLowerCase()
+      .replace(/\s+/g, '_')
+      .replace(/[^a-z0-9_]/g, '')
+      || 'cat';
+    // Ensure uniqueness — append _2, _3 etc. if the slug is already taken
+    let code = base;
+    let n = 2;
+    while (catOrder.includes(code) || userCatDefs[code]) {
+      code = `${base}_${n++}`;
+    }
+    const newDefs = { ...userCatDefs, [code]: { label: newLabel.trim(), deleted: false } };
+    const newOrder = [...catOrder, code];
     setUserCatDefs(newDefs);
     setCatOrder(newOrder);
     setNewLabel('');
