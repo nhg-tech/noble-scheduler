@@ -122,6 +122,18 @@ export default function SetupOverlay({ onClose }) {
     }));
   }
 
+  // Bulk-save all fields edited in EditLibTaskModal, then immediately persist to API
+  function handleLibTaskSave(taskId, updates) {
+    const newTaskDef = { ...(userTaskDefs[taskId] || {}), ...updates };
+    setUserTaskDefs(prev => ({
+      ...prev,
+      [taskId]: { ...(prev[taskId] || {}), ...updates },
+    }));
+    // Persist to API with the updated task — don't wait for state to settle
+    const newDefs = { ...userTaskDefs, [taskId]: newTaskDef };
+    persistDefaultsToApi(newDefs, userRoleDefs, userProgramDefs, userCatDefs, catOrder, taskOrder);
+  }
+
   return (
     <>
     <div
@@ -337,7 +349,7 @@ export default function SetupOverlay({ onClose }) {
       <EditLibTaskModal
         task={editingLibTask}
         override={userTaskDefs[editingLibTask.id] || {}}
-        onChange={setTaskDefault}
+        onSave={handleLibTaskSave}
         onClose={() => setEditingLibTask(null)}
       />
     )}
@@ -997,7 +1009,7 @@ function Td({ children, style }) {
 }
 
 // ─── Edit Library Task Modal ──────────────────────────────────────────────────
-function EditLibTaskModal({ task, override, onChange, onClose }) {
+function EditLibTaskModal({ task, override, onSave, onClose }) {
   const { getFullCatList, getTaskDefault } = useScheduler();
   const catOptions = getFullCatList().filter(c => !c.deleted).map(c => ({ value: c.id, label: c.label }));
 
@@ -1016,16 +1028,18 @@ function EditLibTaskModal({ task, override, onChange, onClose }) {
   });
 
   function handleSave() {
-    onChange(task.id, 'durationMin',       Number(local.durationMin));
-    onChange(task.id, 'minResources',      local.minResources !== '' ? Number(local.minResources) : undefined);
-    onChange(task.id, 'unitBasis',         local.unitBasis);
-    onChange(task.id, 'color',             local.color);
-    onChange(task.id, 'cat',               local.cat);
-    onChange(task.id, 'desc',              local.desc || undefined);
-    onChange(task.id, 'expectedInstances', local.expectedInstances !== '' ? Number(local.expectedInstances) : undefined);
-    onChange(task.id, 'countHours',        local.countHours);
-    onChange(task.id, 'code', local.code.trim() || task.code);
-    onChange(task.id, 'name', local.name.trim() || task.name);
+    onSave(task.id, {
+      durationMin:       Number(local.durationMin),
+      minResources:      local.minResources !== '' ? Number(local.minResources) : undefined,
+      unitBasis:         local.unitBasis,
+      color:             local.color,
+      cat:               local.cat,
+      desc:              local.desc || undefined,
+      expectedInstances: local.expectedInstances !== '' ? Number(local.expectedInstances) : undefined,
+      countHours:        local.countHours,
+      code:              local.code.trim() || task.code,
+      name:              local.name.trim() || task.name,
+    });
     onClose();
   }
 
