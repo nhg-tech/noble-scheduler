@@ -612,8 +612,8 @@ function CategoriesTab({ getFullCatList, userCatDefs, setUserCatDefs, catOrder, 
 
   function handleAdd() {
     if (!newLabel.trim()) return;
-    const id = `custom_cat_${Date.now()}`;
-    setUserCatDefs(prev => ({ ...prev, [id]: { label: newLabel.trim(), custom: true, deleted: false } }));
+    const id = `cat_${Date.now()}`;
+    setUserCatDefs(prev => ({ ...prev, [id]: { label: newLabel.trim(), deleted: false } }));
     setCatOrder(prev => [...prev, id]);
     setNewLabel('');
   }
@@ -814,7 +814,6 @@ function RoleConfigTab() {
       const type   = def.type || 'TM';
       return {
         id, type,
-        isCustom:    def.custom ?? false,
         label:       def.label       || id,
         sub:         def.sub         || '',
         shiftStart:  sStart,
