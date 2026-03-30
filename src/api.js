@@ -74,8 +74,9 @@ export const apiSetup = {
   saveRoles:     (obj) => api.put('/setup/roles', obj),
   getProgramMix: ()    => api.get('/setup/program-mix'),
   saveProgramMix:(obj) => api.put('/setup/program-mix', obj),
-  getCategories: ()    => api.get('/setup/categories'),
-  saveCategories:(obj) => api.put('/setup/categories', obj),
+  getCategories:    ()      => api.get('/setup/categories'),
+  saveCategories:   (obj)   => api.put('/setup/categories', obj),
+  createCategory:   (label) => api.post('/setup/categories', { label }),
 };
 
 // ─── Template helpers ─────────────────────────────────────────────────────────

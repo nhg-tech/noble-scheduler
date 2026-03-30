@@ -1,5 +1,6 @@
 import { useState, useRef, useMemo, useCallback, useEffect } from 'react';
 import { useScheduler } from '../../context/SchedulerContext';
+import { apiSetup } from '../../api';
 import { NOBLE_PALETTE, resolveBlockHex } from '../../data/palette';
 import { getExpectedInstances, UNIT_BASIS_OPTIONS } from '../../utils/calculations';
 import CreateTaskModal from '../Modals/CreateTaskModal';
@@ -432,7 +433,6 @@ function ProgramMixTab({ assumptions, onAssumption, userProgramDefs, defaults, o
 }
 
 // ─── Task Defaults Tab ───────────────────────────────────────────────────────
-const CAT_BG = { group: '#EDE8F7', suite: '#E3F2FD', meals: '#FFF8E1', fixed: '#F1F8E9', on: '#F3E5F5' };
 
 function TaskDefaultsTab({ userTaskDefs, sessionTaskDefs, onChange, onCreateTask, onEditTask, onDeleteTask }) {
   const { getFullCatList, taskOrder, setTaskOrder, getTaskDefault, taskLibrary } = useScheduler();
@@ -515,7 +515,7 @@ function TaskDefaultsTab({ userTaskDefs, sessionTaskDefs, onChange, onCreateTask
                 <td colSpan={9} style={{
                   padding: '6px 10px 3px', fontSize: 10, fontWeight: 700,
                   letterSpacing: '0.07em', textTransform: 'uppercase',
-                  color: 'var(--purple)', background: CAT_BG[cat.id] || 'var(--gray-light)',
+                  color: 'var(--purple)', background: cat.color || 'var(--gray-light)',
                 }}>{cat.label}</td>
               </tr>,
               ...tasks.map(task => {
@@ -623,25 +623,21 @@ function CategoriesTab({ getFullCatList, userCatDefs, setUserCatDefs, catOrder, 
     onSave(newDefs, catOrder);
   }
 
-  function handleAdd() {
+  async function handleAdd() {
     if (!newLabel.trim()) return;
-    // Derive a clean slug from the label: "Cat Test 1" → "cat_test_1"
-    const base = newLabel.trim().toLowerCase()
-      .replace(/\s+/g, '_')
-      .replace(/[^a-z0-9_]/g, '')
-      || 'cat';
-    // Ensure uniqueness — append _2, _3 etc. if the slug is already taken
-    let code = base;
-    let n = 2;
-    while (catOrder.includes(code) || userCatDefs[code]) {
-      code = `${base}_${n++}`;
+    try {
+      // POST first — DB assigns the SERIAL integer id; use String(id) as the key
+      const newCat  = await apiSetup.createCategory(newLabel.trim());
+      const catKey  = String(newCat.id);
+      const newDefs = { ...userCatDefs, [catKey]: { label: newCat.label, color: newCat.color, deleted: false } };
+      const newOrder = [...catOrder, catKey];
+      setUserCatDefs(newDefs);
+      setCatOrder(newOrder);
+      setNewLabel('');
+      onSave(newDefs, newOrder);
+    } catch (err) {
+      alert('Failed to create category: ' + err.message);
     }
-    const newDefs = { ...userCatDefs, [code]: { label: newLabel.trim(), deleted: false } };
-    const newOrder = [...catOrder, code];
-    setUserCatDefs(newDefs);
-    setCatOrder(newOrder);
-    setNewLabel('');
-    onSave(newDefs, newOrder);
   }
 
   function handleGripPointerDown(e, catId) {

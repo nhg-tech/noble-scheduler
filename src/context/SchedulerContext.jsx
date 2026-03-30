@@ -176,6 +176,7 @@ export function SchedulerProvider({ children }) {
       return {
         id,
         label:   cat.label   ?? id,
+        color:   cat.color   ?? null,
         deleted: cat.deleted ?? false,
       };
     });
