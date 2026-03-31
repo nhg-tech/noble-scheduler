@@ -124,7 +124,7 @@ export default function SetupOverlay({ onClose }) {
   }
 
   // Bulk-save all fields edited in EditLibTaskModal, then immediately persist to API
-  function handleLibTaskSave(taskId, updates) {
+  async function handleLibTaskSave(taskId, updates) {
     const newTaskDef = { ...(userTaskDefs[taskId] || {}), ...updates };
     setUserTaskDefs(prev => ({
       ...prev,
@@ -132,7 +132,11 @@ export default function SetupOverlay({ onClose }) {
     }));
     // Persist to API with the updated task — don't wait for state to settle
     const newDefs = { ...userTaskDefs, [taskId]: newTaskDef };
-    persistDefaultsToApi(newDefs, userRoleDefs, userProgramDefs, userCatDefs, catOrder, taskOrder);
+    try {
+      await persistDefaultsToApi(newDefs, userRoleDefs, userProgramDefs, userCatDefs, catOrder, taskOrder);
+    } catch (err) {
+      alert(`Failed to sync task to server:\n${err.message}`);
+    }
   }
 
   return (
@@ -237,9 +241,13 @@ export default function SetupOverlay({ onClose }) {
               setUserCatDefs={setUserCatDefs}
               catOrder={catOrder}
               setCatOrder={setCatOrder}
-              onSave={(newDefs, newOrder) =>
-                persistDefaultsToApi(userTaskDefs, userRoleDefs, userProgramDefs, newDefs, newOrder, taskOrder)
-              }
+              onSave={async (newDefs, newOrder) => {
+                try {
+                  await persistDefaultsToApi(userTaskDefs, userRoleDefs, userProgramDefs, newDefs, newOrder, taskOrder);
+                } catch (err) {
+                  alert(`Failed to sync categories to server:\n${err.message}`);
+                }
+              }}
             />
           )}
         </div>
@@ -298,7 +306,7 @@ export default function SetupOverlay({ onClose }) {
               }}
             >Cancel</button>
             <button
-              onClick={() => {
+              onClick={async () => {
                 // Detect roles newly deleted during this session
                 const newlyDeleted = Object.entries(userRoleDefs)
                   .filter(([id, def]) => def.deleted && !initialRoleDefs.current[id]?.deleted)
@@ -322,7 +330,11 @@ export default function SetupOverlay({ onClose }) {
                   }
                 }
                 saveDefaults();
-                persistDefaultsToApi(userTaskDefs, userRoleDefs, userProgramDefs, userCatDefs, catOrder, taskOrder);
+                try {
+                  await persistDefaultsToApi(userTaskDefs, userRoleDefs, userProgramDefs, userCatDefs, catOrder, taskOrder);
+                } catch (err) {
+                  alert(`Setup saved locally but failed to sync to server:\n${err.message}`);
+                }
                 onClose();
               }}
               style={{

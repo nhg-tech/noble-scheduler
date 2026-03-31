@@ -543,26 +543,22 @@ export function SchedulerProvider({ children }) {
     });
   }, [getTaskDefault, userTaskDefs]);
 
-  // Also push setup defaults to API
+  // Also push setup defaults to API — throws on failure so callers can surface the error
   const persistDefaultsToApi = useCallback(async (tasks, roles, progMix, cats, co, to) => {
     if (!isLoggedIn()) return;
-    try {
-      // Include "Today's Actuals" from assumptions so they persist as defaults in the DB
-      const progMixWithActuals = {
-        ...progMix,
-        defaultDogs:  assumptions.dogs  ?? null,
-        defaultSocpg: assumptions.socpg ?? null,
-        defaultSelpg: assumptions.selpg ?? null,
-      };
-      await Promise.all([
-        Object.keys(tasks).length  && apiSetup.saveTasks(tasks),
-        Object.keys(roles).length  && apiSetup.saveRoles(roles),
-        apiSetup.saveProgramMix(progMixWithActuals),
-        apiSetup.saveCategories({ catDefs: cats, catOrder: co, taskOrder: to }),
-      ].filter(Boolean));
-    } catch (err) {
-      console.warn('API defaults save failed — saved locally only:', err.message);
-    }
+    // Include "Today's Actuals" from assumptions so they persist as defaults in the DB
+    const progMixWithActuals = {
+      ...progMix,
+      defaultDogs:  assumptions.dogs  ?? null,
+      defaultSocpg: assumptions.socpg ?? null,
+      defaultSelpg: assumptions.selpg ?? null,
+    };
+    await Promise.all([
+      Object.keys(tasks).length  && apiSetup.saveTasks(tasks),
+      Object.keys(roles).length  && apiSetup.saveRoles(roles),
+      apiSetup.saveProgramMix(progMixWithActuals),
+      apiSetup.saveCategories({ catDefs: cats, catOrder: co, taskOrder: to }),
+    ].filter(Boolean));
   }, [assumptions]);
 
   const resetDefaults = useCallback(() => {
