@@ -16,7 +16,7 @@ export default function CreateTaskModal({ onSave, onClose, initialData }) {
   const [form, setForm] = useState({
     code:              initialData?.code              || '',
     name:              initialData?.name              || '',
-    cat:               initialData?.cat               || 'fixed',
+    cat:               initialData?.cat               || cats[0]?.value || '',
     unitBasis:         initialData?.unitBasis         || 'Fixed',
     durationMin:       initialData?.durationMin       || 30,
     color:             initialData?.color             || '#3E2A7E',

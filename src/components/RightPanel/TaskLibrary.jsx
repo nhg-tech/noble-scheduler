@@ -10,13 +10,15 @@ export default function TaskLibrary({ onCreateCustom }) {
   const [expanded, setExpanded] = useState({});
   const { schedule, assumptions, getDerivedValues, userTaskDefs, sessionTaskDefs,
           extraRoles, getFullCatList, taskOrder, skippedTasks, toggleSkipTask,
-          getEffectiveRoles, taskLibrary } = useScheduler();
+          getEffectiveRoles, taskLibrary, hiddenColumns } = useScheduler();
   const { scCount, totalRooms } = getDerivedValues();
   const { socpg, selpg } = assumptions;
 
   // Total employee columns = built-in TM/TL/PAW roles + any extra columns added by user
-  const baseRoleCount = getEffectiveRoles().filter(r => r.type === 'TM' || r.type === 'TL' || r.type === 'PAW').length;
-  const totalRoleCount = baseRoleCount + (extraRoles?.length || 0);
+  const baseRoleCount = getEffectiveRoles()
+    .filter(r => (r.type === 'TM' || r.type === 'TL' || r.type === 'PAW') && !hiddenColumns.has(r.id))
+    .length;
+  const totalRoleCount = baseRoleCount + (extraRoles || []).filter(r => !hiddenColumns.has(r.id)).length;
 
   // Full cat list for label lookup; active-only for display
   const fullCatList = getFullCatList();
