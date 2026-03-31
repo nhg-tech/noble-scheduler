@@ -50,12 +50,9 @@ export function SchedulerProvider({ children }) {
   const [columnOrder,    setColumnOrder]    = useState(() => {
     const stored     = loadLS(LS_COL_ORDER, null);
     const savedRoles = loadLS(LS_ROLES, {});
-    // Include any custom roles from userRoleDefs not yet in stored order
-    const customIds  = Object.entries(savedRoles)
-      .filter(([, def]) => def.custom && !def.deleted)
-      .map(([id]) => id);
-    const base    = stored ?? Object.keys(savedRoles).filter(id => !savedRoles[id].deleted && !savedRoles[id].custom);
-    const missing = customIds.filter(id => !base.includes(id));
+    // Include any roles from userRoleDefs not yet in stored order
+    const base    = stored ?? Object.keys(savedRoles).filter(id => !savedRoles[id].deleted);
+    const missing = Object.keys(savedRoles).filter(id => !savedRoles[id].deleted && !base.includes(id));
     return [...base, ...missing];
   });
   // Persisted in LS_SESSION so it survives page reload; also saved with templates/drafts
@@ -171,17 +168,18 @@ export function SchedulerProvider({ children }) {
   // Returns merged, ordered list of all categories.
   // Each entry: { id, label, deleted }
   const getFullCatList = useCallback(() => {
-    const customIds = Object.keys(userCatDefs).filter(id => userCatDefs[id]?.custom && !catOrder.includes(id));
-    const allIds    = [...catOrder, ...customIds];
+    // All categories: ordered ones first, then any in userCatDefs not yet in catOrder
+    const extraIds = Object.keys(userCatDefs).filter(id => !catOrder.includes(id));
+    const allIds   = [...catOrder, ...extraIds];
     return allIds.map(id => {
       const cat = userCatDefs[id] || {};
-      if (!catOrder.includes(id) && !cat.custom) return null;
       return {
         id,
         label:   cat.label   ?? id,
+        color:   cat.color   ?? null,
         deleted: cat.deleted ?? false,
       };
-    }).filter(Boolean);
+    });
   }, [userCatDefs, catOrder]);
 
   // ─── Getters ─────────────────────────────────────────────────────────────
@@ -224,7 +222,6 @@ export function SchedulerProvider({ children }) {
         shiftEnd:     r.shiftEnd     ?? 17,
         unpaidBreak:  r.unpaidBreak  ?? 0,
         hours:        r.hours        ?? 7.5,
-        custom:       r.custom       ?? false,
         includeInHrs: r.includeInHrs ?? (r.type === 'TM' || r.type === 'TL'),
       }));
   }, [userRoleDefs]);
@@ -546,26 +543,22 @@ export function SchedulerProvider({ children }) {
     });
   }, [getTaskDefault, userTaskDefs]);
 
-  // Also push setup defaults to API
+  // Also push setup defaults to API — throws on failure so callers can surface the error
   const persistDefaultsToApi = useCallback(async (tasks, roles, progMix, cats, co, to) => {
     if (!isLoggedIn()) return;
-    try {
-      // Include "Today's Actuals" from assumptions so they persist as defaults in the DB
-      const progMixWithActuals = {
-        ...progMix,
-        defaultDogs:  assumptions.dogs  ?? null,
-        defaultSocpg: assumptions.socpg ?? null,
-        defaultSelpg: assumptions.selpg ?? null,
-      };
-      await Promise.all([
-        Object.keys(tasks).length  && apiSetup.saveTasks(tasks),
-        Object.keys(roles).length  && apiSetup.saveRoles(roles),
-        apiSetup.saveProgramMix(progMixWithActuals),
-        apiSetup.saveCategories({ catDefs: cats, catOrder: co, taskOrder: to }),
-      ].filter(Boolean));
-    } catch (err) {
-      console.warn('API defaults save failed — saved locally only:', err.message);
-    }
+    // Include "Today's Actuals" from assumptions so they persist as defaults in the DB
+    const progMixWithActuals = {
+      ...progMix,
+      defaultDogs:  assumptions.dogs  ?? null,
+      defaultSocpg: assumptions.socpg ?? null,
+      defaultSelpg: assumptions.selpg ?? null,
+    };
+    await Promise.all([
+      Object.keys(tasks).length  && apiSetup.saveTasks(tasks),
+      Object.keys(roles).length  && apiSetup.saveRoles(roles),
+      apiSetup.saveProgramMix(progMixWithActuals),
+      apiSetup.saveCategories({ catDefs: cats, catOrder: co, taskOrder: to }),
+    ].filter(Boolean));
   }, [assumptions]);
 
   const resetDefaults = useCallback(() => {

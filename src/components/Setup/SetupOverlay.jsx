@@ -1,5 +1,6 @@
 import { useState, useRef, useMemo, useCallback, useEffect } from 'react';
 import { useScheduler } from '../../context/SchedulerContext';
+import { apiSetup } from '../../api';
 import { NOBLE_PALETTE, resolveBlockHex } from '../../data/palette';
 import { getExpectedInstances, UNIT_BASIS_OPTIONS } from '../../utils/calculations';
 import CreateTaskModal from '../Modals/CreateTaskModal';
@@ -123,7 +124,7 @@ export default function SetupOverlay({ onClose }) {
   }
 
   // Bulk-save all fields edited in EditLibTaskModal, then immediately persist to API
-  function handleLibTaskSave(taskId, updates) {
+  async function handleLibTaskSave(taskId, updates) {
     const newTaskDef = { ...(userTaskDefs[taskId] || {}), ...updates };
     setUserTaskDefs(prev => ({
       ...prev,
@@ -131,7 +132,11 @@ export default function SetupOverlay({ onClose }) {
     }));
     // Persist to API with the updated task — don't wait for state to settle
     const newDefs = { ...userTaskDefs, [taskId]: newTaskDef };
-    persistDefaultsToApi(newDefs, userRoleDefs, userProgramDefs, userCatDefs, catOrder, taskOrder);
+    try {
+      await persistDefaultsToApi(newDefs, userRoleDefs, userProgramDefs, userCatDefs, catOrder, taskOrder);
+    } catch (err) {
+      alert(`Failed to sync task to server:\n${err.message}`);
+    }
   }
 
   return (
@@ -236,6 +241,13 @@ export default function SetupOverlay({ onClose }) {
               setUserCatDefs={setUserCatDefs}
               catOrder={catOrder}
               setCatOrder={setCatOrder}
+              onSave={async (newDefs, newOrder) => {
+                try {
+                  await persistDefaultsToApi(userTaskDefs, userRoleDefs, userProgramDefs, newDefs, newOrder, taskOrder);
+                } catch (err) {
+                  alert(`Failed to sync categories to server:\n${err.message}`);
+                }
+              }}
             />
           )}
         </div>
@@ -294,7 +306,7 @@ export default function SetupOverlay({ onClose }) {
               }}
             >Cancel</button>
             <button
-              onClick={() => {
+              onClick={async () => {
                 // Detect roles newly deleted during this session
                 const newlyDeleted = Object.entries(userRoleDefs)
                   .filter(([id, def]) => def.deleted && !initialRoleDefs.current[id]?.deleted)
@@ -318,7 +330,11 @@ export default function SetupOverlay({ onClose }) {
                   }
                 }
                 saveDefaults();
-                persistDefaultsToApi(userTaskDefs, userRoleDefs, userProgramDefs, userCatDefs, catOrder, taskOrder);
+                try {
+                  await persistDefaultsToApi(userTaskDefs, userRoleDefs, userProgramDefs, userCatDefs, catOrder, taskOrder);
+                } catch (err) {
+                  alert(`Setup saved locally but failed to sync to server:\n${err.message}`);
+                }
                 onClose();
               }}
               style={{
@@ -429,7 +445,6 @@ function ProgramMixTab({ assumptions, onAssumption, userProgramDefs, defaults, o
 }
 
 // ─── Task Defaults Tab ───────────────────────────────────────────────────────
-const CAT_BG = { group: '#EDE8F7', suite: '#E3F2FD', meals: '#FFF8E1', fixed: '#F1F8E9', on: '#F3E5F5' };
 
 function TaskDefaultsTab({ userTaskDefs, sessionTaskDefs, onChange, onCreateTask, onEditTask, onDeleteTask }) {
   const { getFullCatList, taskOrder, setTaskOrder, getTaskDefault, taskLibrary } = useScheduler();
@@ -512,7 +527,7 @@ function TaskDefaultsTab({ userTaskDefs, sessionTaskDefs, onChange, onCreateTask
                 <td colSpan={9} style={{
                   padding: '6px 10px 3px', fontSize: 10, fontWeight: 700,
                   letterSpacing: '0.07em', textTransform: 'uppercase',
-                  color: 'var(--purple)', background: CAT_BG[cat.id] || 'var(--gray-light)',
+                  color: 'var(--purple)', background: cat.color || 'var(--gray-light)',
                 }}>{cat.label}</td>
               </tr>,
               ...tasks.map(task => {
@@ -595,27 +610,46 @@ function TaskDefaultsTab({ userTaskDefs, sessionTaskDefs, onChange, onCreateTask
 }
 
 // ─── Categories Tab ───────────────────────────────────────────────────────────
-function CategoriesTab({ getFullCatList, userCatDefs, setUserCatDefs, catOrder, setCatOrder }) {
+function CategoriesTab({ getFullCatList, userCatDefs, setUserCatDefs, catOrder, setCatOrder, onSave }) {
   const [newLabel, setNewLabel] = useState('');
-  const isDraggingRef = useRef(false);
-  const dragIdRef     = useRef(null);
+  const isDraggingRef    = useRef(false);
+  const dragIdRef        = useRef(null);
+  const latestOrderRef   = useRef(catOrder);  // track latest order for drag-end save
+  const latestDefsRef    = useRef(userCatDefs);
 
-  const cats = getFullCatList(); // includes deleted ones (for restore)
+  // Keep refs in sync with latest props
+  useEffect(() => { latestOrderRef.current = catOrder; }, [catOrder]);
+  useEffect(() => { latestDefsRef.current  = userCatDefs; }, [userCatDefs]);
+
+  const cats = getFullCatList().filter(c => !c.deleted);
 
   function handleLabelChange(catId, label) {
-    setUserCatDefs(prev => ({ ...prev, [catId]: { ...(prev[catId] || {}), label } }));
+    const newDefs = { ...userCatDefs, [catId]: { ...(userCatDefs[catId] || {}), label } };
+    setUserCatDefs(newDefs);
+    onSave(newDefs, catOrder);
   }
 
   function handleToggleDelete(catId, currentlyDeleted) {
-    setUserCatDefs(prev => ({ ...prev, [catId]: { ...(prev[catId] || {}), deleted: !currentlyDeleted } }));
+    const newDefs = { ...userCatDefs, [catId]: { ...(userCatDefs[catId] || {}), deleted: !currentlyDeleted } };
+    setUserCatDefs(newDefs);
+    onSave(newDefs, catOrder);
   }
 
-  function handleAdd() {
+  async function handleAdd() {
     if (!newLabel.trim()) return;
-    const id = `custom_cat_${Date.now()}`;
-    setUserCatDefs(prev => ({ ...prev, [id]: { label: newLabel.trim(), custom: true, deleted: false } }));
-    setCatOrder(prev => [...prev, id]);
-    setNewLabel('');
+    try {
+      // POST first — DB assigns the SERIAL integer id; use String(id) as the key
+      const newCat  = await apiSetup.createCategory(newLabel.trim());
+      const catKey  = String(newCat.id);
+      const newDefs = { ...userCatDefs, [catKey]: { label: newCat.label, color: newCat.color, deleted: false } };
+      const newOrder = [...catOrder, catKey];
+      setUserCatDefs(newDefs);
+      setCatOrder(newOrder);
+      setNewLabel('');
+      onSave(newDefs, newOrder);
+    } catch (err) {
+      alert('Failed to create category: ' + err.message);
+    }
   }
 
   function handleGripPointerDown(e, catId) {
@@ -624,6 +658,8 @@ function CategoriesTab({ getFullCatList, userCatDefs, setUserCatDefs, catOrder, 
     dragIdRef.current     = catId;
     function onUp() {
       isDraggingRef.current = false; dragIdRef.current = null;
+      // Save final order after drag completes
+      onSave(latestDefsRef.current, latestOrderRef.current);
       document.removeEventListener('pointerup', onUp);
     }
     document.addEventListener('pointerup', onUp);
@@ -805,16 +841,20 @@ function RoleConfigTab() {
     columnOrder,  setColumnOrder,
   } = useScheduler();
 
-  // Build display list: all roles from DB (built-in and custom)
+  const isDraggingRef   = useRef(false);
+  const dragIdRef       = useRef(null);
+  const latestOrderRef  = useRef(columnOrder);
+  useEffect(() => { latestOrderRef.current = columnOrder; }, [columnOrder]);
+
+  // Build display list: all roles from DB, sorted by columnOrder
   const displayRoles = useMemo(() => {
-    return Object.entries(userRoleDefs).map(([id, def]) => {
+    const roles = Object.entries(userRoleDefs).map(([id, def]) => {
       const sStart = def.shiftStart  ?? 9;
       const sEnd   = def.shiftEnd    ?? 17;
       const uBreak = def.unpaidBreak ?? 0;
       const type   = def.type || 'TM';
       return {
         id, type,
-        isCustom:    def.custom ?? false,
         label:       def.label       || id,
         sub:         def.sub         || '',
         shiftStart:  sStart,
@@ -825,7 +865,40 @@ function RoleConfigTab() {
         includeInHrs: def.includeInHrs ?? (type === 'TM' || type === 'TL'),
       };
     });
-  }, [userRoleDefs]);
+    return roles.sort((a, b) => {
+      const ai = columnOrder.indexOf(a.id);
+      const bi = columnOrder.indexOf(b.id);
+      if (ai === -1 && bi === -1) return 0;
+      if (ai === -1) return 1;
+      if (bi === -1) return -1;
+      return ai - bi;
+    });
+  }, [userRoleDefs, columnOrder]);
+
+  function handleGripPointerDown(e, roleId) {
+    e.stopPropagation(); e.preventDefault();
+    isDraggingRef.current = true;
+    dragIdRef.current     = roleId;
+    function onUp() {
+      isDraggingRef.current = false;
+      dragIdRef.current = null;
+      document.removeEventListener('pointerup', onUp);
+    }
+    document.addEventListener('pointerup', onUp);
+  }
+
+  function handleRowPointerEnter(roleId) {
+    if (!isDraggingRef.current || !dragIdRef.current || dragIdRef.current === roleId) return;
+    const draggingId = dragIdRef.current;
+    setColumnOrder(prev => {
+      const from = prev.indexOf(draggingId);
+      const to   = prev.indexOf(roleId);
+      if (from === -1 || to === -1) return prev;
+      const next = [...prev];
+      next.splice(to, 0, next.splice(from, 1)[0]);
+      return next;
+    });
+  }
 
   function updateField(id, field, value) {
     setUserRoleDefs(prev => {
@@ -858,7 +931,7 @@ function RoleConfigTab() {
         label: 'New Role', sub: '', type: 'TM',
         shiftStart: sS, shiftEnd: sE, unpaidBreak: uB,
         hours: calcShiftHours(sS, sE, uB),
-        custom: true, deleted: false,
+        deleted: false,
       },
     }));
     setColumnOrder(prev => [...prev, id]);
@@ -875,6 +948,7 @@ function RoleConfigTab() {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 700 }}>
           <thead>
             <tr style={{ background: 'var(--gray-light)' }}>
+              <Th style={{ width: 24 }}></Th>
               <Th>Label</Th>
               <Th>Sub-text</Th>
               <Th>Shift Start</Th>
@@ -894,7 +968,15 @@ function RoleConfigTab() {
                   borderBottom: '1px solid var(--gray-light)',
                   opacity:      role.deleted ? 0.55 : 1,
                 }}
+                onPointerEnter={() => handleRowPointerEnter(role.id)}
               >
+                <Td>
+                  <div
+                    onPointerDown={e => handleGripPointerDown(e, role.id)}
+                    style={{ cursor: 'grab', color: 'var(--gray)', fontSize: 14, userSelect: 'none', padding: '0 4px', lineHeight: 1 }}
+                    title="Drag to reorder"
+                  >⠿</div>
+                </Td>
                 <Td>
                   <input
                     value={role.label}
