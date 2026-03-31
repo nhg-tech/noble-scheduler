@@ -40,14 +40,19 @@ export function countTaskInSchedule(schedule, taskId, taskCode) {
 /**
  * Get scheduling status for a task chip.
  * allRoleCount  — optional total employee column count for dynamic 'roles'/99 resolution.
- * userTaskDefs  — optional user overrides; when supplied, minResources overrides expectedInstances.
+ * userTaskDefs  — optional user overrides; when supplied, minResources overrides expectedInstances
+ *                 UNLESS the dynamic count (expectedLib) is 0 — in that case the task has no work
+ *                 to do (e.g. selpg=0 for a SelPG task) and is treated as done regardless.
  */
 export function getSchedulingStatus(task, schedule, socpg, selpg, scCount, allRoleCount, userTaskDefs) {
   const scheduled     = countTaskInSchedule(schedule, task.id, task.code);
   const expectedLib   = getExpectedInstances(task, socpg, selpg, scCount, allRoleCount);
   const override      = userTaskDefs?.[task.id];
   const overrideMin   = override?.minResources === 99 ? allRoleCount : override?.minResources;
-  const expected      = overrideMin != null ? overrideMin : expectedLib;
+  // minResources only overrides when there is actual dynamic work to do.
+  // If expectedLib === 0 (e.g. selpg=0 for a SelPG-based task), the task is irrelevant
+  // and must not be forced into Pending by a non-null minResources value.
+  const expected      = (overrideMin != null && expectedLib !== 0) ? overrideMin : expectedLib;
   return {
     scheduled,
     expected,
