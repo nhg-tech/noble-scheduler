@@ -22,10 +22,9 @@ export default function ScheduleSummary() {
   // Only count hours for roles currently visible (in columnOrder and not hidden)
   const effectiveRoles = getEffectiveRoles().filter(r => columnOrder.includes(r.id) && !hiddenColumns.has(r.id));
   const allEffectiveRoles = getEffectiveRoles();
-  const baseRoleCount = allEffectiveRoles
-    .filter(r => (r.type === 'TM' || r.type === 'TL' || r.type === 'PAW') && !hiddenColumns.has(r.id))
-    .length;
-  const totalRoleCount = baseRoleCount + (extraRoles || []).filter(r => !hiddenColumns.has(r.id)).length;
+  // 99 = all roles means every visible column regardless of type (GM, MR, ON included)
+  const totalRoleCount = allEffectiveRoles.filter(r => !hiddenColumns.has(r.id)).length
+    + (extraRoles || []).filter(r => !hiddenColumns.has(r.id)).length;
 
   // Subset of schedule blocks that count toward hours (excludes breaks, optional events, etc.)
   const countingSchedule = useMemo(() => {

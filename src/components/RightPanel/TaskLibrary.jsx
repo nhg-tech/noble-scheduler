@@ -15,10 +15,9 @@ export default function TaskLibrary({ onCreateCustom }) {
   const { socpg, selpg } = assumptions;
 
   // Total employee columns = built-in TM/TL/PAW roles + any extra columns added by user
-  const baseRoleCount = getEffectiveRoles()
-    .filter(r => (r.type === 'TM' || r.type === 'TL' || r.type === 'PAW') && !hiddenColumns.has(r.id))
-    .length;
-  const totalRoleCount = baseRoleCount + (extraRoles || []).filter(r => !hiddenColumns.has(r.id)).length;
+  // 99 = all roles means every visible column regardless of type (GM, MR, ON included)
+  const totalRoleCount = getEffectiveRoles().filter(r => !hiddenColumns.has(r.id)).length
+    + (extraRoles || []).filter(r => !hiddenColumns.has(r.id)).length;
 
   // Full cat list for label lookup; active-only for display
   const fullCatList = getFullCatList();
