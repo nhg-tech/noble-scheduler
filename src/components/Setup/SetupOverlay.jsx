@@ -621,7 +621,7 @@ function CategoriesTab({ getFullCatList, userCatDefs, setUserCatDefs, catOrder, 
   useEffect(() => { latestOrderRef.current = catOrder; }, [catOrder]);
   useEffect(() => { latestDefsRef.current  = userCatDefs; }, [userCatDefs]);
 
-  const cats = getFullCatList(); // includes deleted ones (for restore)
+  const cats = getFullCatList().filter(c => !c.deleted);
 
   function handleLabelChange(catId, label) {
     const newDefs = { ...userCatDefs, [catId]: { ...(userCatDefs[catId] || {}), label } };
@@ -841,9 +841,14 @@ function RoleConfigTab() {
     columnOrder,  setColumnOrder,
   } = useScheduler();
 
-  // Build display list: all roles from DB (built-in and custom)
+  const isDraggingRef   = useRef(false);
+  const dragIdRef       = useRef(null);
+  const latestOrderRef  = useRef(columnOrder);
+  useEffect(() => { latestOrderRef.current = columnOrder; }, [columnOrder]);
+
+  // Build display list: all roles from DB, sorted by columnOrder
   const displayRoles = useMemo(() => {
-    return Object.entries(userRoleDefs).map(([id, def]) => {
+    const roles = Object.entries(userRoleDefs).map(([id, def]) => {
       const sStart = def.shiftStart  ?? 9;
       const sEnd   = def.shiftEnd    ?? 17;
       const uBreak = def.unpaidBreak ?? 0;
@@ -860,7 +865,40 @@ function RoleConfigTab() {
         includeInHrs: def.includeInHrs ?? (type === 'TM' || type === 'TL'),
       };
     });
-  }, [userRoleDefs]);
+    return roles.sort((a, b) => {
+      const ai = columnOrder.indexOf(a.id);
+      const bi = columnOrder.indexOf(b.id);
+      if (ai === -1 && bi === -1) return 0;
+      if (ai === -1) return 1;
+      if (bi === -1) return -1;
+      return ai - bi;
+    });
+  }, [userRoleDefs, columnOrder]);
+
+  function handleGripPointerDown(e, roleId) {
+    e.stopPropagation(); e.preventDefault();
+    isDraggingRef.current = true;
+    dragIdRef.current     = roleId;
+    function onUp() {
+      isDraggingRef.current = false;
+      dragIdRef.current = null;
+      document.removeEventListener('pointerup', onUp);
+    }
+    document.addEventListener('pointerup', onUp);
+  }
+
+  function handleRowPointerEnter(roleId) {
+    if (!isDraggingRef.current || !dragIdRef.current || dragIdRef.current === roleId) return;
+    const draggingId = dragIdRef.current;
+    setColumnOrder(prev => {
+      const from = prev.indexOf(draggingId);
+      const to   = prev.indexOf(roleId);
+      if (from === -1 || to === -1) return prev;
+      const next = [...prev];
+      next.splice(to, 0, next.splice(from, 1)[0]);
+      return next;
+    });
+  }
 
   function updateField(id, field, value) {
     setUserRoleDefs(prev => {
@@ -910,6 +948,7 @@ function RoleConfigTab() {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 700 }}>
           <thead>
             <tr style={{ background: 'var(--gray-light)' }}>
+              <Th style={{ width: 24 }}></Th>
               <Th>Label</Th>
               <Th>Sub-text</Th>
               <Th>Shift Start</Th>
@@ -929,7 +968,15 @@ function RoleConfigTab() {
                   borderBottom: '1px solid var(--gray-light)',
                   opacity:      role.deleted ? 0.55 : 1,
                 }}
+                onPointerEnter={() => handleRowPointerEnter(role.id)}
               >
+                <Td>
+                  <div
+                    onPointerDown={e => handleGripPointerDown(e, role.id)}
+                    style={{ cursor: 'grab', color: 'var(--gray)', fontSize: 14, userSelect: 'none', padding: '0 4px', lineHeight: 1 }}
+                    title="Drag to reorder"
+                  >⠿</div>
+                </Td>
                 <Td>
                   <input
                     value={role.label}
