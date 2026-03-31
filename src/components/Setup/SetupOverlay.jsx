@@ -1117,7 +1117,7 @@ function EditLibTaskModal({ task, override, onSave, onClose }) {
       color:             local.color,
       cat:               local.cat,
       desc:              local.desc || undefined,
-      expectedInstances: local.expectedInstances !== '' ? Number(local.expectedInstances) : undefined,
+      // expectedInstances intentionally omitted — pending redesign (will generate separate cards)
       countHours:        local.countHours,
       code:              local.code.trim() || task.code,
       name:              local.name.trim() || task.name,
@@ -1187,15 +1187,13 @@ function EditLibTaskModal({ task, override, onSave, onClose }) {
           </div>
         </div>
 
-        <div>
+        {/* Expected Instances — hidden pending redesign as separate cards per instance */}
+        {/* <div>
           <label style={editLabelStyle}>Expected Instances</label>
-          <input
-            type="number" min={1}
-            value={local.expectedInstances}
+          <input type="number" min={1} value={local.expectedInstances}
             onChange={e => setLocal(p => ({ ...p, expectedInstances: e.target.value }))}
-            style={editInputStyle}
-          />
-        </div>
+            style={editInputStyle} />
+        </div> */}
 
         <div>
           <label style={editLabelStyle}>Description</label>

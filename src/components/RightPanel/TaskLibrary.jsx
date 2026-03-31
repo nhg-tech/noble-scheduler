@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { useScheduler } from '../../context/SchedulerContext';
-import { getSchedulingStatus } from '../../utils/calculations';
+import { getSchedulingStatus, isTaskRelevant } from '../../utils/calculations';
 import { resolveBlockHex, resolveBlockText } from '../../data/palette';
 
 export default function TaskLibrary({ onCreateCustom }) {
@@ -117,6 +117,7 @@ export default function TaskLibrary({ onCreateCustom }) {
           const visibleTasks = filter === 'pending'
             ? allTasks.filter(t => {
                 if (skippedTasks.has(t.id)) return false;
+                if (!isTaskRelevant(t, assumptions, scCount)) return false;
                 const { done } = getSchedulingStatus(t, schedule, socpg, selpg, scCount, totalRoleCount, userTaskDefs);
                 return !done;
               })

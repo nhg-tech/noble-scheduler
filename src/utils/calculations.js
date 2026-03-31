@@ -38,21 +38,33 @@ export function countTaskInSchedule(schedule, taskId, taskCode) {
 }
 
 /**
+ * Returns true if a task has relevant work to do given current assumptions.
+ * Tasks whose Unit Basis is tied to an assumption (e.g. # SelPGs) are irrelevant
+ * when that assumption is 0 — they should be hidden from the Pending list.
+ */
+export function isTaskRelevant(task, assumptions, scCount) {
+  const ub = task.unitBasis || '';
+  switch (ub) {
+    case '# SelPGs':   return (assumptions?.selpg ?? 0) > 0;
+    case '# SocPGs':   return (assumptions?.socpg ?? 0) > 0;
+    case 'Total Dogs':
+    case 'Dog Rooms':  return (assumptions?.dogs  ?? 0) > 0;
+    case '# SCs':      return (scCount ?? 0) > 0;
+    default:           return true; // Fixed, Per Employee, Cat Rooms, Cats, Total Rooms — always relevant
+  }
+}
+
+/**
  * Get scheduling status for a task chip.
- * allRoleCount  — optional total employee column count for dynamic 'roles'/99 resolution.
- * userTaskDefs  — optional user overrides; when supplied, minResources overrides expectedInstances
- *                 UNLESS the dynamic count (expectedLib) is 0 — in that case the task has no work
- *                 to do (e.g. selpg=0 for a SelPG task) and is treated as done regardless.
+ * Counter is driven solely by Min Res/Unit (minResources), defaulting to 1.
+ * expectedInstances has no influence on the counter — visibility is handled
+ * separately via isTaskRelevant().
  */
 export function getSchedulingStatus(task, schedule, socpg, selpg, scCount, allRoleCount, userTaskDefs) {
-  const scheduled     = countTaskInSchedule(schedule, task.id, task.code);
-  const expectedLib   = getExpectedInstances(task, socpg, selpg, scCount, allRoleCount);
-  const override      = userTaskDefs?.[task.id];
-  const overrideMin   = override?.minResources === 99 ? allRoleCount : override?.minResources;
-  // minResources only overrides when there is actual dynamic work to do.
-  // If expectedLib === 0 (e.g. selpg=0 for a SelPG-based task), the task is irrelevant
-  // and must not be forced into Pending by a non-null minResources value.
-  const expected      = (overrideMin != null && expectedLib !== 0) ? overrideMin : expectedLib;
+  const scheduled   = countTaskInSchedule(schedule, task.id, task.code);
+  const override    = userTaskDefs?.[task.id];
+  const overrideMin = override?.minResources === 99 ? allRoleCount : override?.minResources;
+  const expected    = overrideMin ?? 1; // Min Res/Unit is the sole driver; default 1 if not set
   return {
     scheduled,
     expected,
@@ -154,7 +166,7 @@ export function computeSummary({
       const duration     = computeTaskDuration(mergedTask, derivedValues, assumptions);
       const instancesLib = getExpectedInstances(task, assumptions?.socpg, assumptions?.selpg, derivedValues?.scCount ?? scCount, roleCount ?? 0);
       const overrideMin  = override.minResources === 99 ? (roleCount ?? 0) : override.minResources;
-      const instances    = overrideMin != null ? overrideMin : instancesLib;
+      const instances    = overrideMin ?? 1; // Min Res/Unit is the sole driver; default 1
       if (duration > 0 && instances > 0) reqMins += duration * instances;
     });
   }
