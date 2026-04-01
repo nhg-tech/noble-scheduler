@@ -178,7 +178,9 @@ function ReqBreakdown({ items, totalMins }) {
   );
 }
 
-const TOOLTIP_W = 320;
+// Max dimensions: ~2× the default width, 50% of viewport height
+const TOOLTIP_MAX_W = 640;
+const TOOLTIP_MIN_W = 320;
 
 function InfoIcon({ tooltip }) {
   const [open, setOpen]   = useState(false);
@@ -211,10 +213,13 @@ function InfoIcon({ tooltip }) {
     const spaceBelow = vh - rect.bottom - 8;
     const openBelow  = spaceBelow >= vh / 2;
 
+    // Clamp left so panel stays within viewport
+    const left = Math.max(8, Math.min(rect.right - TOOLTIP_MIN_W, vw - TOOLTIP_MAX_W - 8));
+
     setPos({
       top:    openBelow ? rect.bottom + 6 : undefined,
       bottom: openBelow ? undefined : vh - rect.top + 6,
-      left:   Math.max(8, rect.right - TOOLTIP_W),
+      left,
     });
     setOpen(true);
   }
@@ -236,11 +241,15 @@ function InfoIcon({ tooltip }) {
         <div
           ref={panelRef}
           style={{
-            position: 'fixed',
-            top:    pos.top,
-            bottom: pos.bottom,
-            left:   pos.left,
-            width:  TOOLTIP_W,
+            position:  'fixed',
+            top:       pos.top,
+            bottom:    pos.bottom,
+            left:      pos.left,
+            minWidth:  TOOLTIP_MIN_W,
+            maxWidth:  TOOLTIP_MAX_W,
+            width:     'max-content',
+            maxHeight: '50vh',
+            overflowY: 'auto',
             background: '#fff',
             border: '1px solid var(--gray-light)',
             borderRadius: 8,
