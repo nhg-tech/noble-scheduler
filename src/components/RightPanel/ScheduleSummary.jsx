@@ -29,9 +29,8 @@ export default function ScheduleSummary() {
   const { multipet, multipetCats } = getProgramPct();
   // Only count hours for roles currently visible (in columnOrder and not hidden)
   const effectiveRoles = getEffectiveRoles().filter(r => columnOrder.includes(r.id) && !hiddenColumns.has(r.id));
-  const allEffectiveRoles = getEffectiveRoles();
-  // 99 = all roles means every visible column regardless of type (GM, MR, ON included)
-  const totalRoleCount = allEffectiveRoles.filter(r => !hiddenColumns.has(r.id)).length
+  // 99 = all roles means every visible column — must match what the grid actually shows
+  const totalRoleCount = getEffectiveRoles().filter(r => columnOrder.includes(r.id) && !hiddenColumns.has(r.id)).length
     + (extraRoles || []).filter(r => !hiddenColumns.has(r.id)).length;
 
   // Subset of schedule blocks that count toward hours (excludes breaks, optional events, etc.)
