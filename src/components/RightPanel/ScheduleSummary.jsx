@@ -64,9 +64,7 @@ export default function ScheduleSummary() {
         const dur = Number(block.durationMin ?? (block.slots * 30));
         minStart = Math.min(minStart, startMin);
         maxEnd   = Math.max(maxEnd, startMin + dur);
-        const libTask = block.taskId
-          ? taskLibrary.find(t => t.id === block.taskId)
-          : taskLibrary.find(t => t.code === block.code);
+        const libTask = taskLibrary.find(t => t.code === block.code || t.id === block.taskId);
         const def     = libTask ? getTaskDefault(libTask.id) : null;
         if (def && def.countHours === false) nonCountedMins += dur;
       });

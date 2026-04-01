@@ -141,7 +141,10 @@ export function computeSummary({
     Object.values(hrsSource).forEach(t => { schedMins += Number(t.durationMin ?? (t.slots * 30)); });
   }
   const schedHrs  = schedMins / 60;
-  const openMins  = (hrsAvail * 60) - schedMins;
+  // Open mins = span time filled by counted tasks → how much of the scheduled span is unoccupied
+  const countedTaskMins = Object.values(countingSchedule ?? schedule ?? {})
+    .reduce((acc, t) => acc + Number(t.durationMin ?? (t.slots * 30)), 0);
+  const openMins  = schedMins - countedTaskMins;
   const openSlots = Math.round(openMins / 30);
 
   // Est. time required — driven by task library
