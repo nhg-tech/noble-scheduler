@@ -44,35 +44,8 @@ export default function ScheduleSummary() {
     return out;
   }, [schedule, getTaskDefault, effectiveRoles]);
 
-  // Span-based scheduled mins: per included role, (lastTaskEnd - firstTaskStart) - nonCountedMins.
-  // Matches the purple row in the column header — gaps between tasks count; only breaks/lunch are subtracted.
-  const spanBasedSchedMins = useMemo(() => {
-    const roleMap = Object.fromEntries(effectiveRoles.map(r => [r.id, r]));
-    const byRole = {};
-    Object.entries(schedule).forEach(([key, block]) => {
-      const roleId  = key.split('|')[0];
-      const startMin = Number(key.split('|')[1]);
-      if (!byRole[roleId]) byRole[roleId] = [];
-      byRole[roleId].push({ block, startMin });
-    });
-    let total = 0;
-    Object.entries(byRole).forEach(([roleId, blocks]) => {
-      const role = roleMap[roleId];
-      if (!role || role.includeInHrs === false) return;
-      let minStart = Infinity, maxEnd = -Infinity, nonCountedMins = 0;
-      blocks.forEach(({ block, startMin }) => {
-        const dur = Number(block.durationMin ?? (block.slots * 30));
-        minStart = Math.min(minStart, startMin);
-        maxEnd   = Math.max(maxEnd, startMin + dur);
-        const libTask = taskLibrary.find(t => t.code === block.code || t.id === block.taskId);
-        const def     = libTask ? getTaskDefault(libTask.id) : null;
-        if (def && def.countHours === false) nonCountedMins += dur;
-      });
-      if (minStart !== Infinity) total += (maxEnd - minStart) - nonCountedMins;
-    });
-    return total;
-  }, [schedule, effectiveRoles, getTaskDefault]);
-
+  // Span calculation is now handled inside computeSummary via the shared computeAllSpanMins
+  // utility — no local duplication needed.
   const summary = useMemo(() => computeSummary({
     dogs, multipet, multipetCats, socpg, selpg,
     suites, cats, bungalows, scCount,
@@ -84,8 +57,8 @@ export default function ScheduleSummary() {
     roleCount: totalRoleCount,
     derivedValues: { suites, cats, bungalows, scCount, totalRooms },
     assumptions,
-    schedMinsOverride: spanBasedSchedMins,
-  }), [schedule, countingSchedule, spanBasedSchedMins, assumptions, suites, cats, bungalows, scCount, effectiveRoles, skippedTasks, userTaskDefs, sessionTaskDefs]);
+    getTaskDefault,
+  }), [schedule, countingSchedule, assumptions, suites, cats, bungalows, scCount, effectiveRoles, skippedTasks, userTaskDefs, sessionTaskDefs, getTaskDefault]);
 
   const deltaColor = summary.delta < 0 ? '#FF5252' : summary.delta > 60 ? '#4CAF50' : 'var(--gold-dark)';
 

@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { formatShiftTime, keyToRoleAndMin } from '../../utils/scheduling';
+import { computeRoleSpan } from '../../utils/calculations';
 import { useScheduler } from '../../context/SchedulerContext';
 
 const TIME_COL_W = 52;
@@ -34,21 +35,9 @@ export default function GridHeader({ onAddColumn, colWidth, onColWidthChange }) 
     .filter(Boolean)
     .filter(r => !hiddenColumns.has(r.id));
 
+  // Delegate to shared utility — single source of truth for span calculation
   function getRoleRange(roleId) {
-    let minStart = Infinity, maxEnd = -Infinity, nonCountedMins = 0;
-    Object.entries(schedule).forEach(([key, task]) => {
-      const { roleId: rid, startMin } = keyToRoleAndMin(key);
-      if (rid !== roleId) return;
-      const dur = Number(task.durationMin ?? task.slots * 30);
-      minStart = Math.min(minStart, startMin);
-      maxEnd   = Math.max(maxEnd, startMin + dur);
-      // Accumulate durations for tasks that do NOT count toward hours (breaks, lunch, etc.)
-      const libTask = taskLibrary.find(t => t.code === task.code || t.id === task.taskId);
-      const counts  = libTask ? (getTaskDefault(libTask.id)?.countHours !== false) : true;
-      if (!counts) nonCountedMins += dur;
-    });
-    if (minStart === Infinity) return null;
-    return { startMin: minStart, endMin: maxEnd, nonCountedMins };
+    return computeRoleSpan(roleId, schedule, taskLibrary, getTaskDefault);
   }
 
   // ── Custom pointer-based column drag (no nested DndContext) ──────────────

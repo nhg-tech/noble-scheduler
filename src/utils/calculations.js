@@ -115,33 +115,65 @@ export function computeTaskDuration(task, derivedValues, assumptions) {
 }
 
 /**
+ * Compute span metrics for a single role column.
+ * Returns { startMin, endMin, nonCountedMins } or null if the role has no tasks.
+ * This is the single source of truth — GridHeader's purple bar and ScheduleSummary
+ * both call this function so they are guaranteed to stay in sync.
+ */
+export function computeRoleSpan(roleId, schedule, taskLibrary, getTaskDefault) {
+  let minStart = Infinity, maxEnd = -Infinity, nonCountedMins = 0;
+  Object.entries(schedule).forEach(([key, task]) => {
+    const rid      = key.split('|')[0];
+    const startMin = Number(key.split('|')[1]);
+    if (rid !== roleId) return;
+    const dur = Number(task.durationMin ?? (task.slots * 30));
+    minStart = Math.min(minStart, startMin);
+    maxEnd   = Math.max(maxEnd, startMin + dur);
+    const libTask = taskLibrary.find(t => t.code === task.code || t.id === task.taskId);
+    const counts  = libTask ? (getTaskDefault(libTask.id)?.countHours !== false) : true;
+    if (!counts) nonCountedMins += dur;
+  });
+  if (minStart === Infinity) return null;
+  return { startMin: minStart, endMin: maxEnd, nonCountedMins };
+}
+
+/**
+ * Sum span-based scheduled minutes across all eligible roles.
+ * Eligible = includeInHrs !== false.
+ * Used by computeSummary — the single authoritative span total.
+ */
+export function computeAllSpanMins(roles, schedule, taskLibrary, getTaskDefault) {
+  let total = 0;
+  (roles || []).forEach(role => {
+    if (role.includeInHrs === false) return;
+    const span = computeRoleSpan(role.id, schedule, taskLibrary, getTaskDefault);
+    if (span) total += (span.endMin - span.startMin) - span.nonCountedMins;
+  });
+  return total;
+}
+
+/**
  * Compute full schedule summary.
- * countingSchedule — optional subset of schedule blocks that count toward hours
+ * countingSchedule — subset of schedule blocks that count toward hours
  *   (excludes breaks, optional events, etc. where countHours === false).
- *   When omitted, all blocks in schedule count.
+ * getTaskDefault — required; used by computeAllSpanMins to identify non-counting blocks.
  */
 export function computeSummary({
   dogs, multipet, multipetCats, socpg, selpg,
   suites, cats, bungalows, scCount, schedule, countingSchedule, effectiveRoles,
   taskLibrary, userTaskDefs, sessionTaskDefs, skippedTasks, roleCount, derivedValues, assumptions,
-  schedMinsOverride,
+  getTaskDefault,
 }) {
   const rolesForHours = effectiveRoles ?? [];
   const eligibleRoles = rolesForHours.filter(r => r.includeInHrs !== false && (r.type === 'TM' || r.type === 'TL'));
   const hrsAvail = eligibleRoles.reduce((a, r) => a + (r.hours ?? 0), 0);
 
-  // If a span-based pre-computed value is provided (from the caller), use it;
-  // otherwise fall back to summing counted task durations.
-  let schedMins;
-  if (schedMinsOverride !== undefined) {
-    schedMins = schedMinsOverride;
-  } else {
-    const hrsSource = countingSchedule ?? schedule;
-    schedMins = 0;
-    Object.values(hrsSource).forEach(t => { schedMins += Number(t.durationMin ?? (t.slots * 30)); });
-  }
+  // Span-based scheduled minutes — single source of truth via computeAllSpanMins.
+  // This matches the purple bar totals shown in GridHeader exactly.
+  const schedMins = computeAllSpanMins(rolesForHours, schedule, taskLibrary, getTaskDefault);
   const schedHrs  = schedMins / 60;
-  // Open mins = span time filled by counted tasks → how much of the scheduled span is unoccupied
+
+  // Open mins = gap within the scheduled span not covered by counted task blocks
   const countedTaskMins = Object.values(countingSchedule ?? schedule ?? {})
     .reduce((acc, t) => acc + Number(t.durationMin ?? (t.slots * 30)), 0);
   const openMins  = schedMins - countedTaskMins;
