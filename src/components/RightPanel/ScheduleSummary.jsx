@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 import { useScheduler } from '../../context/SchedulerContext';
 import { computeSummary, computeTaskDuration } from '../../utils/calculations';
 import { formatMin } from '../../utils/scheduling';
@@ -144,7 +144,7 @@ function ReqBreakdown({ items, totalMins }) {
       <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--purple)', marginBottom: 6 }}>
         Est. time required = task duration × min. staffing
       </div>
-      <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+      <div>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--gray-light)' }}>
@@ -178,63 +178,77 @@ function ReqBreakdown({ items, totalMins }) {
   );
 }
 
-const TOOLTIP_W   = 300;
-const TOOLTIP_EST = 280; // estimated max height for space check
+const TOOLTIP_W = 320;
 
 function InfoIcon({ tooltip }) {
-  const [pos, setPos] = useState(null);
-  const iconRef = useRef(null);
+  const [open, setOpen]   = useState(false);
+  const [pos,  setPos]    = useState(null);
+  const iconRef   = useRef(null);
+  const panelRef  = useRef(null);
 
-  function handleEnter() {
+  // Close on any click outside the tooltip panel
+  useEffect(() => {
+    if (!open) return;
+    function handleOutside(e) {
+      if (panelRef.current && !panelRef.current.contains(e.target) &&
+          iconRef.current  && !iconRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, [open]);
+
+  function handleClick(e) {
+    e.stopPropagation();
+    if (open) { setOpen(false); return; }
     if (!iconRef.current) return;
     const rect = iconRef.current.getBoundingClientRect();
     const vh   = window.innerHeight;
     const vw   = window.innerWidth;
 
-    // Prefer opening below; fall back to above if not enough room
+    // Prefer opening below; fall back to above if cramped
     const spaceBelow = vh - rect.bottom - 8;
-    const openBelow  = spaceBelow >= TOOLTIP_EST || spaceBelow >= vh / 2;
-
-    // Anchor right edge to icon right, but clamp so tooltip stays on screen
-    const rightEdge = vw - rect.right;
-    const leftEdge  = Math.max(8, rect.right - TOOLTIP_W);
+    const openBelow  = spaceBelow >= vh / 2;
 
     setPos({
       top:    openBelow ? rect.bottom + 6 : undefined,
       bottom: openBelow ? undefined : vh - rect.top + 6,
-      // keep tooltip inside viewport horizontally
-      left:   leftEdge,
-      maxRight: vw - 8,
+      left:   Math.max(8, rect.right - TOOLTIP_W),
     });
+    setOpen(true);
   }
 
   return (
-    <span
-      style={{ display: 'inline-flex', alignItems: 'center', marginLeft: 4 }}
-      onMouseEnter={handleEnter}
-      onMouseLeave={() => setPos(null)}
-    >
-      <span ref={iconRef} style={{
-        fontSize: 9, color: 'var(--gold-dark)', border: '1px solid var(--gold-dark)',
-        borderRadius: '50%', width: 12, height: 12,
-        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        cursor: 'default', lineHeight: 1, flexShrink: 0,
-        fontFamily: "'DM Sans', sans-serif", fontWeight: 700,
-      }}>i</span>
-      {pos && (
-        <div style={{
-          position: 'fixed',
-          top:    pos.top,
-          bottom: pos.bottom,
-          left:   pos.left,
-          width:  TOOLTIP_W,
-          background: '#fff',
-          border: '1px solid var(--gray-light)',
-          borderRadius: 8,
-          boxShadow: '0 4px 20px rgba(0,0,0,0.14)',
-          padding: '10px 12px',
-          zIndex: 9999,
-        }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', marginLeft: 4 }}>
+      <span
+        ref={iconRef}
+        onClick={handleClick}
+        style={{
+          fontSize: 9, color: 'var(--gold-dark)', border: '1px solid var(--gold-dark)',
+          borderRadius: '50%', width: 12, height: 12,
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer', lineHeight: 1, flexShrink: 0,
+          fontFamily: "'DM Sans', sans-serif", fontWeight: 700,
+        }}
+      >i</span>
+      {open && pos && (
+        <div
+          ref={panelRef}
+          style={{
+            position: 'fixed',
+            top:    pos.top,
+            bottom: pos.bottom,
+            left:   pos.left,
+            width:  TOOLTIP_W,
+            background: '#fff',
+            border: '1px solid var(--gray-light)',
+            borderRadius: 8,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.18)',
+            padding: '10px 12px',
+            zIndex: 9999,
+          }}
+        >
           {tooltip}
         </div>
       )}
