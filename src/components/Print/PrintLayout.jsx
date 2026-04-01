@@ -56,7 +56,6 @@ export default function PrintLayout({ opts }) {
     getEffectiveRoles, extraRoles, columnOrder, hiddenColumns,
     getDerivedValues, getProgramPct, getTaskDefault,
     userTaskDefs, sessionTaskDefs, skippedTasks, taskLibrary,
-    colWidth: screenColWidth,
   } = useScheduler();
 
   const { paperSize = 'legal', inclSummary = true, inclAssumptions = true, excludedCols = [] } = opts || {};
@@ -80,9 +79,9 @@ export default function PrintLayout({ opts }) {
       maxMin = Math.max(maxMin, startMin + dur);
     });
     if (minMin === Infinity) { minMin = 5 * 60; maxMin = 21.5 * 60; }
-    // Pad by 1 slot each side, then align to 30-min boundary
-    const startMin = Math.floor(Math.max(0, minMin - 30) / 30) * 30;
-    const endMin   = Math.ceil((maxMin + 30) / 30) * 30;
+    // Pad by 1 slot each side, then align to 15-min boundary
+    const startMin = Math.floor(Math.max(0, minMin - 15) / 15) * 15;
+    const endMin   = Math.ceil((maxMin + 15) / 15) * 15;
     return { activeStart: startMin, activeEnd: endMin };
   }, [schedule]);
 
@@ -102,26 +101,19 @@ export default function PrintLayout({ opts }) {
 
   const page = PAPER[paperSize] || PAPER.legal;
 
-  // Dynamic column width: distribute all available horizontal space evenly across columns.
-  // Uses the user's screen colWidth as a minimum so relative proportions are preserved,
-  // then expands to fill the full printable page width.
-  const minPrintColW = Math.max(PRINT_COL_W, screenColWidth ?? PRINT_COL_W);
-  const colW = numCols > 0
-    ? Math.max(minPrintColW, Math.floor((page.w - PRINT_TIME_W) / numCols))
-    : PRINT_COL_W;
-  const contentW = PRINT_TIME_W + numCols * colW;
+  // Column width: divide available horizontal space evenly so columns always fill the page.
+  // contentW is kept ≤ page.w so no horizontal scaling is ever needed.
+  const colW     = numCols > 0 ? Math.floor((page.w - PRINT_TIME_W) / numCols) : PRINT_COL_W;
+  const contentW = PRINT_TIME_W + numCols * colW; // ≤ page.w (floor guarantees this)
 
-  // Dynamic slot height: expand slots to fill available page height.
-  // When widthScale ≥ 1 (content narrower than page, scale capped at 1),
-  // use page.h directly; otherwise use page.h / widthScale (pre-zoom budget).
-  const widthScale     = page.w / contentW;
-  const effectivePageH = widthScale >= 1 ? page.h : page.h / widthScale;
-  const idealSlotH     = numSlots > 0 ? (effectivePageH - baseH) / numSlots : MIN_SLOT_H;
-  const slotH          = Math.min(MAX_SLOT_H, Math.max(MIN_SLOT_H, Math.floor(idealSlotH)));
+  // Dynamic slot height: expand slots to fill available vertical space.
+  const idealSlotH = numSlots > 0 ? (page.h - baseH) / numSlots : MIN_SLOT_H;
+  const slotH      = Math.min(MAX_SLOT_H, Math.max(MIN_SLOT_H, Math.floor(idealSlotH)));
 
   const gridH    = numSlots * slotH;
   const contentH = baseH + gridH;
-  const scale    = Math.min(page.w / contentW, page.h / contentH, 1);
+  // Scale only for vertical overflow — horizontal is already fitted by colW calculation.
+  const scale    = Math.min(page.h / contentH, 1);
 
   // ── Summary calculation (mirrors ScheduleSummary) ─────────────────────────
   const { suites, cats, bungalows, scCount, totalRooms } = getDerivedValues();
@@ -184,10 +176,13 @@ export default function PrintLayout({ opts }) {
       id="noble-print-root"
       style={{ position: 'fixed', left: -99999, top: 0, zIndex: -1, pointerEvents: 'none' }}
     >
-      {/* Scale wrapper — zoom scales layout space too, avoiding white-space issues */}
+      {/* Outer container sets the layout footprint after scaling so the page has no extra whitespace */}
+      <div style={{ width: contentW * scale, height: contentH * scale, overflow: 'hidden' }}>
+      {/* Scale wrapper — transform: scale is more reliable than zoom in print contexts */}
       <div style={{
         width: contentW,
-        zoom: scale,
+        transformOrigin: 'top left',
+        transform: scale < 1 ? `scale(${scale})` : undefined,
         fontFamily: "'DM Sans', sans-serif",
         background: '#fff',
         color: '#1A1A2E',
@@ -352,6 +347,7 @@ export default function PrintLayout({ opts }) {
           </div>
         )}
       </div>
+      </div>{/* end outer scale-footprint container */}
     </div>
   );
 

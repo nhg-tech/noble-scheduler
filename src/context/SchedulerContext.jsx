@@ -13,6 +13,7 @@ const LS_POSTINGS         = 'noble_user_postings';
 const LS_DRAFTS           = 'noble_drafts';
 const LS_EXTRA_ROLES = 'noble_extra_roles';
 const LS_COL_ORDER   = 'noble_column_order';
+const LS_COL_WIDTH   = 'noble_col_width';
 const LS_CAT_DEFS    = 'noble_cat_defs';    // { [catId]: { label?, deleted?, custom?, color? } }
 const LS_CAT_ORDER   = 'noble_cat_order';   // [catId, ...]
 const LS_TASK_ORDER  = 'noble_task_order';  // { [catId]: [taskId, ...] }
@@ -61,8 +62,8 @@ export function SchedulerProvider({ children }) {
   const [userCatDefs,    setUserCatDefs]    = useState(() => loadLS(LS_CAT_DEFS,   {}));
   const [catOrder,       setCatOrder]       = useState(() => loadLS(LS_CAT_ORDER,  []));
   const [taskOrder,      setTaskOrder]      = useState(() => loadLS(LS_TASK_ORDER, {}));
-  // Column width — shared between GridBody and PrintLayout so print matches screen layout
-  const [colWidth, setColWidth] = useState(120);
+  // Column width — shared between GridBody and PrintLayout; persisted across sessions
+  const [colWidth, setColWidth] = useState(() => loadLS(LS_COL_WIDTH, 120));
 
   // Custom tasks — persisted in LS_SESSION so they survive page reloads; also saved/restored with drafts/templates
   const [sessionTaskDefs, setSessionTaskDefs] = useState(() => loadLS(LS_SESSION, null)?.sessionTaskDefs ?? {});
@@ -83,6 +84,7 @@ export function SchedulerProvider({ children }) {
   useEffect(() => { saveLS(LS_PROGRAMS,    userProgramDefs); }, [userProgramDefs]);
   useEffect(() => { saveLS(LS_EXTRA_ROLES, extraRoles);      }, [extraRoles]);
   useEffect(() => { saveLS(LS_COL_ORDER,   columnOrder);     }, [columnOrder]);
+  useEffect(() => { saveLS(LS_COL_WIDTH,   colWidth);        }, [colWidth]);
   useEffect(() => { saveLS(LS_CAT_DEFS,    userCatDefs);     }, [userCatDefs]);
   useEffect(() => { saveLS(LS_CAT_ORDER,   catOrder);        }, [catOrder]);
   useEffect(() => { saveLS(LS_TASK_ORDER,  taskOrder);       }, [taskOrder]);
