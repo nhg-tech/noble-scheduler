@@ -19,6 +19,7 @@ export default function SetupOverlay({ onClose }) {
     sessionTaskDefs, setSessionTaskDefs,
     userProgramDefs, setUserProgramDefs,
     userRoleDefs,
+    columnOrder,
     NOBLE_PROGRAM_DEFAULTS,
     saveDefaults, resetDefaults, persistDefaultsToApi,
     getFullCatList, taskOrder, setTaskOrder,
