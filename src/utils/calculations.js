@@ -119,8 +119,18 @@ export function computeTaskDuration(task, derivedValues, assumptions) {
  * Returns { startMin, endMin, nonCountedMins } or null if the role has no tasks.
  * This is the single source of truth — GridHeader's purple bar and ScheduleSummary
  * both call this function so they are guaranteed to stay in sync.
+ *
+ * @param {string}   roleId
+ * @param {object}   schedule
+ * @param {array}    taskLibrary
+ * @param {function} getTaskDefault
+ * @param {array}    [roles]  — optional; when provided, overnight roles are detected
+ *                             from role config (shiftStart > shiftEnd) rather than
+ *                             inferred from task positions. This prevents out-of-shift
+ *                             tasks (dropped on grayed-out same-day cells) from
+ *                             corrupting the displayed span.
  */
-export function computeRoleSpan(roleId, schedule, taskLibrary, getTaskDefault) {
+export function computeRoleSpan(roleId, schedule, taskLibrary, getTaskDefault, roles) {
   // Collect raw entries first so we can detect cross-midnight shifts before computing span.
   const entries = [];
   Object.entries(schedule).forEach(([key, task]) => {
@@ -134,16 +144,27 @@ export function computeRoleSpan(roleId, schedule, taskLibrary, getTaskDefault) {
   });
   if (entries.length === 0) return null;
 
-  // Overnight cross-midnight detection: if tasks exist both before 6 am and at/after 6 pm,
-  // the role straddles midnight (e.g. ON shift 9 pm → 6:30 am). Normalise the early-morning
-  // tasks by adding 1440 so the span is contiguous (9 pm = 1260, 5 am → 1740, not 300).
+  // Overnight cross-midnight detection.
+  // Preferred: use role config when available — shiftStart > shiftEnd means overnight.
+  // Fallback: infer from task positions (hasMorning + hasEvening).
+  const role = roles?.find(r => r.id === roleId);
+  const isOvernightRole = role ? (role.shiftStart > role.shiftEnd) : false;
   const hasMorning = entries.some(e => e.startMin <  6 * 60);
   const hasEvening = entries.some(e => e.startMin >= 18 * 60);
-  const crossMidnight = hasMorning && hasEvening;
+  const crossMidnight = isOvernightRole || (hasMorning && hasEvening);
+
+  // Normalization boundary: for overnight roles use shiftStart (e.g. 9 pm = 1260 min);
+  // for the task-position fallback path use noon (720 min) as before.
+  // Any same-day startMin below this boundary is treated as next-day by adding 1440,
+  // so out-of-shift tasks dropped in the daytime gray area don't skew the span.
+  // Post-midnight tasks (startMin >= 1440) are already in next-day encoding — leave them.
+  const normBoundary = isOvernightRole ? (role.shiftStart * 60) : (12 * 60);
 
   let minStart = Infinity, maxEnd = -Infinity, nonCountedMins = 0;
   entries.forEach(({ startMin, dur, counts }) => {
-    const adj = (crossMidnight && startMin < 12 * 60) ? startMin + 1440 : startMin;
+    const adj = (crossMidnight && startMin < 1440 && startMin < normBoundary)
+      ? startMin + 1440
+      : startMin;
     minStart = Math.min(minStart, adj);
     maxEnd   = Math.max(maxEnd, adj + dur);
     if (!counts) nonCountedMins += dur;
@@ -160,7 +181,8 @@ export function computeAllSpanMins(roles, schedule, taskLibrary, getTaskDefault)
   let total = 0;
   (roles || []).forEach(role => {
     if (role.includeInHrs === false) return;
-    const span = computeRoleSpan(role.id, schedule, taskLibrary, getTaskDefault);
+    // Pass the full roles array so computeRoleSpan can use role config for overnight detection.
+    const span = computeRoleSpan(role.id, schedule, taskLibrary, getTaskDefault, roles);
     if (span) total += (span.endMin - span.startMin) - span.nonCountedMins;
   });
   return total;

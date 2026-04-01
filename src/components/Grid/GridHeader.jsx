@@ -35,9 +35,11 @@ export default function GridHeader({ onAddColumn, colWidth, onColWidthChange }) 
     .filter(Boolean)
     .filter(r => !hiddenColumns.has(r.id));
 
-  // Delegate to shared utility — single source of truth for span calculation
+  // Delegate to shared utility — single source of truth for span calculation.
+  // Pass allRolesBase so computeRoleSpan can detect overnight roles from config
+  // rather than guessing from task positions (fixes ON shift span display).
   function getRoleRange(roleId) {
-    return computeRoleSpan(roleId, schedule, taskLibrary, getTaskDefault);
+    return computeRoleSpan(roleId, schedule, taskLibrary, getTaskDefault, allRolesBase);
   }
 
   // ── Custom pointer-based column drag (no nested DndContext) ──────────────
