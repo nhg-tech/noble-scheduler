@@ -118,19 +118,34 @@ export function SchedulerProvider({ children }) {
             );
             return { ...tasks.value, ...localOnly };
           });
-        if (roles.status    === 'fulfilled' && Object.keys(roles.value).length)
-          // Merge: API is authoritative for base fields; local overrides win for any
-          // field the API didn't return (e.g. includeInHrs before first Save Defaults,
-          // or custom roles not yet pushed to API).
-          setUserRoleDefs(prev => {
-            const merged = { ...roles.value };
-            Object.entries(prev).forEach(([id, localDef]) => {
-              merged[id] = merged[id]
-                ? { ...merged[id], ...localDef }   // local fields layer on top of API
-                : localDef;                         // custom role not yet in API
+        if (roles.status    === 'fulfilled') {
+          // GET /setup/roles now returns { roles, columnOrder }.
+          const apiRoles       = roles.value.roles       ?? roles.value; // fallback: legacy flat object
+          const apiColumnOrder = roles.value.columnOrder ?? null;
+          if (Object.keys(apiRoles).length) {
+            // Merge: API is authoritative for base fields; local overrides win for any
+            // field the API didn't return (e.g. includeInHrs before first Save Defaults,
+            // or custom roles not yet pushed to API).
+            setUserRoleDefs(prev => {
+              const merged = { ...apiRoles };
+              Object.entries(prev).forEach(([id, localDef]) => {
+                merged[id] = merged[id]
+                  ? { ...merged[id], ...localDef }   // local fields layer on top of API
+                  : localDef;                         // custom role not yet in API
+              });
+              return merged;
             });
-            return merged;
-          });
+          }
+          // Restore column order from DB — API is source of truth; localStorage is just a cache.
+          // Only apply if the API returned a non-empty order; preserves local order if not yet saved.
+          if (apiColumnOrder && apiColumnOrder.length) {
+            setColumnOrder(prev => {
+              // Append any local-only roles (e.g. custom roles not yet saved to API) at the end.
+              const localOnly = prev.filter(id => !apiColumnOrder.includes(id));
+              return [...apiColumnOrder, ...localOnly];
+            });
+          }
+        }
         if (progMix.status  === 'fulfilled') {
           setUserProgramDefs(progMix.value);
           // Apply "Today's Actuals" defaults to assumptions — only fills gaps,
@@ -549,7 +564,7 @@ export function SchedulerProvider({ children }) {
   }, [getTaskDefault, userTaskDefs]);
 
   // Also push setup defaults to API — throws on failure so callers can surface the error
-  const persistDefaultsToApi = useCallback(async (tasks, roles, progMix, cats, co, to) => {
+  const persistDefaultsToApi = useCallback(async (tasks, roles, progMix, cats, co, to, colOrder) => {
     if (!isLoggedIn()) return;
     // Include "Today's Actuals" from assumptions so they persist as defaults in the DB
     const progMixWithActuals = {
@@ -560,7 +575,7 @@ export function SchedulerProvider({ children }) {
     };
     await Promise.all([
       Object.keys(tasks).length  && apiSetup.saveTasks(tasks),
-      Object.keys(roles).length  && apiSetup.saveRoles(roles),
+      Object.keys(roles).length  && apiSetup.saveRoles(roles, colOrder ?? []),
       apiSetup.saveProgramMix(progMixWithActuals),
       apiSetup.saveCategories({ catDefs: cats, catOrder: co, taskOrder: to }),
     ].filter(Boolean));

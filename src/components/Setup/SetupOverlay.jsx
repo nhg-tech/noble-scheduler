@@ -331,7 +331,7 @@ export default function SetupOverlay({ onClose }) {
                 }
                 saveDefaults();
                 try {
-                  await persistDefaultsToApi(userTaskDefs, userRoleDefs, userProgramDefs, userCatDefs, catOrder, taskOrder);
+                  await persistDefaultsToApi(userTaskDefs, userRoleDefs, userProgramDefs, userCatDefs, catOrder, taskOrder, columnOrder);
                 } catch (err) {
                   alert(`Setup saved locally but failed to sync to server:\n${err.message}`);
                 }
