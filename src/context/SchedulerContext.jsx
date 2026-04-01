@@ -58,7 +58,7 @@ export function SchedulerProvider({ children }) {
   });
   // Persisted in LS_SESSION so it survives page reload; also saved with templates/drafts
   const [hiddenColumns,  setHiddenColumns]  = useState(() => new Set(loadLS(LS_SESSION, null)?.hiddenColumns ?? []));
-  const [scheduleLabel,  setScheduleLabel]  = useState('Template 1 — 2 SocPGs + 2 SelPGs');
+  const [scheduleLabel,  setScheduleLabel]  = useState(() => loadLS(LS_SESSION, null)?.scheduleLabel ?? 'Template 1 — 2 SocPGs + 2 SelPGs');
   const [userCatDefs,    setUserCatDefs]    = useState(() => loadLS(LS_CAT_DEFS,   {}));
   const [catOrder,       setCatOrder]       = useState(() => loadLS(LS_CAT_ORDER,  []));
   const [taskOrder,      setTaskOrder]      = useState(() => loadLS(LS_TASK_ORDER, {}));
@@ -91,8 +91,8 @@ export function SchedulerProvider({ children }) {
 
   // Auto-save current schedule + assumptions so they survive page reloads
   useEffect(() => {
-    saveLS(LS_SESSION, { schedule, assumptions, skippedTasks: [...skippedTasks], hiddenColumns: [...hiddenColumns], sessionTaskDefs });
-  }, [schedule, assumptions, skippedTasks, hiddenColumns, sessionTaskDefs]);
+    saveLS(LS_SESSION, { schedule, assumptions, skippedTasks: [...skippedTasks], hiddenColumns: [...hiddenColumns], sessionTaskDefs, scheduleLabel });
+  }, [schedule, assumptions, skippedTasks, hiddenColumns, sessionTaskDefs, scheduleLabel]);
 
   // ─── API hydration on mount ───────────────────────────────────────────────
   // Fetch all data from API and update state (API wins over localStorage cache)
