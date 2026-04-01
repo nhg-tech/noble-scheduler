@@ -15,19 +15,21 @@ export const ROLES = [
 
 // Build time slots: 5:00am → 6:30am next day (covers full overnight shift)
 // Hours 24+ represent post-midnight (24=midnight, 25=1am, 30=6am next day)
+// Granularity: 15-minute slots (4 per hour). Labels shown only on the :00 row.
 export const TIME_SLOTS = [];
 function _slotLabel(h, m) {
   const d = h % 24; // display hour (0–23)
   const isPM = d >= 12;
   const h12 = d === 0 ? 12 : d > 12 ? d - 12 : d;
   const suffix = isPM ? 'p' : 'a';
-  return m === 0 ? `${h12}:00${suffix}` : `${h12}:30${suffix}`;
+  return m === 0 ? `${h12}:00${suffix}` : `${h12}:${String(m).padStart(2, '0')}${suffix}`;
 }
 for (let h = 5; h <= 30; h++) {
   const isMidnight = h === 24;
-  TIME_SLOTS.push({ hour: h, min: 0,  label: _slotLabel(h, 0),  isHour: true,  isMidnight });
-  // :30 for all except the last hour (we close at 6:30am next day = h=30 min=30)
+  TIME_SLOTS.push({ hour: h, min:  0, label: _slotLabel(h,  0), isHour: true,  isMidnight });
+  TIME_SLOTS.push({ hour: h, min: 15, label: _slotLabel(h, 15), isHour: false, isMidnight: false });
   TIME_SLOTS.push({ hour: h, min: 30, label: _slotLabel(h, 30), isHour: false, isMidnight: false });
+  // Don't add :45 for the last hour — grid ends at 6:30am (h=30 min=30)
+  if (h < 30) TIME_SLOTS.push({ hour: h, min: 45, label: _slotLabel(h, 45), isHour: false, isMidnight: false });
 }
-// Remove last half-slot beyond 6:30am (h=30 min=30 is exactly 6:30am — keep it; h=31 would be 7am, not needed)
-// The loop above already adds h=30 min=30 (6:30am) as the final entry — correct.
+// Final entry is h=30 min=30 (6:30am next day) — correct.

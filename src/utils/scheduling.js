@@ -100,7 +100,7 @@ export function findNextFreeMinute(schedule, roleId, fromMin, durationMin, roles
     if (!conflict) {
       const trySlotIdx = minToSlotIdx(tryMin);
       if (trySlotIdx >= 0 && (!role || inShift(role, trySlotIdx))) return tryMin;
-      const rounded = Math.ceil(tryMin / 30) * 30;
+      const rounded = Math.ceil(tryMin / 15) * 15;
       if (rounded !== tryMin) { tryMin = rounded; continue; }
       return null;
     }
@@ -136,7 +136,7 @@ export function doMerge(schedule, existingKey, codes, colors, totalDuration, con
     colors,
     constituents,
     color:        colors[0],
-    slots:        Math.ceil(totalDuration / 30),
+    slots:        Math.ceil(totalDuration / 15),
     durationMin:  totalDuration,
     notes:        constituents.map(c => c.name).join(' + '),
     merged:       true,
@@ -153,7 +153,7 @@ export function placeBlock(schedule, roleId, startMin, task, durationMin, hexCol
       name: task.name,
       code: task.code,
       color: hexColor,
-      slots: Math.ceil(durationMin / 30),
+      slots: Math.ceil(durationMin / 15),
       durationMin,
       notes: task.desc || '',
     },

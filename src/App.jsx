@@ -180,7 +180,7 @@ export default function App() {
         name: task.name,
         code: task.code,
         color: colorHex,
-        slots: Math.ceil(durationMin / 30),
+        slots: Math.ceil(durationMin / 15),
         durationMin,
         notes: task.notes || task.desc || '',
         ...(task.id ? { taskId: task.id } : {}),
@@ -214,7 +214,7 @@ export default function App() {
       const key = makeKey(roleId, autoStart);
       newSchedule[key] = {
         name: task.name, code: task.code, color: colorHex,
-        slots: Math.ceil(durationMin / 30), durationMin,
+        slots: Math.ceil(durationMin / 15), durationMin,
         notes: task.notes || task.desc || '',
         ...(task.id ? { taskId: task.id } : {}),
       };
@@ -260,7 +260,7 @@ export default function App() {
       ...baseSchedule,
       [key]: {
         name: task.name, code: task.code, color: colorHex,
-        slots: Math.ceil(fitDur / 30), durationMin: fitDur,
+        slots: Math.ceil(fitDur / 15), durationMin: fitDur,
         notes: task.notes || task.desc || '',
         ...(task.id ? { taskId: task.id } : {}),
       },
@@ -276,7 +276,7 @@ export default function App() {
       ...baseSchedule,
       [key]: {
         name: task.name, code: task.code, color: colorHex,
-        slots: Math.ceil(durationMin / 30), durationMin,
+        slots: Math.ceil(durationMin / 15), durationMin,
         notes: task.notes || task.desc || '',
         overflow: true,
         ...(task.id ? { taskId: task.id } : {}),
@@ -293,7 +293,7 @@ export default function App() {
         ...prev[blockKey],
         notes,
         durationMin,
-        slots: Math.ceil(durationMin / 30),
+        slots: Math.ceil(durationMin / 15),
         color: resolveBlockHex(color) || prev[blockKey].color,
       },
     }));
@@ -320,7 +320,7 @@ export default function App() {
         newSchedule[key] = {
           name: c.name, code: c.code,
           color: resolveBlockHex(c.color || task.colors?.[i]),
-          slots: Math.ceil(c.durationMin / 30), durationMin: c.durationMin, notes: '',
+          slots: Math.ceil(c.durationMin / 15), durationMin: c.durationMin, notes: '',
         };
         cursor = free + c.durationMin;
       });
@@ -331,7 +331,7 @@ export default function App() {
       const secondDur = totalDur - splitAt;
       const key1 = makeKey(roleId, startMin);
       newSchedule[key1] = {
-        ...task, durationMin: firstDur, slots: Math.ceil(firstDur / 30),
+        ...task, durationMin: firstDur, slots: Math.ceil(firstDur / 15),
       };
       // Use findNextFreeMinute so the second piece doesn't blindly overwrite
       // an existing block (e.g. a task placed after the original overflow block)
@@ -339,7 +339,7 @@ export default function App() {
       const freeStart    = findNextFreeMinute(newSchedule, roleId, naturalSplit, secondDur) ?? naturalSplit;
       const key2 = makeKey(roleId, freeStart);
       newSchedule[key2] = {
-        ...task, durationMin: secondDur, slots: Math.ceil(secondDur / 30),
+        ...task, durationMin: secondDur, slots: Math.ceil(secondDur / 15),
       };
     }
 
@@ -350,7 +350,7 @@ export default function App() {
   function handleResize(blockKey, newMins) {
     setSchedule(prev => ({
       ...prev,
-      [blockKey]: { ...prev[blockKey], durationMin: newMins, slots: Math.ceil(newMins / 30), resizedMins: newMins },
+      [blockKey]: { ...prev[blockKey], durationMin: newMins, slots: Math.ceil(newMins / 15), resizedMins: newMins },
     }));
   }
 

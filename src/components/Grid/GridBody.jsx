@@ -8,7 +8,7 @@ import GridHeader from './GridHeader';
 import { useScheduler } from '../../context/SchedulerContext';
 
 const TIME_COL_W = 52;
-const SLOT_H = 44;
+const SLOT_H = 22; // 15-min slot height — keeps same px/min density as the old 44px/30min
 
 export default function GridBody({ schedule, onEdit, onRemove, onSplit, onResize, onCopy, onPasteAt, hasClipboard, onCreateHere, onAddColumn }) {
   const { extraRoles, columnOrder, getEffectiveRoles, userTaskDefs, hiddenColumns, taskLibrary } = useScheduler();
@@ -149,7 +149,7 @@ export default function GridBody({ schedule, onEdit, onRemove, onSplit, onResize
             {blocks.map(({ blockKey, task, startMin }) => {
               // Find which slot this block starts in
               const slotIdx = TIME_SLOTS.findIndex(
-                s => s.hour * 60 + s.min === Math.floor(startMin / 30) * 30
+                s => s.hour * 60 + s.min === Math.floor(startMin / 15) * 15
               );
               const slotMin = slotIdx >= 0 ? TIME_SLOTS[slotIdx].hour * 60 + TIME_SLOTS[slotIdx].min : startMin;
 
