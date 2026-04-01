@@ -121,19 +121,33 @@ export function computeTaskDuration(task, derivedValues, assumptions) {
  * both call this function so they are guaranteed to stay in sync.
  */
 export function computeRoleSpan(roleId, schedule, taskLibrary, getTaskDefault) {
-  let minStart = Infinity, maxEnd = -Infinity, nonCountedMins = 0;
+  // Collect raw entries first so we can detect cross-midnight shifts before computing span.
+  const entries = [];
   Object.entries(schedule).forEach(([key, task]) => {
     const rid      = key.split('|')[0];
     const startMin = Number(key.split('|')[1]);
     if (rid !== roleId) return;
-    const dur = Number(task.durationMin ?? (task.slots * 30));
-    minStart = Math.min(minStart, startMin);
-    maxEnd   = Math.max(maxEnd, startMin + dur);
+    const dur     = Number(task.durationMin ?? (task.slots * 30));
     const libTask = taskLibrary.find(t => t.code === task.code || t.id === task.taskId);
     const counts  = libTask ? (getTaskDefault(libTask.id)?.countHours !== false) : true;
+    entries.push({ startMin, dur, counts });
+  });
+  if (entries.length === 0) return null;
+
+  // Overnight cross-midnight detection: if tasks exist both before 6 am and at/after 6 pm,
+  // the role straddles midnight (e.g. ON shift 9 pm → 6:30 am). Normalise the early-morning
+  // tasks by adding 1440 so the span is contiguous (9 pm = 1260, 5 am → 1740, not 300).
+  const hasMorning = entries.some(e => e.startMin <  6 * 60);
+  const hasEvening = entries.some(e => e.startMin >= 18 * 60);
+  const crossMidnight = hasMorning && hasEvening;
+
+  let minStart = Infinity, maxEnd = -Infinity, nonCountedMins = 0;
+  entries.forEach(({ startMin, dur, counts }) => {
+    const adj = (crossMidnight && startMin < 12 * 60) ? startMin + 1440 : startMin;
+    minStart = Math.min(minStart, adj);
+    maxEnd   = Math.max(maxEnd, adj + dur);
     if (!counts) nonCountedMins += dur;
   });
-  if (minStart === Infinity) return null;
   return { startMin: minStart, endMin: maxEnd, nonCountedMins };
 }
 
