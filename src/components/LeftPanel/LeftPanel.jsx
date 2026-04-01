@@ -17,7 +17,7 @@ function LoadSchedule() {
   } = useScheduler();
 
   const [loadTab, setLoadTab] = useState('template');
-  const [tplValue, setTplValue]     = useState('t1');
+  const [tplValue, setTplValue]     = useState('blank');
   const [draftValue, setDraftValue]   = useState('');
   const [postingValue, setPostingValue] = useState('');
 
@@ -40,11 +40,7 @@ function LoadSchedule() {
   }, [postingKeys.length]); // eslint-disable-line
 
   const BUILTIN_LABELS = {
-    t1:      'Template 1 — 2 SocPGs + 2 SelPGs (GM+MR)',
-    t2:      'Template 2 — 2 SocPGs only (GM+MR)',
-    t1_noMR: 'Template 3 — 2 SocPGs + 2 SelPGs (No MR/GM)',
-    t2_noMR: 'Template 4 — 2 SocPGs only (No MR/GM)',
-    blank:   'Blank Schedule',
+    blank: 'Blank Schedule',
   };
 
   function handleLoadTemplate() {
@@ -89,7 +85,7 @@ function LoadSchedule() {
     const name = tplValue.replace(/^(master_|user_)/, '');
     if (!window.confirm(`Delete template "${name}"?`)) return;
     await apiDeleteTemplate(name, isMaster ? 'master' : 'user');
-    setTplValue('t1');
+    setTplValue('blank');
   }
 
   const tabStyle = (active) => ({
@@ -112,13 +108,7 @@ function LoadSchedule() {
       {loadTab === 'template' && (
         <>
           <SelectWrap value={tplValue} onChange={setTplValue}>
-            <optgroup label="— Noble Templates —">
-              <option value="t1">2 SocPGs + 2 SelPGs · GM+MR (~50–80 dogs)</option>
-              <option value="t2">2 SocPGs only · GM+MR (~40–60 dogs)</option>
-              <option value="t1_noMR">2 SocPGs + 2 SelPGs · No MR/GM</option>
-              <option value="t2_noMR">2 SocPGs only · No MR/GM</option>
-              <option value="blank">— Blank Schedule —</option>
-            </optgroup>
+            <option value="blank">— New Blank Schedule —</option>
             {masterKeys.length > 0 && (
               <optgroup label="— Master Templates —">
                 {masterKeys.map(name => (
@@ -134,7 +124,9 @@ function LoadSchedule() {
               </optgroup>
             )}
           </SelectWrap>
-          <LoadBtn onClick={handleLoadTemplate}>Load Template</LoadBtn>
+          <LoadBtn onClick={handleLoadTemplate}>
+            {tplValue === 'blank' ? 'New Blank Schedule' : 'Load Template'}
+          </LoadBtn>
           {(tplValue.startsWith('master_') || tplValue.startsWith('user_')) && (
             <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
               <SmBtn onClick={handleDeleteTemplate} danger>🗑 Delete</SmBtn>
