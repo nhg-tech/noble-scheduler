@@ -178,18 +178,34 @@ function ReqBreakdown({ items, totalMins }) {
   );
 }
 
+const TOOLTIP_W   = 300;
+const TOOLTIP_EST = 280; // estimated max height for space check
+
 function InfoIcon({ tooltip }) {
   const [pos, setPos] = useState(null);
   const iconRef = useRef(null);
 
   function handleEnter() {
-    if (iconRef.current) {
-      const rect = iconRef.current.getBoundingClientRect();
-      setPos({
-        bottom: window.innerHeight - rect.top + 6,
-        right:  window.innerWidth  - rect.right,
-      });
-    }
+    if (!iconRef.current) return;
+    const rect = iconRef.current.getBoundingClientRect();
+    const vh   = window.innerHeight;
+    const vw   = window.innerWidth;
+
+    // Prefer opening below; fall back to above if not enough room
+    const spaceBelow = vh - rect.bottom - 8;
+    const openBelow  = spaceBelow >= TOOLTIP_EST || spaceBelow >= vh / 2;
+
+    // Anchor right edge to icon right, but clamp so tooltip stays on screen
+    const rightEdge = vw - rect.right;
+    const leftEdge  = Math.max(8, rect.right - TOOLTIP_W);
+
+    setPos({
+      top:    openBelow ? rect.bottom + 6 : undefined,
+      bottom: openBelow ? undefined : vh - rect.top + 6,
+      // keep tooltip inside viewport horizontally
+      left:   leftEdge,
+      maxRight: vw - 8,
+    });
   }
 
   return (
@@ -208,14 +224,15 @@ function InfoIcon({ tooltip }) {
       {pos && (
         <div style={{
           position: 'fixed',
+          top:    pos.top,
           bottom: pos.bottom,
-          right:  pos.right,
+          left:   pos.left,
+          width:  TOOLTIP_W,
           background: '#fff',
           border: '1px solid var(--gray-light)',
           borderRadius: 8,
           boxShadow: '0 4px 20px rgba(0,0,0,0.14)',
           padding: '10px 12px',
-          width: 300,
           zIndex: 9999,
         }}>
           {tooltip}
