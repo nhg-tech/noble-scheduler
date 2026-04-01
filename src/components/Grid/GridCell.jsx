@@ -1,5 +1,7 @@
 import { useDroppable } from '@dnd-kit/core';
 
+const SLOT_H = 22; // must match GridBody.jsx and TaskBlock.jsx
+
 export default function GridCell({ roleId, slotIdx, slotMin, isInShift, isMidnight, onContextMenu, children }) {
   const id = `cell:${roleId}:${slotMin}`;
 
@@ -18,7 +20,7 @@ export default function GridCell({ roleId, slotIdx, slotMin, isInShift, isMidnig
       onContextMenu={handleContextMenu}
       style={{
         position: 'relative',
-        height: '44px',
+        height: SLOT_H,
         borderBottom: isMidnight ? '2px solid var(--purple)' : '1px solid var(--gray-light)',
         borderTop: isMidnight ? '2px solid var(--purple)' : undefined,
         background: isOver
