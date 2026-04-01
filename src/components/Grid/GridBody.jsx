@@ -11,8 +11,7 @@ const TIME_COL_W = 52;
 const SLOT_H = 22; // 15-min slot height — keeps same px/min density as the old 44px/30min
 
 export default function GridBody({ schedule, onEdit, onRemove, onSplit, onResize, onCopy, onPasteAt, hasClipboard, onCreateHere, onAddColumn }) {
-  const { extraRoles, columnOrder, getEffectiveRoles, userTaskDefs, hiddenColumns, taskLibrary } = useScheduler();
-  const [colWidth, setColWidth] = useState(120);
+  const { extraRoles, columnOrder, getEffectiveRoles, userTaskDefs, hiddenColumns, taskLibrary, colWidth, setColWidth } = useScheduler();
   const allRolesBase = [...getEffectiveRoles(), ...extraRoles];
   // Only render columns in columnOrder that are not session-hidden
   const allRoles = columnOrder

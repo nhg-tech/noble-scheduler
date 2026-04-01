@@ -61,6 +61,9 @@ export function SchedulerProvider({ children }) {
   const [userCatDefs,    setUserCatDefs]    = useState(() => loadLS(LS_CAT_DEFS,   {}));
   const [catOrder,       setCatOrder]       = useState(() => loadLS(LS_CAT_ORDER,  []));
   const [taskOrder,      setTaskOrder]      = useState(() => loadLS(LS_TASK_ORDER, {}));
+  // Column width — shared between GridBody and PrintLayout so print matches screen layout
+  const [colWidth, setColWidth] = useState(120);
+
   // Custom tasks — persisted in LS_SESSION so they survive page reloads; also saved/restored with drafts/templates
   const [sessionTaskDefs, setSessionTaskDefs] = useState(() => loadLS(LS_SESSION, null)?.sessionTaskDefs ?? {});
   const [skippedTasks, setSkippedTasks] = useState(() => {
@@ -586,6 +589,7 @@ export function SchedulerProvider({ children }) {
       userTaskDefs, userRoleDefs, userProgramDefs,
       // Session-only custom tasks (not persisted; saved/restored with schedule)
       sessionTaskDefs, setSessionTaskDefs,
+      colWidth, setColWidth,
       NOBLE_PROGRAM_DEFAULTS,
       // Getters
       getTaskDefault, getRoleConfig, getProgramPct, getDerivedValues, getEffectiveRoles,

@@ -56,6 +56,7 @@ export default function PrintLayout({ opts }) {
     getEffectiveRoles, extraRoles, columnOrder, hiddenColumns,
     getDerivedValues, getProgramPct, getTaskDefault,
     userTaskDefs, sessionTaskDefs, skippedTasks, taskLibrary,
+    colWidth: screenColWidth,
   } = useScheduler();
 
   const { paperSize = 'legal', inclSummary = true, inclAssumptions = true, excludedCols = [] } = opts || {};
@@ -101,11 +102,12 @@ export default function PrintLayout({ opts }) {
 
   const page = PAPER[paperSize] || PAPER.legal;
 
-  // Dynamic column width: expand columns to fill page width when there's
-  // leftover horizontal space (i.e. fewer columns than usual). Capped at 180px.
-  const baseContentW = PRINT_TIME_W + numCols * PRINT_COL_W;
-  const colW = (numCols > 0 && baseContentW < page.w)
-    ? Math.min(180, Math.floor((page.w - PRINT_TIME_W) / numCols))
+  // Dynamic column width: distribute all available horizontal space evenly across columns.
+  // Uses the user's screen colWidth as a minimum so relative proportions are preserved,
+  // then expands to fill the full printable page width.
+  const minPrintColW = Math.max(PRINT_COL_W, screenColWidth ?? PRINT_COL_W);
+  const colW = numCols > 0
+    ? Math.max(minPrintColW, Math.floor((page.w - PRINT_TIME_W) / numCols))
     : PRINT_COL_W;
   const contentW = PRINT_TIME_W + numCols * colW;
 
