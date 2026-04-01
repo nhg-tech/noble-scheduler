@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef } from 'react';
 import { useScheduler } from '../../context/SchedulerContext';
 import { computeSummary, computeTaskDuration } from '../../utils/calculations';
 import { formatMin } from '../../utils/scheduling';
@@ -179,31 +179,44 @@ function ReqBreakdown({ items, totalMins }) {
 }
 
 function InfoIcon({ tooltip }) {
-  const [show, setShow] = useState(false);
+  const [pos, setPos] = useState(null);
+  const iconRef = useRef(null);
+
+  function handleEnter() {
+    if (iconRef.current) {
+      const rect = iconRef.current.getBoundingClientRect();
+      setPos({
+        bottom: window.innerHeight - rect.top + 6,
+        right:  window.innerWidth  - rect.right,
+      });
+    }
+  }
+
   return (
     <span
-      style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', marginLeft: 4 }}
-      onMouseEnter={() => setShow(true)}
-      onMouseLeave={() => setShow(false)}
+      style={{ display: 'inline-flex', alignItems: 'center', marginLeft: 4 }}
+      onMouseEnter={handleEnter}
+      onMouseLeave={() => setPos(null)}
     >
-      <span style={{
-        fontSize: 9, color: 'var(--purple)', border: '1px solid var(--purple)',
+      <span ref={iconRef} style={{
+        fontSize: 9, color: 'var(--gold-dark)', border: '1px solid var(--gold-dark)',
         borderRadius: '50%', width: 12, height: 12,
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         cursor: 'default', lineHeight: 1, flexShrink: 0,
         fontFamily: "'DM Sans', sans-serif", fontWeight: 700,
       }}>i</span>
-      {show && (
+      {pos && (
         <div style={{
-          position: 'absolute', bottom: '100%', right: 0,
+          position: 'fixed',
+          bottom: pos.bottom,
+          right:  pos.right,
           background: '#fff',
           border: '1px solid var(--gray-light)',
           borderRadius: 8,
           boxShadow: '0 4px 20px rgba(0,0,0,0.14)',
           padding: '10px 12px',
-          width: 280,
-          zIndex: 200,
-          marginBottom: 6,
+          width: 300,
+          zIndex: 9999,
         }}>
           {tooltip}
         </div>
