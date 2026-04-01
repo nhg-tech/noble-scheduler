@@ -34,7 +34,7 @@ function saveLS(key, val) {
 const SchedulerContext = createContext(null);
 
 export function SchedulerProvider({ children }) {
-  const [schedule,       setSchedule]       = useState(() => loadLS(LS_SESSION, null)?.schedule ?? {});
+  const [schedule,       setSchedule]       = useState({});
   const [assumptions,    setAssumptions]    = useState(() => ({
     dogs: 65, socpg: 2, selpg: 2,
     roomsActual: null, roomsUserEdited: false,

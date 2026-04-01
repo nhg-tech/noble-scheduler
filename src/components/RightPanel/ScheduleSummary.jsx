@@ -1,6 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useScheduler } from '../../context/SchedulerContext';
-import { computeSummary } from '../../utils/calculations';
+import { computeSummary, computeTaskDuration } from '../../utils/calculations';
 import { formatMin } from '../../utils/scheduling';
 
 function fmtDelta(mins) {
@@ -11,6 +11,14 @@ function fmtDelta(mins) {
   if (h === 0) return `${sign}${m}m`;
   if (m === 0) return `${sign}${h}h`;
   return `${sign}${h}h ${m}m`;
+}
+
+function fmtMins(mins) {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
 }
 
 export default function ScheduleSummary() {
@@ -60,6 +68,39 @@ export default function ScheduleSummary() {
     getTaskDefault,
   }), [schedule, countingSchedule, assumptions, suites, cats, bungalows, scCount, effectiveRoles, skippedTasks, userTaskDefs, sessionTaskDefs, getTaskDefault]);
 
+  // Per-task breakdown for the Est. time required tooltip
+  const reqBreakdown = useMemo(() => {
+    const derivedValues = { suites, cats, bungalows, scCount, totalRooms };
+    const allTasks = [
+      ...taskLibrary,
+      ...Object.values(sessionTaskDefs || {}),
+      ...Object.entries(userTaskDefs || {})
+        .filter(([id, t]) => !taskLibrary.find(lib => lib.id === id) && !sessionTaskDefs?.[id] && !t.hidden)
+        .map(([, t]) => t),
+    ];
+    const items = [];
+    allTasks.forEach(task => {
+      if (skippedTasks?.has(task.id)) return;
+      const override = userTaskDefs?.[task.id] || {};
+      if (override.hidden) return;
+      const effectiveUnitMin   = override.durationMin ?? task.durationMin ?? task.unitMin;
+      const effectiveUnitBasis = override.unitBasis   ?? task.unitBasis   ?? 'Fixed';
+      const mergedTask = { ...task, unitMin: effectiveUnitMin, unitBasis: effectiveUnitBasis };
+      const duration  = computeTaskDuration(mergedTask, derivedValues, assumptions);
+      const overrideMin = override.minResources === 99 ? totalRoleCount : override.minResources;
+      const instances = overrideMin ?? 1;
+      if (duration > 0 && instances > 0) {
+        items.push({
+          name:      override.code ?? task.code ?? task.name ?? task.id,
+          duration:  Math.round(duration),
+          instances,
+          total:     Math.round(duration * instances),
+        });
+      }
+    });
+    return items.sort((a, b) => b.total - a.total);
+  }, [taskLibrary, sessionTaskDefs, userTaskDefs, skippedTasks, suites, cats, bungalows, scCount, totalRooms, assumptions, totalRoleCount]);
+
   const deltaColor = summary.delta < 0 ? '#FF5252' : summary.delta > 60 ? '#4CAF50' : 'var(--gold-dark)';
 
   return (
@@ -80,7 +121,11 @@ export default function ScheduleSummary() {
 
       <div style={{ borderTop: '1px solid var(--gray-light)', margin: '8px 0' }} />
 
-      <Row label="Est. time required" value={`${summary.reqHrs.toFixed(1)}h`} />
+      <Row
+        label="Est. time required"
+        value={`${summary.reqHrs.toFixed(1)}h`}
+        tooltip={<ReqBreakdown items={reqBreakdown} totalMins={Math.round(summary.reqMins)} />}
+      />
       <Row
         label="Delta"
         value={fmtDelta(summary.delta)}
@@ -93,7 +138,81 @@ export default function ScheduleSummary() {
   );
 }
 
-function Row({ label, value, valueColor, bold }) {
+function ReqBreakdown({ items, totalMins }) {
+  return (
+    <div>
+      <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--purple)', marginBottom: 6 }}>
+        Est. time required = task duration × min. staffing
+      </div>
+      <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid var(--gray-light)' }}>
+              <th style={{ textAlign: 'left',  padding: '2px 4px', color: 'var(--gray)', fontWeight: 600 }}>Task</th>
+              <th style={{ textAlign: 'right', padding: '2px 4px', color: 'var(--gray)', fontWeight: 600 }}>Dur</th>
+              <th style={{ textAlign: 'right', padding: '2px 4px', color: 'var(--gray)', fontWeight: 600 }}>×</th>
+              <th style={{ textAlign: 'right', padding: '2px 4px', color: 'var(--gray)', fontWeight: 600 }}>Staff</th>
+              <th style={{ textAlign: 'right', padding: '2px 4px', color: 'var(--gray)', fontWeight: 600 }}>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item, i) => (
+              <tr key={i} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                <td style={{ padding: '2px 4px', color: 'var(--dark)', fontFamily: "'DM Mono', monospace" }}>{item.name}</td>
+                <td style={{ padding: '2px 4px', textAlign: 'right', color: 'var(--gray)' }}>{fmtMins(item.duration)}</td>
+                <td style={{ padding: '2px 4px', textAlign: 'right', color: 'var(--gray)' }}>×</td>
+                <td style={{ padding: '2px 4px', textAlign: 'right', color: 'var(--gray)' }}>{item.instances}</td>
+                <td style={{ padding: '2px 4px', textAlign: 'right', color: 'var(--dark)', fontWeight: 600 }}>{fmtMins(item.total)}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr style={{ borderTop: '1px solid var(--gray-light)' }}>
+              <td colSpan={4} style={{ padding: '3px 4px', fontWeight: 700, color: 'var(--purple)' }}>Total</td>
+              <td style={{ padding: '3px 4px', textAlign: 'right', fontWeight: 700, color: 'var(--purple)' }}>{fmtMins(totalMins)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function InfoIcon({ tooltip }) {
+  const [show, setShow] = useState(false);
+  return (
+    <span
+      style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', marginLeft: 4 }}
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+    >
+      <span style={{
+        fontSize: 9, color: 'var(--purple)', border: '1px solid var(--purple)',
+        borderRadius: '50%', width: 12, height: 12,
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        cursor: 'default', lineHeight: 1, flexShrink: 0,
+        fontFamily: "'DM Sans', sans-serif", fontWeight: 700,
+      }}>i</span>
+      {show && (
+        <div style={{
+          position: 'absolute', bottom: '100%', right: 0,
+          background: '#fff',
+          border: '1px solid var(--gray-light)',
+          borderRadius: 8,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.14)',
+          padding: '10px 12px',
+          width: 280,
+          zIndex: 200,
+          marginBottom: 6,
+        }}>
+          {tooltip}
+        </div>
+      )}
+    </span>
+  );
+}
+
+function Row({ label, value, valueColor, bold, tooltip }) {
   return (
     <div style={{
       display: 'flex',
@@ -101,7 +220,10 @@ function Row({ label, value, valueColor, bold }) {
       alignItems: 'center',
       marginBottom: 4,
     }}>
-      <span style={{ fontSize: 11, color: 'var(--gray)' }}>{label}</span>
+      <span style={{ fontSize: 11, color: 'var(--gray)', display: 'flex', alignItems: 'center' }}>
+        {label}
+        {tooltip && <InfoIcon tooltip={tooltip} />}
+      </span>
       <span style={{
         fontSize: 12,
         fontWeight: bold ? 700 : 500,

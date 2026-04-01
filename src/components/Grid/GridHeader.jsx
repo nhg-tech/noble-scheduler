@@ -166,8 +166,8 @@ export default function GridHeader({ onAddColumn, colWidth, onColWidthChange }) 
               <div style={{ fontSize: 10, color: 'var(--gray)', marginTop: 1 }}>
                 {fmtShift(role.shiftStart)}–{fmtShift(role.shiftEnd)}
                 {role.hours != null && (
-                  <span style={{ marginLeft: 3, opacity: 0.75 }}>
-                    / {role.hours}h
+                  <span style={{ opacity: 0.75 }}>
+                    /{role.hours}h
                   </span>
                 )}
               </div>
@@ -183,7 +183,7 @@ export default function GridHeader({ onAddColumn, colWidth, onColWidthChange }) 
                 const spanMins   = range.endMin - range.startMin;
                 const countedH   = (spanMins - range.nonCountedMins) / 60;
                 const hStr       = countedH % 1 === 0 ? `${countedH}h` : `${countedH.toFixed(1)}h`;
-                return `${formatShiftTime(range.startMin / 60)}–${formatShiftTime(range.endMin / 60)} / ${hStr}`;
+                return `${formatShiftTime(range.startMin / 60)}–${formatShiftTime(range.endMin / 60)}/${hStr}`;
               })() : '–'}
             </div>
 
