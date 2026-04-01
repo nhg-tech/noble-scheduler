@@ -128,8 +128,8 @@ export function computeRoleSpan(roleId, schedule, taskLibrary, getTaskDefault) {
     const startMin = Number(key.split('|')[1]);
     if (rid !== roleId) return;
     const dur     = Number(task.durationMin ?? (task.slots * 30));
-    const libTask = taskLibrary.find(t => t.code === task.code || t.id === task.taskId);
-    const counts  = libTask ? (getTaskDefault(libTask.id)?.countHours !== false) : true;
+    const libTask = taskLibrary?.find(t => t.code === task.code || t.id === task.taskId);
+    const counts  = libTask && getTaskDefault ? (getTaskDefault(libTask.id)?.countHours !== false) : true;
     entries.push({ startMin, dur, counts });
   });
   if (entries.length === 0) return null;

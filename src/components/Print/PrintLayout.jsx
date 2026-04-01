@@ -155,8 +155,9 @@ export default function PrintLayout({ opts }) {
     roleCount: totalRoleCount,
     derivedValues: { suites, cats, bungalows, scCount, totalRooms },
     assumptions,
+    getTaskDefault,
   }), [schedule, countingSchedule, assumptions, suites, cats, bungalows, scCount,
-       effectiveRoles, skippedTasks, userTaskDefs, sessionTaskDefs]);
+       effectiveRoles, skippedTasks, userTaskDefs, sessionTaskDefs, getTaskDefault]);
 
   // ── Assumptions display values ─────────────────────────────────────────────
   const pct    = getProgramPct();
