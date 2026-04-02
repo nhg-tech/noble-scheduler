@@ -15,6 +15,7 @@ export default function SaveModal({ mode, existingName, existingScope = null, ex
   const [name, setName] = useState('');
   const [tplType, setTplType] = useState('master'); // 'master' | 'my' — only used for template mode
   const [nameError, setNameError] = useState('');
+  const normalizedExistingScope = existingScope === 'user' ? 'my' : existingScope;
 
   const titles = {
     draft: 'Save Draft',
@@ -36,7 +37,7 @@ export default function SaveModal({ mode, existingName, existingScope = null, ex
 
   const normalizedName = name.trim().toLowerCase();
   const hasDuplicateName = normalizedName && namesInScope.some(existing => existing.toLowerCase() === normalizedName);
-  const templateScopeMatches = mode !== 'template' || existingScope === tplType;
+  const templateScopeMatches = mode !== 'template' || normalizedExistingScope === tplType;
   const showOverride = !!existingName && templateScopeMatches;
 
   function handleSave() {

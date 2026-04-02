@@ -62,10 +62,7 @@ export function getShiftEndMinute(role, referenceMinute = null) {
   if (!role) return getGridEndMinute();
   const shiftEndMin = role.shiftEnd * 60;
   if (!isOvernightShift(role)) return shiftEndMin;
-  const normalizedReference = referenceMinute == null
-    ? role.shiftStart * 60
-    : normalizeMinuteForShift(role, referenceMinute);
-  return normalizedReference >= 1440 ? shiftEndMin + 1440 : shiftEndMin;
+  return shiftEndMin + 1440;
 }
 
 export function isMinuteInShift(role, minute) {
