@@ -51,12 +51,16 @@ export default function App() {
     userTaskDefs, setUserTaskDefs,
     sessionTaskDefs, setSessionTaskDefs,
     setExtraRoles, setColumnOrder, restoreColumn,
+    extraRoles,
     captureState,
     getDerivedValues,
+    getEffectiveRoles, getDeletedRoles,
     getUserTemplates, getMasterTemplates, getUserPostings, getUserDrafts,
     saveUserTemplates, saveMasterTemplates, saveUserPostings, saveUserDrafts,
     apiSaveTemplate, apiSaveSchedule,
   } = useScheduler();
+
+  const roleConfigs = [...getEffectiveRoles(), ...getDeletedRoles(), ...extraRoles];
 
   // Modal state
   const [conflictState, setConflictState] = useState(null);
@@ -208,7 +212,7 @@ export default function App() {
     } else {
       // Existing block starts at/before drop — try placing right after it
       autoStart    = existEnd;
-      availableMin = freeTimeFrom(baseSchedule, roleId, existingKey, existEnd);
+      availableMin = freeTimeFrom(baseSchedule, roleId, existingKey, existEnd, roleConfigs);
     }
 
     // If there's enough room, auto-place without showing the conflict modal
@@ -229,7 +233,7 @@ export default function App() {
     // Not enough room — show conflict modal
     const freeMinutes = existStart > startMin
       ? existStart - startMin
-      : freeTimeFrom(baseSchedule, roleId, existingKey, startMin);
+      : freeTimeFrom(baseSchedule, roleId, existingKey, startMin, roleConfigs);
     setConflictState({
       baseSchedule, sourceKey, roleId, startMin, task, durationMin, colorHex,
       existingKey, existingTask, freeMinutes,
@@ -319,7 +323,7 @@ export default function App() {
       // Split merged block back into constituents
       let cursor = startMin;
       task.constituents.forEach((c, i) => {
-        const free = findNextFreeMinute(newSchedule, roleId, cursor, c.durationMin) ?? cursor;
+        const free = findNextFreeMinute(newSchedule, roleId, cursor, c.durationMin, roleConfigs) ?? cursor;
         const key = makeKey(roleId, free);
         newSchedule[key] = {
           name: c.name, code: c.code,
@@ -340,7 +344,7 @@ export default function App() {
       // Use findNextFreeMinute so the second piece doesn't blindly overwrite
       // an existing block (e.g. a task placed after the original overflow block)
       const naturalSplit = startMin + firstDur;
-      const freeStart    = findNextFreeMinute(newSchedule, roleId, naturalSplit, secondDur) ?? naturalSplit;
+      const freeStart    = findNextFreeMinute(newSchedule, roleId, naturalSplit, secondDur, roleConfigs) ?? naturalSplit;
       const key2 = makeKey(roleId, freeStart);
       newSchedule[key2] = {
         ...task, durationMin: secondDur, slots: minutesToGridSlots(secondDur),

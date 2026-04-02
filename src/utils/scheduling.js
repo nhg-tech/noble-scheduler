@@ -42,23 +42,44 @@ export function legacySlotsToMinutes(slots = 1) {
   return Number(slots) * LEGACY_SLOT_MINUTES;
 }
 
+export function isOvernightShift(role) {
+  return !!role && role.shiftStart > role.shiftEnd;
+}
+
+export function getGridEndMinute() {
+  const lastSlotStart = slotStartMin(TIME_SLOTS.length - 1);
+  return lastSlotStart == null ? 24 * 60 : lastSlotStart + GRID_SLOT_MINUTES;
+}
+
+export function normalizeMinuteForShift(role, minute) {
+  if (!role) return minute;
+  if (!isOvernightShift(role)) return minute;
+  const shiftStartMin = role.shiftStart * 60;
+  return minute < 1440 && minute < shiftStartMin ? minute + 1440 : minute;
+}
+
+export function getShiftEndMinute(role, referenceMinute = null) {
+  if (!role) return getGridEndMinute();
+  const shiftEndMin = role.shiftEnd * 60;
+  if (!isOvernightShift(role)) return shiftEndMin;
+  const normalizedReference = referenceMinute == null
+    ? role.shiftStart * 60
+    : normalizeMinuteForShift(role, referenceMinute);
+  return normalizedReference >= 1440 ? shiftEndMin + 1440 : shiftEndMin;
+}
+
+export function isMinuteInShift(role, minute) {
+  if (!role) return true;
+  const normalizedMinute = normalizeMinuteForShift(role, minute);
+  const shiftStartMin = role.shiftStart * 60;
+  const shiftEndMin = getShiftEndMinute(role, minute);
+  return normalizedMinute >= shiftStartMin && normalizedMinute < shiftEndMin;
+}
+
 export function inShift(role, slotIdx) {
-  const t = slotToHour(slotIdx);
-  if (t === null) return false;
-  const { shiftStart, shiftEnd } = role;
-  if (shiftStart < shiftEnd) {
-    // Regular (non-overnight) shift
-    return t >= shiftStart && t < shiftEnd;
-  }
-  // Overnight shift (shiftStart > shiftEnd, e.g. 21→6.5):
-  // TIME_SLOTS uses h≥24 for post-midnight slots (24=midnight, 25=1am, 28=4am next day).
-  // Post-midnight slots: unwrap by subtracting 24 and compare against shiftEnd.
-  // Same-day slots: in-shift if at/after shiftStart (evening, e.g. 9pm→midnight)
-  //                 OR before shiftEnd (early morning at top of grid, e.g. 5am, 6am).
-  //                 The grid wraps — 5am same-day visually represents the end of the
-  //                 overnight shift, so it must be treated as in-shift.
-  if (t >= 24) return (t - 24) < shiftEnd;        // post-midnight slots
-  return t >= shiftStart || t < shiftEnd;          // same-day: evening OR early morning
+  const minute = slotStartMin(slotIdx);
+  if (minute === null) return false;
+  return isMinuteInShift(role, minute);
 }
 
 // ─── Duration helpers ───────────────────────────────────────────────────────
@@ -119,7 +140,7 @@ export function findNextFreeMinute(schedule, roleId, fromMin, durationMin, roles
     const conflict = occupied.find(o => o.start < tryMin + durationMin && o.end > tryMin);
     if (!conflict) {
       const trySlotIdx = minToSlotIdx(tryMin);
-      if (trySlotIdx >= 0 && (!role || inShift(role, trySlotIdx))) return tryMin;
+      if (trySlotIdx >= 0 && isMinuteInShift(role, tryMin)) return tryMin;
       const rounded = roundUpToGridMinute(tryMin);
       if (rounded !== tryMin) { tryMin = rounded; continue; }
       return null;
@@ -129,7 +150,8 @@ export function findNextFreeMinute(schedule, roleId, fromMin, durationMin, roles
   return null;
 }
 
-export function freeTimeFrom(schedule, roleId, skipKey, fromMin) {
+export function freeTimeFrom(schedule, roleId, skipKey, fromMin, roles = []) {
+  const role = roles.find(r => r.id === roleId);
   const occupied = [];
   Object.entries(schedule).forEach(([key, task]) => {
     if (key === skipKey) return;
@@ -140,7 +162,9 @@ export function freeTimeFrom(schedule, roleId, skipKey, fromMin) {
   });
   occupied.sort((a, b) => a.start - b.start);
   const blocker = occupied.find(o => o.start >= fromMin);
-  return blocker ? blocker.start - fromMin : 24 * 60 - fromMin;
+  if (blocker) return blocker.start - fromMin;
+  const endMinute = role ? getShiftEndMinute(role, fromMin) : getGridEndMinute();
+  return Math.max(0, endMinute - fromMin);
 }
 
 // ─── Merge helpers ──────────────────────────────────────────────────────────

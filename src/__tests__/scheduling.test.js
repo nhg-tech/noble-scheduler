@@ -17,6 +17,7 @@ import {
   minToSlotIdx,
   slotToHour,
   inShift,
+  isMinuteInShift,
   getEffectiveDuration,
   findTaskAtMinute,
   findOverlapInRange,
@@ -185,6 +186,18 @@ describe('inShift — overnight shift (9pm–6:30am)', () => {
   });
 });
 
+describe('isMinuteInShift — overnight shift timeline normalization', () => {
+  it('treats same-day 5:00am as inside the overnight shift', () => {
+    expect(isMinuteInShift(ROLE_ON, 300)).toBe(true);
+  });
+  it('treats next-day 1:00am encoding as inside the overnight shift', () => {
+    expect(isMinuteInShift(ROLE_ON, 1500)).toBe(true);
+  });
+  it('treats same-day noon as outside the overnight shift', () => {
+    expect(isMinuteInShift(ROLE_ON, 720)).toBe(false);
+  });
+});
+
 // ─── getEffectiveDuration ─────────────────────────────────────────────────────
 describe('getEffectiveDuration', () => {
   it('returns resizedMins first if present', () => {
@@ -272,6 +285,9 @@ describe('findNextFreeMinute', () => {
     };
     expect(findNextFreeMinute(sched, 'GM', 540, 60)).toBe(660);
   });
+  it('accepts an early-morning same-day overnight start when role config is provided', () => {
+    expect(findNextFreeMinute({}, 'ON', 300, 60, [ROLE_ON])).toBe(300);
+  });
 });
 
 // ─── freeTimeFrom ─────────────────────────────────────────────────────────────
@@ -292,6 +308,11 @@ describe('freeTimeFrom', () => {
     };
     // Skipping GM|540, from minute 540 — next blocker is GM|600 → 600-540=60
     expect(freeTimeFrom(sched, 'GM', 'GM|540', 540)).toBe(60);
+  });
+  it('uses overnight shift end instead of midnight when nothing follows', () => {
+    const sched = { 'ON|1500': { durationMin: 60 } };
+    // From 2:00am encoded on the overnight timeline, there are 4.5 hours left until 6:30am.
+    expect(freeTimeFrom(sched, 'ON', 'ON|1500', 1560, [ROLE_ON])).toBe(270);
   });
 });
 
