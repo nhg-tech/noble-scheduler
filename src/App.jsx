@@ -625,6 +625,11 @@ export default function App() {
                   ? 'posted'
                   : null
           }
+          initialTemplateType={
+            saveMode === 'template'
+              ? (loadedTemplateScope === 'user' ? 'my' : loadedTemplateScope)
+              : null
+          }
           existingNames={
             saveMode === 'template'
               ? {

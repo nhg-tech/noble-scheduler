@@ -39,6 +39,19 @@ function LoadSchedule() {
   useEffect(() => {
     if (!postingValue && postingKeys.length > 0) setPostingValue(postingKeys[0]);
   }, [postingKeys.length]); // eslint-disable-line
+  useEffect(() => {
+    if (currentLoadedEntity?.kind === 'template' && currentLoadedEntity?.name) {
+      const nextValue = currentLoadedEntity.scope === 'master'
+        ? `master_${currentLoadedEntity.name}`
+        : `user_${currentLoadedEntity.name}`;
+      if (tplValue !== nextValue) setTplValue(nextValue);
+      if (loadTab !== 'template') setLoadTab('template');
+      return;
+    }
+    if (currentLoadedEntity?.kind === 'builtin') {
+      if (tplValue !== 'blank') setTplValue('blank');
+    }
+  }, [currentLoadedEntity, tplValue, loadTab]);
 
   const BUILTIN_LABELS = {
     blank: 'Blank Schedule',

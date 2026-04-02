@@ -7,15 +7,26 @@ import Modal, { ModalFooter, Btn } from './Modal';
  *   mode: 'draft' | 'template' | 'post'
  *   existingName: string | null — currently loaded template/schedule name for overwrite
  *   existingScope?: string | null — current entity scope/status used to decide whether overwrite applies
+ *   initialTemplateType?: 'master' | 'my' | null — template bucket to select on open
  *   existingNames?: string[] | { master?: string[], my?: string[] } — names already in the selected bucket
  *   onSave: (name: string) => void
  *   onClose: () => void
  */
-export default function SaveModal({ mode, existingName, existingScope = null, existingNames = [], onSave, onClose }) {
+export default function SaveModal({
+  mode,
+  existingName,
+  existingScope = null,
+  initialTemplateType = null,
+  existingNames = [],
+  onSave,
+  onClose,
+}) {
   const [name, setName] = useState('');
-  const [tplType, setTplType] = useState('master'); // 'master' | 'my' — only used for template mode
-  const [nameError, setNameError] = useState('');
   const normalizedExistingScope = existingScope === 'user' ? 'my' : existingScope;
+  const [tplType, setTplType] = useState(
+    mode === 'template' ? (initialTemplateType || normalizedExistingScope || 'master') : 'master'
+  ); // 'master' | 'my' — only used for template mode
+  const [nameError, setNameError] = useState('');
 
   const titles = {
     draft: 'Save Draft',
