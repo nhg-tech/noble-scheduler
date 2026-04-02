@@ -82,6 +82,9 @@ export default function ScheduleSummary() {
       if (skippedTasks?.has(task.id)) return;
       const override = userTaskDefs?.[task.id] || {};
       if (override.hidden) return;
+      // Exclude tasks where count_hours = false — consistent with computeSummary
+      const countHours = override.countHours ?? task.countHours ?? true;
+      if (!countHours) return;
       const effectiveUnitMin   = override.durationMin ?? task.durationMin ?? task.unitMin;
       const effectiveUnitBasis = override.unitBasis   ?? task.unitBasis   ?? 'Fixed';
       const mergedTask = { ...task, unitMin: effectiveUnitMin, unitBasis: effectiveUnitBasis };

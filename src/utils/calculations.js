@@ -230,6 +230,9 @@ export function computeSummary({
       if (skippedTasks?.has(task.id)) return;
       const override = userTaskDefs?.[task.id] || {};
       if (override.hidden) return;
+      // Exclude tasks where count_hours = false — they don't represent productive work time
+      const countHours = override.countHours ?? task.countHours ?? true;
+      if (!countHours) return;
       // Resolve effective unit min (custom tasks use durationMin)
       const effectiveUnitMin   = override.durationMin ?? task.durationMin ?? task.unitMin;
       const effectiveUnitBasis = override.unitBasis   ?? task.unitBasis   ?? 'Fixed';
