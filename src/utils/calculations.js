@@ -1,3 +1,5 @@
+import { GRID_SLOT_MINUTES, getBlockDurationMin, legacySlotsToMinutes } from './scheduling';
+
 /**
  * Resolve expected instance count for a task given current assumptions.
  * allRoleCount — total employee column count (built-in + extra columns added by user).
@@ -98,7 +100,7 @@ export function computeTaskDuration(task, derivedValues, assumptions) {
   const selpg = assumptions?.selpg || 0;
   const dogs  = assumptions?.dogs  || 0;
   const ub    = task.unitBasis || '';
-  const um    = Number(task.unitMin) || (task.slots || 1) * 30;
+  const um    = Number(task.unitMin) || legacySlotsToMinutes(task.slots || 1);
 
   switch (ub) {
     case 'Total Dogs':   return um * dogs;
@@ -137,7 +139,7 @@ export function computeRoleSpan(roleId, schedule, taskLibrary, getTaskDefault, r
     const rid      = key.split('|')[0];
     const startMin = Number(key.split('|')[1]);
     if (rid !== roleId) return;
-    const dur     = Number(task.durationMin ?? (task.slots * 30));
+    const dur     = Number(getBlockDurationMin(task));
     const libTask = taskLibrary?.find(t => t.code === task.code || t.id === task.taskId);
     const counts  = libTask && getTaskDefault ? (getTaskDefault(libTask.id)?.countHours !== false) : true;
     entries.push({ startMin, dur, counts });
@@ -211,9 +213,9 @@ export function computeSummary({
 
   // Open mins = gap within the scheduled span not covered by counted task blocks
   const countedTaskMins = Object.values(countingSchedule ?? schedule ?? {})
-    .reduce((acc, t) => acc + Number(t.durationMin ?? (t.slots * 30)), 0);
+    .reduce((acc, t) => acc + Number(getBlockDurationMin(t)), 0);
   const openMins  = schedMins - countedTaskMins;
-  const openSlots = Math.round(openMins / 30);
+  const openSlots = Math.round(openMins / GRID_SLOT_MINUTES);
 
   // Est. time required — driven by task library
   let reqMins = 0;

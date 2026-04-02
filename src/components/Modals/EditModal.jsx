@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import Modal, { ModalFooter, Btn } from './Modal';
-import { keyToRoleAndMin, formatMin } from '../../utils/scheduling';
+import { getBlockDurationMin, keyToRoleAndMin, formatMin } from '../../utils/scheduling';
 import { NOBLE_PALETTE, resolveBlockHex } from '../../data/palette';
 
 /**
@@ -8,7 +8,7 @@ import { NOBLE_PALETTE, resolveBlockHex } from '../../data/palette';
  */
 export default function EditModal({ blockKey, task, onSave, onClose }) {
   const [notes, setNotes]       = useState(task?.notes || '');
-  const [duration, setDuration] = useState(task?.durationMin ?? (task?.slots * 30) ?? 30);
+  const [duration, setDuration] = useState(getBlockDurationMin(task) || 30);
   const [color, setColor]       = useState(task?.color || '');
 
   if (!blockKey || !task) return null;

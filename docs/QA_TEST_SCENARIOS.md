@@ -3,7 +3,7 @@
 **Product**: Noble Pet Resort Task Scheduler
 **Version**: 1.0 (Phase 2 — current)
 **Last Updated**: 2026-04-02
-**Environment**: `https://noble-scheduler.vercel.app`
+**Environment**: Production and QA; specify target environment for each run
 
 ---
 
@@ -17,6 +17,126 @@ Each scenario has:
 Work through sections in order — later sections depend on setup done in earlier ones.
 
 **Before you start**: Open the app in an incognito / private browser window to ensure no leftover session data affects results.
+
+---
+
+## Agent QA Handoff
+
+Use this section when handing QA to an agent such as ChatGPT Agent, Claude, or another tester.
+
+### Default Instructions
+
+- Use the environment explicitly named for the current test run.
+- For staged rollout validation, use the `phase-2` QA deployment unless told otherwise.
+- Record only observed behavior.
+- Mark every scenario as exactly one of: `PASS`, `FAIL`, or `SKIPPED`.
+- If a scenario fails, record:
+  - what happened
+  - what was expected
+  - concise reproduction notes
+  - screenshot when possible
+- If a scenario is skipped, record why it could not be tested.
+
+### Required Output Format
+
+| ID | Test Area | Result | Notes |
+|---|---|---|---|
+
+Allowed `Result` values:
+- `PASS`
+- `FAIL`
+- `SKIPPED`
+
+### Required Summary Format
+
+At the end of any agent-run QA pass, require this exact summary:
+
+- `Overall: PASS / FAIL / PARTIAL`
+- `Passed: <number>`
+- `Failed: <number>`
+- `Skipped: <number>`
+- `Highest severity failure: <ID or None>`
+- `Recommendation: Ready for next stage / Needs fixes before next stage`
+
+---
+
+## Stage-Based QA
+
+Use this section for focused rollout validation before promoting staged work forward.
+
+### Stage 1 — Save/Load Correctness
+
+**Target Environment**: `phase-2` QA deployment
+
+| ID | Test Area | Steps | Expected Result | Severity |
+|---|---|---|---|---|
+| S1-01 | Draft save new | Open a schedule. Click `Save Draft`. Enter a unique new name. Save. | One new draft appears in `Drafts`. | High |
+| S1-02 | Draft overwrite | Load an existing draft. Make a visible change. Click `Save Draft`. Use overwrite. | Existing draft updates. No duplicate draft is created. | High |
+| S1-03 | Draft save as new | Load an existing draft. Make a visible change. Click `Save Draft`. Enter a different unique name. Click `Save as New`. | A second draft is created with the new name. Original remains. | Medium |
+| S1-04 | Draft duplicate-name protection | Load a draft. Click `Save Draft`. In `Save as New`, type the name of an already existing draft. | Save is blocked. Inline duplicate-name message is shown. | High |
+| S1-05 | Template save new | Open a schedule. Click `Save Template`. Choose `My Template`. Enter a unique new name. Save. | One new template appears in `My Template`. | High |
+| S1-06 | Template overwrite | Load an existing template. Make a visible change. Click `Save Template`. Use overwrite. | Existing template updates. No duplicate template is created. | High |
+| S1-07 | Template duplicate-name protection | Load a template. Click `Save Template`. In `Save as New`, type the name of an already existing template in the same bucket. | Save is blocked. Inline duplicate-name message is shown. | High |
+| S1-08 | Template bucket isolation | Save `Test 1` in `My Template`. Then switch to `Master Template` and use the same name. | Behavior is scoped to the selected bucket only. No silent overwrite in the other bucket. | High |
+| S1-09 | Posted schedule overwrite | Save/post a schedule. Make a visible change. Post again using overwrite. | Existing posted schedule updates. No duplicate posted schedule is created. | High |
+| S1-10 | Delete persistence | Delete a saved draft or template from the left panel. Refresh the browser. | Deleted item stays deleted after refresh. | High |
+| S1-11 | Refresh persistence | Save a draft or template. Refresh the page. Reload the saved item. | Saved item still exists and loads correctly. | High |
+| S1-12 | Built-in template behavior | Start from `Blank Schedule` or a built-in template. Open save modal. | Built-in state is not treated like a saved user entity in a misleading way. | Medium |
+
+### Stage 2 — 15-Minute Time Model Consistency
+
+**Target Environment**: `phase-2` QA deployment
+
+**Scope Boundary**:
+- Canonical grid unit is `15 minutes`
+- Task duration remains driven by setup/defaults
+- This stage covers general time-model consistency only
+- Overnight / ON-shift boundary behavior is deferred to `Stage 2.1`
+
+| ID | Test Area | Steps | Expected Result | Severity |
+|---|---|---|---|---|
+| S2-01 | New task placement duration | Drag a task with a known configured duration onto the grid. | The block occupies the correct 15-minute span based on setup/defaults. | High |
+| S2-02 | Resize consistency | Resize a task block shorter and longer in 15-minute increments. | Block size, stored duration, and visual grid span stay aligned. | High |
+| S2-03 | Split consistency | Split a non-merged task block at a visible split point. | Resulting blocks preserve total duration and align to 15-minute boundaries. | High |
+| S2-04 | Merge consistency | Merge overlapping tasks when merge is allowed. | Merged block duration equals the sum of constituents and renders correctly on the 15-minute grid. | High |
+| S2-05 | Summary consistency | Place, resize, split, or merge tasks, then review summary metrics. | Scheduled hours, open slots, and estimated time stay consistent with the visible grid. | High |
+| S2-06 | Save/reload consistency | Save a schedule after time edits, refresh, and reload it. | Durations and visual spans remain unchanged after reload. | High |
+| S2-07 | Template load consistency | Load built-in and saved templates that contain multiple block durations. | Loaded blocks align correctly to the 15-minute grid and match summary calculations. | High |
+| S2-08 | Conflict-fit consistency | Trigger conflict resolution and use fit/waterfall options. | Resulting block durations align to the 15-minute model and do not create inconsistent totals. | Medium |
+
+### Stage 2.1 — Overnight and ON-Shift Boundaries
+
+**Target Environment**: `phase-2` QA deployment
+
+**Scope Boundary**:
+- Covers overnight role handling and cross-midnight span logic
+- Covers ON-shift nuance and boundary behavior
+- Follows Stage 2 after the 15-minute model is consistent
+
+| ID | Test Area | Steps | Expected Result | Severity |
+|---|---|---|---|---|
+| S21-01 | Overnight in-shift placement | Place tasks near the start and end of an overnight shift. | Allowed placements match intended ON-shift rules. | High |
+| S21-02 | Post-midnight span calculation | Create overnight tasks across midnight and review summary/span behavior. | Span and scheduled hours remain correct across midnight. | High |
+| S21-03 | Boundary free-time logic | Place tasks near day-end and early-morning boundaries around overnight roles. | Free-time and conflict handling do not truncate or misplace tasks. | High |
+| S21-04 | Save/reload overnight schedules | Save and reload an overnight-heavy schedule. | Overnight blocks preserve correct positions and durations after reload. | High |
+| S21-05 | Gray-area/drop behavior | Try placing tasks into gray/out-of-shift areas around ON or overnight roles. | Behavior matches intended rules and does not corrupt spans or summaries. | Medium |
+
+### Reusable Stage Template
+
+Use this table when adding Stage 2 and later rollout-specific checks:
+
+| ID | Test Area | Steps | Expected Result | Severity |
+|---|---|---|---|---|
+| SX-01 | `[area]` | `1. ... 2. ... 3. ...` | `observable pass condition` | `High / Medium / Low` |
+
+### Combined-Stage QA Guidance
+
+When validating multiple stages together:
+
+- Run the current stage checklist first.
+- Then run only the highest-risk regression checks from prior completed stages.
+- Keep result IDs stage-scoped, for example: `S1-04`, `S2-03`, `S3-01`.
+- End with one combined summary using the required summary format above.
 
 ---
 

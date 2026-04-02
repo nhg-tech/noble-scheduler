@@ -19,6 +19,8 @@ import {
   findNextFreeMinute,
   freeTimeFrom,
   doMerge,
+  getBlockDurationMin,
+  minutesToGridSlots,
 } from './utils/scheduling';
 import { resolveBlockHex, resolveBlockText } from './data/palette';
 import { computeTaskDuration } from './utils/calculations';
@@ -88,7 +90,7 @@ export default function App() {
   function handlePasteAt(roleId, slotMin) {
     if (!clipboard) return;
     const { task, colorHex } = clipboard;
-    const durationMin = task.durationMin ?? task.slots * 30;
+    const durationMin = getBlockDurationMin(task);
     attemptPlaceInSchedule(schedule, null, roleId, slotMin, task, durationMin, colorHex);
   }
 
@@ -161,7 +163,7 @@ export default function App() {
 
       if (srcRoleId === targetRoleId && srcStartMin === targetSlotMin) return;
 
-      const durationMin = task.durationMin ?? task.slots * 30;
+      const durationMin = getBlockDurationMin(task);
       const colorHex = resolveBlockHex(task.color);
       const withoutSelf = { ...schedule };
       delete withoutSelf[blockKey];
@@ -182,7 +184,7 @@ export default function App() {
         name: task.name,
         code: task.code,
         color: colorHex,
-        slots: Math.ceil(durationMin / 15),
+        slots: minutesToGridSlots(durationMin),
         durationMin,
         notes: task.notes || task.desc || '',
         ...(task.id ? { taskId: task.id } : {}),
@@ -194,7 +196,7 @@ export default function App() {
     const existingTask = baseSchedule[existingKey];
     const existMergeCount = existingTask?.merged ? (existingTask.constituents?.length || 1) : 1;
     const { startMin: existStart } = keyToRoleAndMin(existingKey);
-    const existDur = existingTask.durationMin ?? existingTask.slots * 30;
+    const existDur = getBlockDurationMin(existingTask);
     const existEnd = existStart + existDur;
 
     // Determine auto-placement position and available space
@@ -216,7 +218,7 @@ export default function App() {
       const key = makeKey(roleId, autoStart);
       newSchedule[key] = {
         name: task.name, code: task.code, color: colorHex,
-        slots: Math.ceil(durationMin / 15), durationMin,
+        slots: minutesToGridSlots(durationMin), durationMin,
         notes: task.notes || task.desc || '',
         ...(task.id ? { taskId: task.id } : {}),
       };
@@ -241,7 +243,7 @@ export default function App() {
     if (!conflictState) return;
     const { baseSchedule, roleId, startMin, task, durationMin, colorHex, existingKey, existingTask } = conflictState;
     const { startMin: existStart } = keyToRoleAndMin(existingKey);
-    const existDur = existingTask.durationMin ?? existingTask.slots * 30;
+    const existDur = getBlockDurationMin(existingTask);
     const existConst = existingTask.merged
       ? existingTask.constituents
       : [{ code: existingTask.code, taskId: existingTask.taskId, name: existingTask.name, durationMin: existDur, color: existingTask.color }];
@@ -262,7 +264,7 @@ export default function App() {
       ...baseSchedule,
       [key]: {
         name: task.name, code: task.code, color: colorHex,
-        slots: Math.ceil(fitDur / 15), durationMin: fitDur,
+        slots: minutesToGridSlots(fitDur), durationMin: fitDur,
         notes: task.notes || task.desc || '',
         ...(task.id ? { taskId: task.id } : {}),
       },
@@ -278,7 +280,7 @@ export default function App() {
       ...baseSchedule,
       [key]: {
         name: task.name, code: task.code, color: colorHex,
-        slots: Math.ceil(durationMin / 15), durationMin,
+        slots: minutesToGridSlots(durationMin), durationMin,
         notes: task.notes || task.desc || '',
         overflow: true,
         ...(task.id ? { taskId: task.id } : {}),
@@ -295,7 +297,7 @@ export default function App() {
         ...prev[blockKey],
         notes,
         durationMin,
-        slots: Math.ceil(durationMin / 15),
+        slots: minutesToGridSlots(durationMin),
         color: resolveBlockHex(color) || prev[blockKey].color,
       },
     }));
@@ -322,18 +324,18 @@ export default function App() {
         newSchedule[key] = {
           name: c.name, code: c.code,
           color: resolveBlockHex(c.color || task.colors?.[i]),
-          slots: Math.ceil(c.durationMin / 15), durationMin: c.durationMin, notes: '',
+          slots: minutesToGridSlots(c.durationMin), durationMin: c.durationMin, notes: '',
         };
         cursor = free + c.durationMin;
       });
     } else {
       // Time-based split at splitAt minutes from start
-      const totalDur  = task.durationMin ?? task.slots * 30;
+      const totalDur  = getBlockDurationMin(task);
       const firstDur  = splitAt;
       const secondDur = totalDur - splitAt;
       const key1 = makeKey(roleId, startMin);
       newSchedule[key1] = {
-        ...task, durationMin: firstDur, slots: Math.ceil(firstDur / 15),
+        ...task, durationMin: firstDur, slots: minutesToGridSlots(firstDur),
       };
       // Use findNextFreeMinute so the second piece doesn't blindly overwrite
       // an existing block (e.g. a task placed after the original overflow block)
@@ -341,7 +343,7 @@ export default function App() {
       const freeStart    = findNextFreeMinute(newSchedule, roleId, naturalSplit, secondDur) ?? naturalSplit;
       const key2 = makeKey(roleId, freeStart);
       newSchedule[key2] = {
-        ...task, durationMin: secondDur, slots: Math.ceil(secondDur / 15),
+        ...task, durationMin: secondDur, slots: minutesToGridSlots(secondDur),
       };
     }
 
@@ -352,7 +354,7 @@ export default function App() {
   function handleResize(blockKey, newMins) {
     setSchedule(prev => ({
       ...prev,
-      [blockKey]: { ...prev[blockKey], durationMin: newMins, slots: Math.ceil(newMins / 15), resizedMins: newMins },
+      [blockKey]: { ...prev[blockKey], durationMin: newMins, slots: minutesToGridSlots(newMins), resizedMins: newMins },
     }));
   }
 

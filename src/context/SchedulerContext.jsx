@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { resolveBlockHex } from '../data/palette';
-import { makeKey, keyToRoleAndMin } from '../utils/scheduling';
+import { legacySlotsToMinutes, makeKey, minutesToGridSlots } from '../utils/scheduling';
 import { apiSetup, apiTemplates, apiSchedules, isLoggedIn } from '../api';
 
 // ─── localStorage keys ───────────────────────────────────────────────────────
@@ -313,11 +313,13 @@ export function SchedulerProvider({ children }) {
       const t = { id: taskId, ...taskData };
       const startMin    = hour * 60 + min;
       const def         = getTaskDefault(t.id);
-      const durationMin = overrideSlots ? overrideSlots * 30 : Number(def.unitMin ?? t.slots * 30);
+      const durationMin = overrideSlots
+        ? legacySlotsToMinutes(overrideSlots)
+        : Number(def.unitMin ?? legacySlotsToMinutes(t.slots));
       const hexColor    = resolveBlockHex(def.color ?? t.color);
       const key         = makeKey(roleId, startMin);
       newSchedule[key]  = { name: t.name, code: t.code, taskId: t.id, color: hexColor,
-        slots: Math.ceil(durationMin / 30), durationMin, notes: t.desc };
+        slots: minutesToGridSlots(durationMin), durationMin, notes: t.desc };
     };
 
     const labels = {

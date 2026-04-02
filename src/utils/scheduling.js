@@ -1,5 +1,8 @@
 import { TIME_SLOTS } from '../data/roles';
 
+export const GRID_SLOT_MINUTES = 15;
+const LEGACY_SLOT_MINUTES = 30;
+
 // ─── Key helpers ───────────────────────────────────────────────────────────
 export function makeKey(roleId, startMin) {
   return `${roleId}|${startMin}`;
@@ -27,6 +30,18 @@ export function slotToHour(idx) {
   return s ? s.hour + s.min / 60 : null;
 }
 
+export function minutesToGridSlots(durationMin) {
+  return Math.ceil(Number(durationMin) / GRID_SLOT_MINUTES);
+}
+
+export function roundUpToGridMinute(totalMin) {
+  return Math.ceil(totalMin / GRID_SLOT_MINUTES) * GRID_SLOT_MINUTES;
+}
+
+export function legacySlotsToMinutes(slots = 1) {
+  return Number(slots) * LEGACY_SLOT_MINUTES;
+}
+
 export function inShift(role, slotIdx) {
   const t = slotToHour(slotIdx);
   if (t === null) return false;
@@ -50,11 +65,12 @@ export function inShift(role, slotIdx) {
 export function getEffectiveDuration(task, getTaskDefault) {
   if (task.resizedMins) return task.resizedMins;
   if (task.durationMin) return task.durationMin;
-  if (getTaskDefault && task.code) {
-    // Try to find libTask by code
-    return task.slots * 30;
-  }
-  return task.slots * 30;
+  return legacySlotsToMinutes(task.slots);
+}
+
+export function getBlockDurationMin(task) {
+  if (!task) return 0;
+  return task.resizedMins ?? task.durationMin ?? legacySlotsToMinutes(task.slots);
 }
 
 // ─── Conflict detection ─────────────────────────────────────────────────────
@@ -63,7 +79,7 @@ export function findTaskAtMinute(schedule, roleId, minute) {
   Object.entries(schedule).forEach(([key, task]) => {
     const { roleId: rid, startMin } = keyToRoleAndMin(key);
     if (rid !== roleId) return;
-    const dur = task.durationMin ?? task.slots * 30;
+    const dur = getBlockDurationMin(task);
     if (minute >= startMin && minute < startMin + dur) found = key;
   });
   return found;
@@ -76,7 +92,7 @@ export function findOverlapInRange(schedule, roleId, startMin, durationMin) {
   Object.entries(schedule).forEach(([key, task]) => {
     const { roleId: rid, startMin: taskStart } = keyToRoleAndMin(key);
     if (rid !== roleId) return;
-    const dur = task.durationMin ?? task.slots * 30;
+    const dur = getBlockDurationMin(task);
     // Overlap when the two intervals intersect
     if (taskStart < startMin + durationMin && taskStart + dur > startMin) {
       if (taskStart < foundStart) { found = key; foundStart = taskStart; }
@@ -92,7 +108,7 @@ export function findNextFreeMinute(schedule, roleId, fromMin, durationMin, roles
   Object.entries(schedule).forEach(([key, task]) => {
     const { roleId: rid, startMin } = keyToRoleAndMin(key);
     if (rid !== roleId) return;
-    const dur = task.durationMin ?? task.slots * 30;
+    const dur = getBlockDurationMin(task);
     occupied.push({ start: startMin, end: startMin + dur });
   });
   occupied.sort((a, b) => a.start - b.start);
@@ -104,7 +120,7 @@ export function findNextFreeMinute(schedule, roleId, fromMin, durationMin, roles
     if (!conflict) {
       const trySlotIdx = minToSlotIdx(tryMin);
       if (trySlotIdx >= 0 && (!role || inShift(role, trySlotIdx))) return tryMin;
-      const rounded = Math.ceil(tryMin / 15) * 15;
+      const rounded = roundUpToGridMinute(tryMin);
       if (rounded !== tryMin) { tryMin = rounded; continue; }
       return null;
     }
@@ -119,7 +135,7 @@ export function freeTimeFrom(schedule, roleId, skipKey, fromMin) {
     if (key === skipKey) return;
     const { roleId: rid, startMin } = keyToRoleAndMin(key);
     if (rid !== roleId) return;
-    const dur = task.durationMin ?? task.slots * 30;
+    const dur = getBlockDurationMin(task);
     occupied.push({ start: startMin, end: startMin + dur });
   });
   occupied.sort((a, b) => a.start - b.start);
@@ -140,7 +156,7 @@ export function doMerge(schedule, existingKey, codes, colors, totalDuration, con
     colors,
     constituents,
     color:        colors[0],
-    slots:        Math.ceil(totalDuration / 15),
+    slots:        minutesToGridSlots(totalDuration),
     durationMin:  totalDuration,
     notes:        constituents.map(c => c.name).join(' + '),
     merged:       true,
@@ -157,7 +173,7 @@ export function placeBlock(schedule, roleId, startMin, task, durationMin, hexCol
       name: task.name,
       code: task.code,
       color: hexColor,
-      slots: Math.ceil(durationMin / 15),
+      slots: minutesToGridSlots(durationMin),
       durationMin,
       notes: task.desc || '',
     },

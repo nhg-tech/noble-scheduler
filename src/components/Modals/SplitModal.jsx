@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import Modal, { ModalFooter, Btn } from './Modal';
-import { keyToRoleAndMin, formatMin } from '../../utils/scheduling';
+import { getBlockDurationMin, keyToRoleAndMin, formatMin } from '../../utils/scheduling';
 
 /**
  * SplitModal — split a block.
@@ -15,7 +15,7 @@ import { keyToRoleAndMin, formatMin } from '../../utils/scheduling';
 export default function SplitModal({ blockKey, task, onConfirm, onClose }) {
   if (!blockKey || !task) return null;
   const { startMin } = keyToRoleAndMin(blockKey);
-  const totalDur = task.durationMin ?? task.slots * 30;
+  const totalDur = getBlockDurationMin(task);
 
   // Default split point: halfway (rounded to 5 min)
   const defaultSplit = Math.round(totalDur / 2 / 5) * 5 || Math.floor(totalDur / 2);

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { TIME_SLOTS } from '../../data/roles';
-import { inShift, slotStartMin, keyToRoleAndMin } from '../../utils/scheduling';
+import { GRID_SLOT_MINUTES, inShift, slotStartMin, keyToRoleAndMin } from '../../utils/scheduling';
 import { formatMin } from '../../utils/scheduling';
 import GridCell from './GridCell';
 import TaskBlock from './TaskBlock';
@@ -151,7 +151,7 @@ export default function GridBody({ schedule, onEdit, onRemove, onSplit, onResize
             {blocks.map(({ blockKey, task, startMin }) => {
               // Find which slot this block starts in
               const slotIdx = TIME_SLOTS.findIndex(
-                s => s.hour * 60 + s.min === Math.floor(startMin / 15) * 15
+                s => s.hour * 60 + s.min === Math.floor(startMin / GRID_SLOT_MINUTES) * GRID_SLOT_MINUTES
               );
               const slotMin = slotIdx >= 0 ? TIME_SLOTS[slotIdx].hour * 60 + TIME_SLOTS[slotIdx].min : startMin;
 

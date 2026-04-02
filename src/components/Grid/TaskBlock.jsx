@@ -1,7 +1,7 @@
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { useRef } from 'react';
 import { resolveBlockHex, resolveBlockText } from '../../data/palette';
-import { keyToRoleAndMin } from '../../utils/scheduling';
+import { getBlockDurationMin, GRID_SLOT_MINUTES, keyToRoleAndMin } from '../../utils/scheduling';
 
 const SLOT_H = 22; // 15-min slot height — keeps same px/min density as the old 44px/30min
 
@@ -37,10 +37,10 @@ export default function TaskBlock({ blockKey, task, slotMin, onEdit, onRemove, o
   const bgHex          = resolveBlockHex(effectiveColor);
   const textCol        = resolveBlockText(effectiveColor);
 
-  const durationMin  = task.durationMin ?? task.slots * 30;
+  const durationMin  = getBlockDurationMin(task);
   const offsetInSlot = startMin - slotMin;
-  const topPx        = Math.round((offsetInSlot / 15) * SLOT_H) + 2;
-  const heightPx     = Math.round((durationMin / 15) * SLOT_H) - 2;
+  const topPx        = Math.round((offsetInSlot / GRID_SLOT_MINUTES) * SLOT_H) + 2;
+  const heightPx     = Math.round((durationMin / GRID_SLOT_MINUTES) * SLOT_H) - 2;
 
   const overflowStyle = (task.overlap || task.overflow)
     ? 'outline: 2px solid #FF5252; outline-offset: -2px;'
@@ -55,13 +55,13 @@ export default function TaskBlock({ blockKey, task, slotMin, onEdit, onRemove, o
 
     function calcSnapped(ev) {
       const dy         = ev.clientY - startYRef.current;
-      const rawNewMins = origDurRef.current + dy / (SLOT_H / 15);
+      const rawNewMins = origDurRef.current + dy / (SLOT_H / GRID_SLOT_MINUTES);
       return Math.max(5, Math.round(rawNewMins / 5) * 5);
     }
 
     function onMove(ev) {
       const newMins = calcSnapped(ev);
-      if (resizeRef.current) resizeRef.current.style.height = `${Math.round((newMins / 15) * SLOT_H) - 2}px`;
+      if (resizeRef.current) resizeRef.current.style.height = `${Math.round((newMins / GRID_SLOT_MINUTES) * SLOT_H) - 2}px`;
       if (durationLabelRef.current) durationLabelRef.current.textContent = fmtDuration(newMins);
     }
 
