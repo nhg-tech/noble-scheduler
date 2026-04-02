@@ -807,7 +807,49 @@ After signing in, verify the app loads correctly with all default data.
 
 ---
 
-### 11-E: Delete a template
+### 11-E: Save Template defaults to the loaded template bucket
+
+**Steps**:
+1. In the Templates tab, select `QA User Template`
+2. Click **Load Template**
+3. Click **Save Template**
+
+**Expected Result**: The save modal opens with **My Template** already selected, not **Master Template**.
+
+**Pass ☐ / Fail ☐**
+
+---
+
+### 11-F: Overwrite option appears for the loaded template in the correct bucket
+
+**Steps**:
+1. Load `QA User Template`
+2. Make a visible change to the schedule
+3. Click **Save Template**
+4. Keep **My Template** selected
+
+**Expected Result**: The modal shows an explicit overwrite option for `QA User Template`.
+
+**Pass ☐ / Fail ☐**
+
+---
+
+### 11-G: Left panel selector follows newly saved template name
+
+**Steps**:
+1. Load `QA User Template`
+2. Click **Save Template**
+3. Keep **My Template** selected
+4. Enter a new name such as `QA User Template Copy`
+5. Click **Save as New**
+
+**Expected Result**: The template saves successfully and the left panel selector updates to `QA User Template Copy` instead of continuing to show `QA User Template`.
+
+**Pass ☐ / Fail ☐**
+
+---
+
+### 11-H: Delete a template
 
 **Steps**:
 1. In the Templates tab, find `QA User Template`
@@ -820,13 +862,27 @@ After signing in, verify the app loads correctly with all default data.
 
 ---
 
-### 11-F: Templates persist after sign out
+### 11-I: Templates persist after sign out
 
 **Steps**:
 1. Sign out and sign back in
 2. Go to Templates tab
 
 **Expected Result**: `QA Master Template` is still listed and loads correctly.
+
+**Pass ☐ / Fail ☐**
+
+---
+
+### 11-J: Duplicate-name warning appears without losing overwrite path
+
+**Steps**:
+1. Load `QA Master Template`
+2. Click **Save Template**
+3. Keep **Master Template** selected
+4. Enter `QA Master Template` in the name field
+
+**Expected Result**: The modal shows a duplicate-name warning and still presents a clear overwrite path for the currently loaded template.
 
 **Pass ☐ / Fail ☐**
 
@@ -1328,6 +1384,19 @@ These tests verify that data saved to the server actually persists across sessio
 
 ---
 
+### 18-I: Overnight shading starts at configured shift start
+
+**Steps**:
+1. Find an overnight role column such as `ON`
+2. Note the configured shift shown in the header (for example `9p–6:30a`)
+3. Inspect the lighter in-shift shading before and after the `MID` row
+
+**Expected Result**: The in-shift shading begins at the configured pre-midnight shift start and continues across midnight. It does not wait until the `MID` line to begin.
+
+**Pass ☐ / Fail ☐**
+
+---
+
 ## Test Run Summary
 
 Use this table to track overall results:
@@ -1344,15 +1413,15 @@ Use this table to track overall results:
 | 8. Schedule Summary | 7 | | | |
 | 9. Save & Load Drafts | 5 | | | |
 | 10. Post a Schedule | 3 | | | |
-| 11. Templates | 6 | | | |
+| 11. Templates | 10 | | | |
 | 12. Setup — Program Mix | 4 | | | |
 | 13. Setup — Task Defaults | 6 | | | |
 | 14. Setup — Role Config | 7 | | | |
 | 15. Setup — Categories | 5 | | | |
 | 16. Data Persistence | 3 | | | |
 | 17. Validation & Checklist | 3 | | | |
-| 18. Edge Cases | 8 | | | |
-| **Total** | **97** | | | |
+| 18. Edge Cases | 9 | | | |
+| **Total** | **102** | | | |
 
 ---
 
