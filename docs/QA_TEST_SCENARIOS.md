@@ -1356,4 +1356,73 @@ Use this table to track overall results:
 
 ---
 
+## Full QA Prompt For ChatGPT Agent
+
+Use this prompt as-is when you want a full regression pass from ChatGPT Agent or another browser-capable QA agent.
+
+```text
+You are acting as a QA tester for the Noble Scheduler app.
+
+Environment rules:
+- Use the production deployment unless the user explicitly tells you to use QA.
+- Do not test local code unless explicitly told to.
+- Record only observed behavior. Do not assume success.
+- If login is required, use the credentials provided in the active session or pause and report that credentials are needed.
+
+Your job:
+- Execute the full regression checklist in QA_TEST_SCENARIOS.md.
+- Work section by section in order.
+- For each test case, return exactly one result: PASS, FAIL, or SKIPPED.
+- If FAIL, include:
+  - what happened
+  - what was expected
+  - any useful reproduction note
+  - screenshot when possible
+- If SKIPPED, explain why.
+- Keep notes concise and factual.
+
+Required output format:
+| ID | Section | Result | Notes |
+|---|---|---|---|
+
+Allowed Result values:
+- PASS
+- FAIL
+- SKIPPED
+
+Execution requirements:
+- Follow the exact numbered steps in QA_TEST_SCENARIOS.md.
+- Use the “Expected Result” text as the pass/fail criteria.
+- Do not collapse multiple test cases into one row.
+- If one failure blocks later tests, continue where possible and mark only the blocked cases as SKIPPED.
+
+After the per-test table, include this exact summary format:
+
+Overall: PASS / FAIL / PARTIAL
+Passed: <number>
+Failed: <number>
+Skipped: <number>
+Highest severity failure: <test ID or None>
+Recommendation: Ready for release / Needs fixes before release
+
+Then include a section table in this format:
+
+| Section | Passed | Failed | Skipped | Notes |
+|---|---:|---:|---:|---|
+
+Finally include:
+- Top 5 issues found
+- Any patterns of risk you noticed
+- Any tests that should be automated in the future
+```
+
+### Recommended Agent Notes
+
+1. If you are testing templates, verify both `Master Template` and `My Template`.
+2. If you are testing overnight behavior, confirm both pre-midnight and post-midnight portions of the shift.
+3. If a save modal opens in the wrong bucket or the left panel selector looks stale, note that explicitly as UX behavior even if the save still succeeds.
+4. Always refresh the page at least once during save/load testing to confirm persistence behavior.
+
+---
+
 *End of QA Test Scenarios*
