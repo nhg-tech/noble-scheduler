@@ -61,6 +61,38 @@ export default function App() {
   } = useScheduler();
 
   const roleConfigs = [...getEffectiveRoles(), ...getDeletedRoles(), ...extraRoles];
+  const masterTemplateNames = Object.keys(getMasterTemplates());
+  const userTemplateNames = Object.keys(getUserTemplates());
+  const draftNames = Object.keys(getUserDrafts());
+  const postingNames = Object.keys(getUserPostings());
+
+  const loadedTemplateName = currentLoadedEntity?.kind === 'template'
+    ? currentLoadedEntity.name
+    : masterTemplateNames.includes(scheduleLabel)
+      ? scheduleLabel
+      : userTemplateNames.includes(scheduleLabel)
+        ? scheduleLabel
+        : null;
+
+  const loadedTemplateScope = currentLoadedEntity?.kind === 'template'
+    ? currentLoadedEntity.scope
+    : masterTemplateNames.includes(scheduleLabel)
+      ? 'master'
+      : userTemplateNames.includes(scheduleLabel)
+        ? 'user'
+        : null;
+
+  const loadedDraftName = currentLoadedEntity?.kind === 'schedule' && currentLoadedEntity?.status === 'draft'
+    ? currentLoadedEntity.name
+    : draftNames.includes(scheduleLabel)
+      ? scheduleLabel
+      : null;
+
+  const loadedPostingName = currentLoadedEntity?.kind === 'schedule' && currentLoadedEntity?.status === 'posted'
+    ? currentLoadedEntity.name
+    : postingNames.includes(scheduleLabel)
+      ? scheduleLabel
+      : null;
 
   // Modal state
   const [conflictState, setConflictState] = useState(null);
@@ -576,32 +608,32 @@ export default function App() {
           <SaveModal
             mode={saveMode}
             existingName={
-              saveMode === 'template' && currentLoadedEntity?.kind === 'template'
-              ? currentLoadedEntity.name
-              : saveMode === 'draft' && currentLoadedEntity?.kind === 'schedule' && currentLoadedEntity?.status === 'draft'
-                ? currentLoadedEntity.name
-                : saveMode === 'post' && currentLoadedEntity?.kind === 'schedule' && currentLoadedEntity?.status === 'posted'
-                  ? currentLoadedEntity.name
+              saveMode === 'template'
+              ? loadedTemplateName
+              : saveMode === 'draft'
+                ? loadedDraftName
+                : saveMode === 'post'
+                  ? loadedPostingName
                   : null
           }
           existingScope={
-            saveMode === 'template' && currentLoadedEntity?.kind === 'template'
-              ? currentLoadedEntity.scope
-              : saveMode === 'draft' && currentLoadedEntity?.kind === 'schedule' && currentLoadedEntity?.status === 'draft'
+            saveMode === 'template'
+              ? loadedTemplateScope
+              : saveMode === 'draft' && loadedDraftName
                 ? 'draft'
-                : saveMode === 'post' && currentLoadedEntity?.kind === 'schedule' && currentLoadedEntity?.status === 'posted'
+                : saveMode === 'post' && loadedPostingName
                   ? 'posted'
                   : null
           }
           existingNames={
             saveMode === 'template'
               ? {
-                  master: Object.keys(getMasterTemplates()),
-                  my: Object.keys(getUserTemplates()),
+                  master: masterTemplateNames,
+                  my: userTemplateNames,
                 }
               : saveMode === 'draft'
-                ? Object.keys(getUserDrafts())
-                : Object.keys(getUserPostings())
+                ? draftNames
+                : postingNames
           }
           onSave={handleSaveConfirm}
           onClose={() => setSaveMode(null)}
