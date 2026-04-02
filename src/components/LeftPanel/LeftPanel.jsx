@@ -51,7 +51,7 @@ function LoadSchedule() {
     if (currentLoadedEntity?.kind === 'builtin') {
       if (tplValue !== 'blank') setTplValue('blank');
     }
-  }, [currentLoadedEntity, tplValue, loadTab]);
+  }, [currentLoadedEntity]);
 
   const BUILTIN_LABELS = {
     blank: 'Blank Schedule',
