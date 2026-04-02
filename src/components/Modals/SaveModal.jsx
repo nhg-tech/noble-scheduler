@@ -5,13 +5,16 @@ import Modal, { ModalFooter, Btn } from './Modal';
  * SaveModal — used for Save Draft, Save Template, and Post Schedule.
  * Props:
  *   mode: 'draft' | 'template' | 'post'
- *   existingName: string | null — for template mode, the currently loaded template name
+ *   existingName: string | null — currently loaded template/schedule name for overwrite
+ *   existingScope?: string | null — current entity scope/status used to decide whether overwrite applies
+ *   existingNames?: string[] | { master?: string[], my?: string[] } — names already in the selected bucket
  *   onSave: (name: string) => void
  *   onClose: () => void
  */
-export default function SaveModal({ mode, existingName, onSave, onClose }) {
+export default function SaveModal({ mode, existingName, existingScope = null, existingNames = [], onSave, onClose }) {
   const [name, setName] = useState('');
   const [tplType, setTplType] = useState('master'); // 'master' | 'my' — only used for template mode
+  const [nameError, setNameError] = useState('');
 
   const titles = {
     draft: 'Save Draft',
@@ -25,12 +28,32 @@ export default function SaveModal({ mode, existingName, onSave, onClose }) {
     post: 'e.g. Thursday June 5',
   };
 
+  const namesInScope = mode === 'template'
+    ? (tplType === 'master'
+        ? existingNames.master || []
+        : existingNames.my || [])
+    : existingNames;
+
+  const normalizedName = name.trim().toLowerCase();
+  const hasDuplicateName = normalizedName && namesInScope.some(existing => existing.toLowerCase() === normalizedName);
+  const templateScopeMatches = mode !== 'template' || existingScope === tplType;
+  const showOverride = !!existingName && templateScopeMatches;
+
   function handleSave() {
     if (!name.trim()) return;
+    if (hasDuplicateName) {
+      setNameError(`A ${mode === 'template' ? 'template' : 'schedule'} named "${name.trim()}" already exists. Use the overwrite option instead.`);
+      return;
+    }
+    setNameError('');
     onSave(name.trim(), tplType);
   }
 
-  const showOverride = mode === 'template' && existingName;
+  const overrideLabel = {
+    draft: 'Overwrite current draft',
+    template: 'Override existing',
+    post: 'Overwrite current posted schedule',
+  };
 
   return (
     <Modal title={titles[mode] || 'Save'} onClose={onClose} width={420}>
@@ -45,7 +68,10 @@ export default function SaveModal({ mode, existingName, onSave, onClose }) {
             ].map(opt => (
               <button
                 key={opt.value}
-                onClick={() => setTplType(opt.value)}
+                onClick={() => {
+                  setTplType(opt.value);
+                  setNameError('');
+                }}
                 style={{
                   flex: 1, padding: '8px 10px', border: 'none', cursor: 'pointer',
                   fontFamily: "'DM Sans', sans-serif",
@@ -69,7 +95,7 @@ export default function SaveModal({ mode, existingName, onSave, onClose }) {
               <div style={{
                 fontSize: 11, fontWeight: 700, color: 'var(--gray)',
                 letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 8,
-              }}>Override Existing</div>
+              }}>{overrideLabel[mode] || 'Override Existing'}</div>
               <button
                 onClick={() => onSave(existingName, tplType)}
                 style={{
@@ -89,7 +115,7 @@ export default function SaveModal({ mode, existingName, onSave, onClose }) {
                   justifyContent: 'space-between',
                 }}
               >
-                <span>💾 Override "{existingName}"</span>
+                <span>💾 Save over "{existingName}"</span>
                 <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.7 }}>replaces existing</span>
               </button>
             </div>
@@ -121,7 +147,10 @@ export default function SaveModal({ mode, existingName, onSave, onClose }) {
           )}
           <input
             value={name}
-            onChange={e => setName(e.target.value)}
+            onChange={e => {
+              setName(e.target.value);
+              if (nameError) setNameError('');
+            }}
             onKeyDown={e => e.key === 'Enter' && handleSave()}
             placeholder={placeholders[mode] || 'Enter name...'}
             autoFocus={!showOverride}
@@ -137,6 +166,16 @@ export default function SaveModal({ mode, existingName, onSave, onClose }) {
               boxSizing: 'border-box',
             }}
           />
+          {nameError && (
+            <div style={{
+              marginTop: 8,
+              fontSize: 11,
+              color: '#B42318',
+              fontFamily: "'DM Sans', sans-serif",
+            }}>
+              {nameError}
+            </div>
+          )}
         </div>
 
         {mode === 'post' && (

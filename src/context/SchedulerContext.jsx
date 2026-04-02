@@ -59,6 +59,7 @@ export function SchedulerProvider({ children }) {
   // Persisted in LS_SESSION so it survives page reload; also saved with templates/drafts
   const [hiddenColumns,  setHiddenColumns]  = useState(() => new Set(loadLS(LS_SESSION, null)?.hiddenColumns ?? []));
   const [scheduleLabel,  setScheduleLabel]  = useState('Blank Schedule');
+  const [currentLoadedEntity, setCurrentLoadedEntity] = useState({ kind: 'builtin', scope: 'builtin', name: 'blank' });
   const [userCatDefs,    setUserCatDefs]    = useState(() => loadLS(LS_CAT_DEFS,   {}));
   const [catOrder,       setCatOrder]       = useState(() => loadLS(LS_CAT_ORDER,  []));
   const [taskOrder,      setTaskOrder]      = useState(() => loadLS(LS_TASK_ORDER, {}));
@@ -422,6 +423,7 @@ export function SchedulerProvider({ children }) {
     setSchedule(newSchedule);
     setAssumptions(newAssumptions);
     setScheduleLabel(labels[tpl] || tpl);
+    setCurrentLoadedEntity({ kind: 'builtin', scope: 'builtin', name: tpl });
     setSessionTaskDefs({}); // clear session-only custom tasks on template load
     // Reset column order to all effective roles (built-in + custom) and clear session hides
     setColumnOrder(getEffectiveRoles().map(r => r.id));
@@ -478,59 +480,71 @@ export function SchedulerProvider({ children }) {
 
   // ─── API-backed save for a single template/schedule ───────────────────────
   const apiSaveTemplate = useCallback(async (name, state, type) => {
-    try {
-      if (type === 'master') {
-        await apiTemplates.saveMaster(name, state);
-        const updated = { ...masterTemplatesData, [name]: state };
-        setMasterTemplatesData(updated); saveLS(LS_MASTER_TEMPLATES, updated);
-      } else {
-        await apiTemplates.saveUser(name, state);
-        const updated = { ...userTemplatesData, [name]: state };
-        setUserTemplatesData(updated); saveLS(LS_TEMPLATES, updated);
-      }
-    } catch (err) {
-      console.warn('API template save failed — saved locally only:', err.message);
-      if (type === 'master') {
-        const updated = { ...masterTemplatesData, [name]: state };
-        setMasterTemplatesData(updated); saveLS(LS_MASTER_TEMPLATES, updated);
-      } else {
-        const updated = { ...userTemplatesData, [name]: state };
-        setUserTemplatesData(updated); saveLS(LS_TEMPLATES, updated);
-      }
+    if (type === 'master') {
+      const result = await apiTemplates.saveMaster(name, state);
+      const updated = { ...masterTemplatesData, [name]: { ...state, id: result.id, updatedAt: result.updated_at } };
+      setMasterTemplatesData(updated); saveLS(LS_MASTER_TEMPLATES, updated);
+      return { ...result, type };
     }
+
+    const result = await apiTemplates.saveUser(name, state);
+    const updated = { ...userTemplatesData, [name]: { ...state, id: result.id, updatedAt: result.updated_at } };
+    setUserTemplatesData(updated); saveLS(LS_TEMPLATES, updated);
+    return { ...result, type };
   }, [masterTemplatesData, userTemplatesData]);
 
-  const apiSaveSchedule = useCallback(async (name, state, status) => {
-    try {
-      await apiSchedules.save({
-        name,
-        scheduleDate:    state.assumptions?.date || null,
-        status,
-        schedule:        state.schedule        || {},
-        assumptions:     state.assumptions     || {},
-        sessionTaskDefs: state.sessionTaskDefs || {},
-        skippedTasks:    state.skippedTasks    || [],
-        hiddenColumns:   state.hiddenColumns   || [],
-        columnOrder:     state.columnOrder     || [],
-        extraRoles:      state.extraRoles      || [],
-      });
-      if (status === 'draft') {
-        const updated = { ...draftsData, [name]: state };
-        setDraftsData(updated); saveLS(LS_DRAFTS, updated);
-      } else {
-        const updated = { ...postingsData, [name]: state };
-        setPostingsData(updated); saveLS(LS_POSTINGS, updated);
-      }
-    } catch (err) {
-      console.warn('API schedule save failed — saved locally only:', err.message);
-      if (status === 'draft') {
-        const updated = { ...draftsData, [name]: state };
-        setDraftsData(updated); saveLS(LS_DRAFTS, updated);
-      } else {
-        const updated = { ...postingsData, [name]: state };
-        setPostingsData(updated); saveLS(LS_POSTINGS, updated);
-      }
+  const apiSaveSchedule = useCallback(async (name, state, status, existingSchedule = null) => {
+    const payload = {
+      name,
+      scheduleDate:    state.assumptions?.date || null,
+      status,
+      schedule:        state.schedule        || {},
+      assumptions:     state.assumptions     || {},
+      sessionTaskDefs: state.sessionTaskDefs || {},
+      skippedTasks:    state.skippedTasks    || [],
+      hiddenColumns:   state.hiddenColumns   || [],
+      columnOrder:     state.columnOrder     || [],
+      extraRoles:      state.extraRoles      || [],
+    };
+
+    const result = existingSchedule?.id
+      ? await apiSchedules.update(existingSchedule.id, payload)
+      : await apiSchedules.save(payload);
+
+    const entry = {
+      ...state,
+      id: result.id,
+      status: result.status,
+      scheduleDate: payload.scheduleDate,
+      updatedAt: result.updated_at,
+    };
+
+    if (status === 'draft') {
+      const updated = { ...draftsData };
+      if (existingSchedule?.name && existingSchedule.name !== name) delete updated[existingSchedule.name];
+      updated[name] = entry;
+      setDraftsData(updated); saveLS(LS_DRAFTS, updated);
+      return result;
     }
+
+    const updated = { ...postingsData };
+    if (existingSchedule?.name && existingSchedule.name !== name) delete updated[existingSchedule.name];
+    updated[name] = entry;
+    setPostingsData(updated); saveLS(LS_POSTINGS, updated);
+    return result;
+  }, [draftsData, postingsData]);
+
+  const apiDeleteSchedule = useCallback(async (id, status, name) => {
+    await apiSchedules.delete(id);
+    if (status === 'draft') {
+      const updated = { ...draftsData };
+      delete updated[name];
+      setDraftsData(updated); saveLS(LS_DRAFTS, updated);
+      return;
+    }
+    const updated = { ...postingsData };
+    delete updated[name];
+    setPostingsData(updated); saveLS(LS_POSTINGS, updated);
   }, [draftsData, postingsData]);
 
   const apiDeleteTemplate = useCallback(async (name, type) => {
@@ -610,6 +624,7 @@ export function SchedulerProvider({ children }) {
       schedule, setSchedule,
       assumptions, setAssumptions,
       scheduleLabel, setScheduleLabel,
+      currentLoadedEntity, setCurrentLoadedEntity,
       extraRoles, setExtraRoles,
       columnOrder, setColumnOrder,
       hiddenColumns,
@@ -637,7 +652,7 @@ export function SchedulerProvider({ children }) {
       loadTemplate, captureState, applyState,
       getUserTemplates, getMasterTemplates, getUserPostings, getUserDrafts,
       saveUserTemplates, saveMasterTemplates, saveUserPostings, saveUserDrafts,
-      apiSaveTemplate, apiSaveSchedule, apiDeleteTemplate, persistDefaultsToApi,
+      apiSaveTemplate, apiSaveSchedule, apiDeleteTemplate, apiDeleteSchedule, persistDefaultsToApi,
       saveDefaults, resetDefaults,
     }}>
       {children}

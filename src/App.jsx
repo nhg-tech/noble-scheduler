@@ -44,7 +44,8 @@ export default function App() {
   const {
     schedule, setSchedule,
     assumptions,
-    scheduleLabel,
+    scheduleLabel, setScheduleLabel,
+    currentLoadedEntity, setCurrentLoadedEntity,
     userTaskDefs, setUserTaskDefs,
     sessionTaskDefs, setSessionTaskDefs,
     setExtraRoles, setColumnOrder, restoreColumn,
@@ -68,6 +69,7 @@ export default function App() {
   const [showSetup, setShowSetup]         = useState(false);
   const [showPrint, setShowPrint]         = useState(false);
   const [printOpts, setPrintOpts]         = useState({ paperSize: 'legal', inclSummary: true, inclAssumptions: true, excludedCols: [] });
+  const [saveError, setSaveError]         = useState(null);
 
   // Drag overlay label + meta
   const [dragLabel, setDragLabel] = useState(null);
@@ -357,14 +359,40 @@ export default function App() {
   // ─── Save handlers ────────────────────────────────────────────────────────
   async function handleSaveConfirm(name, tplType) {
     const state = captureState();
-    if (saveMode === 'draft') {
-      await apiSaveSchedule(name, state, 'draft');
-    } else if (saveMode === 'template') {
-      await apiSaveTemplate(name, state, tplType === 'master' ? 'master' : 'user');
-    } else if (saveMode === 'post') {
-      await apiSaveSchedule(name, state, 'posted');
+    setSaveError(null);
+    try {
+      if (saveMode === 'draft') {
+        const result = await apiSaveSchedule(
+          name,
+          state,
+          'draft',
+          currentLoadedEntity?.kind === 'schedule' && currentLoadedEntity?.status === 'draft'
+            ? currentLoadedEntity
+            : null
+        );
+        setCurrentLoadedEntity({ kind: 'schedule', status: 'draft', id: result.id, name });
+        setScheduleLabel(name);
+      } else if (saveMode === 'template') {
+        const type = tplType === 'master' ? 'master' : 'user';
+        const result = await apiSaveTemplate(name, state, type);
+        setCurrentLoadedEntity({ kind: 'template', scope: type, id: result.id, name });
+        setScheduleLabel(name);
+      } else if (saveMode === 'post') {
+        const result = await apiSaveSchedule(
+          name,
+          state,
+          'posted',
+          currentLoadedEntity?.kind === 'schedule' && currentLoadedEntity?.status === 'posted'
+            ? currentLoadedEntity
+            : null
+        );
+        setCurrentLoadedEntity({ kind: 'schedule', status: 'posted', id: result.id, name });
+        setScheduleLabel(name);
+      }
+      setSaveMode(null);
+    } catch (err) {
+      setSaveError(err.message || 'Failed to save. Please try again.');
     }
-    setSaveMode(null);
   }
 
   function handleCreateCustom(taskData) {
@@ -432,6 +460,37 @@ export default function App() {
         onChecklist={() => setShowChecklist(true)}
         onPrint={() => setShowPrint(true)}
       />
+      {saveError && (
+        <div style={{
+          padding: '10px 16px',
+          background: '#FDECEC',
+          borderBottom: '1px solid #F5C2C7',
+          color: '#7F1D1D',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+          fontSize: 12,
+          fontFamily: "'DM Sans', sans-serif",
+          flexShrink: 0,
+        }}>
+          <span>{saveError}</span>
+          <button
+            onClick={() => setSaveError(null)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#7F1D1D',
+              cursor: 'pointer',
+              fontSize: 12,
+              fontWeight: 700,
+              fontFamily: "'DM Sans', sans-serif",
+            }}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       <DndContext
         sensors={sensors}
@@ -507,10 +566,37 @@ export default function App() {
       {showCreate && (
         <CreateTaskModal onSave={handleCreateCustom} onClose={() => setShowCreate(false)} />
       )}
-      {saveMode && (
-        <SaveModal
-          mode={saveMode}
-          existingName={saveMode === 'template' ? scheduleLabel : null}
+        {saveMode && (
+          <SaveModal
+            mode={saveMode}
+            existingName={
+              saveMode === 'template' && currentLoadedEntity?.kind === 'template'
+              ? currentLoadedEntity.name
+              : saveMode === 'draft' && currentLoadedEntity?.kind === 'schedule' && currentLoadedEntity?.status === 'draft'
+                ? currentLoadedEntity.name
+                : saveMode === 'post' && currentLoadedEntity?.kind === 'schedule' && currentLoadedEntity?.status === 'posted'
+                  ? currentLoadedEntity.name
+                  : null
+          }
+          existingScope={
+            saveMode === 'template' && currentLoadedEntity?.kind === 'template'
+              ? currentLoadedEntity.scope
+              : saveMode === 'draft' && currentLoadedEntity?.kind === 'schedule' && currentLoadedEntity?.status === 'draft'
+                ? 'draft'
+                : saveMode === 'post' && currentLoadedEntity?.kind === 'schedule' && currentLoadedEntity?.status === 'posted'
+                  ? 'posted'
+                  : null
+          }
+          existingNames={
+            saveMode === 'template'
+              ? {
+                  master: Object.keys(getMasterTemplates()),
+                  my: Object.keys(getUserTemplates()),
+                }
+              : saveMode === 'draft'
+                ? Object.keys(getUserDrafts())
+                : Object.keys(getUserPostings())
+          }
           onSave={handleSaveConfirm}
           onClose={() => setSaveMode(null)}
         />

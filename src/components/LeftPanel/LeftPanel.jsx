@@ -12,8 +12,9 @@ function LoadSchedule() {
     loadTemplate, getUserTemplates, getMasterTemplates, getUserPostings, getUserDrafts,
     applyState, setScheduleLabel,
     saveUserTemplates, saveMasterTemplates, saveUserPostings, saveUserDrafts,
-    apiDeleteTemplate,
+    apiDeleteTemplate, apiDeleteSchedule,
     assumptions, setAssumptions,
+    currentLoadedEntity, setCurrentLoadedEntity,
   } = useScheduler();
 
   const [loadTab, setLoadTab] = useState('template');
@@ -50,12 +51,14 @@ function LoadSchedule() {
       const state = masterTemplates[name];
       if (!state) return;
       setScheduleLabel(name);
+      setCurrentLoadedEntity({ kind: 'template', scope: 'master', id: state.id, name });
       applyState(state);
     } else if (tplValue.startsWith('user_')) {
       const name = tplValue.replace('user_', '');
       const state = userTemplates[name];
       if (!state) return;
       setScheduleLabel(name);
+      setCurrentLoadedEntity({ kind: 'template', scope: 'user', id: state.id, name });
       applyState(state);
     } else {
       // Built-in Noble Template
@@ -63,7 +66,7 @@ function LoadSchedule() {
     }
   }
 
-  async function handleLoad(storeObj, name, labelPrefix) {
+  async function handleLoad(storeObj, name) {
     let state = storeObj[name];
     if (!state) return;
     // If the entry is metadata-only (from list endpoint hydration), fetch full data by ID
@@ -74,7 +77,13 @@ function LoadSchedule() {
         console.warn('Failed to fetch full schedule, using cached state:', err.message);
       }
     }
-    setScheduleLabel(`${labelPrefix}${name}`);
+    setScheduleLabel(name);
+    setCurrentLoadedEntity({
+      kind: 'schedule',
+      status: state.status || (loadTab === 'draft' ? 'draft' : 'posted'),
+      id: state.id,
+      name,
+    });
     applyState(state);
   }
 
@@ -145,15 +154,31 @@ function LoadSchedule() {
                 ))
             }
           </SelectWrap>
-          <LoadBtn onClick={() => handleLoad(userDrafts, draftValue, '📝 ')}>Load Draft</LoadBtn>
+          <LoadBtn onClick={() => handleLoad(userDrafts, draftValue)}>Load Draft</LoadBtn>
           {draftValue && (
             <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
-              <SmBtn danger onClick={() => {
+              <SmBtn danger onClick={async () => {
                 if (!window.confirm(`Delete draft "${draftValue}"?`)) return;
-                const updated = { ...userDrafts };
-                delete updated[draftValue];
-                saveUserDrafts(updated);
-                setDraftValue('');
+                const draft = userDrafts[draftValue];
+                try {
+                  if (draft?.id) {
+                    await apiDeleteSchedule(draft.id, 'draft', draftValue);
+                  } else {
+                    const updated = { ...userDrafts };
+                    delete updated[draftValue];
+                    saveUserDrafts(updated);
+                  }
+                  if (
+                    currentLoadedEntity?.kind === 'schedule' &&
+                    currentLoadedEntity?.status === 'draft' &&
+                    currentLoadedEntity?.name === draftValue
+                  ) {
+                    setCurrentLoadedEntity({ kind: 'builtin', scope: 'builtin', name: 'blank' });
+                  }
+                  setDraftValue('');
+                } catch (err) {
+                  window.alert(err.message || `Failed to delete draft "${draftValue}".`);
+                }
               }}>🗑 Delete</SmBtn>
             </div>
           )}
@@ -170,7 +195,7 @@ function LoadSchedule() {
                 ))
             }
           </SelectWrap>
-          <LoadBtn onClick={() => handleLoad(userPostings, postingValue, '✅ ')}>Load Posted</LoadBtn>
+          <LoadBtn onClick={() => handleLoad(userPostings, postingValue)}>Load Posted</LoadBtn>
         </>
       )}
 
