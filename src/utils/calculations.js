@@ -201,7 +201,7 @@ export function computeSummary({
   getTaskDefault,
 }) {
   const rolesForHours = effectiveRoles ?? [];
-  const eligibleRoles = rolesForHours.filter(r => r.includeInHrs !== false && (r.type === 'TM' || r.type === 'TL'));
+  const eligibleRoles = rolesForHours.filter(r => r.includeInHrs !== false);
   const hrsAvail = eligibleRoles.reduce((a, r) => a + (r.hours ?? 0), 0);
 
   // Span-based scheduled minutes — single source of truth via computeAllSpanMins.

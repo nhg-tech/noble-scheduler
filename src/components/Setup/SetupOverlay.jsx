@@ -24,7 +24,6 @@ export default function SetupOverlay({ onClose }) {
     saveDefaults, resetDefaults, persistDefaultsToApi,
     getFullCatList, taskOrder, setTaskOrder,
     userCatDefs, setUserCatDefs, catOrder, setCatOrder,
-    getUserDrafts, getUserPostings, saveUserDrafts, saveUserPostings,
   } = useScheduler();
 
   // Snapshot of role defs when overlay opened — used to detect new deletions on Save
@@ -308,28 +307,6 @@ export default function SetupOverlay({ onClose }) {
             >Cancel</button>
             <button
               onClick={async () => {
-                // Detect roles newly deleted during this session
-                const newlyDeleted = Object.entries(userRoleDefs)
-                  .filter(([id, def]) => def.deleted && !initialRoleDefs.current[id]?.deleted)
-                  .map(([id]) => id);
-                if (newlyDeleted.length > 0) {
-                  const update = window.confirm(
-                    `${newlyDeleted.length} role(s) were removed from the schedule.\n\nClick OK to also remove their scheduled tasks from all saved drafts and postings.\nClick Cancel to leave saved schedules unchanged.`
-                  );
-                  if (update) {
-                    const purge = (store) => Object.fromEntries(
-                      Object.entries(store).map(([name, state]) => [name, {
-                        ...state,
-                        schedule: Object.fromEntries(
-                          Object.entries(state.schedule || {})
-                            .filter(([key]) => !newlyDeleted.includes(key.split('|')[0]))
-                        ),
-                      }])
-                    );
-                    saveUserDrafts(purge(getUserDrafts()));
-                    saveUserPostings(purge(getUserPostings()));
-                  }
-                }
                 saveDefaults();
                 try {
                   await persistDefaultsToApi(userTaskDefs, userRoleDefs, userProgramDefs, userCatDefs, catOrder, taskOrder, columnOrder);
@@ -863,7 +840,7 @@ function RoleConfigTab() {
         unpaidBreak: uBreak,
         hours:       calcShiftHours(sStart, sEnd, uBreak),
         deleted:     def.deleted ?? false,
-        includeInHrs: def.includeInHrs ?? (type === 'TM' || type === 'TL'),
+        includeInHrs: def.includeInHrs,
       };
     });
     return roles.sort((a, b) => {
@@ -1029,7 +1006,7 @@ function RoleConfigTab() {
                 <Td style={{ textAlign: 'center' }}>
                   <input
                     type="checkbox"
-                    checked={role.includeInHrs}
+                    checked={!!role.includeInHrs}
                     disabled={role.deleted}
                     onChange={e => updateField(role.id, 'includeInHrs', e.target.checked)}
                     title="Include this role's hours in Schedule Summary"

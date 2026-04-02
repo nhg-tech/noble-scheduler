@@ -22,13 +22,16 @@ function fmtShift(decimal) {
 }
 
 export default function GridHeader({ onAddColumn, colWidth, onColWidthChange }) {
-  const { schedule, extraRoles, setExtraRoles, columnOrder, setColumnOrder, getEffectiveRoles, hiddenColumns, hideColumn, getTaskDefault, taskLibrary } = useScheduler();
+  const { schedule, extraRoles, setExtraRoles, columnOrder, setColumnOrder, getEffectiveRoles, getDeletedRoles, hiddenColumns, hideColumn, getTaskDefault, taskLibrary } = useScheduler();
   const [dragRoleId, setDragRoleId] = useState(null);
   const isDraggingRef  = useRef(false);
   const dragIdRef      = useRef(null);
   const resizeRef      = useRef({ active: false, startX: 0, startWidth: 120 });
 
-  const allRolesBase = [...getEffectiveRoles(), ...extraRoles];
+  const effectiveRoles = getEffectiveRoles();
+  // Include soft-deleted roles still referenced in columnOrder (from saved schedules/drafts)
+  const deletedInOrder = getDeletedRoles().filter(r => columnOrder.includes(r.id));
+  const allRolesBase = [...effectiveRoles, ...deletedInOrder, ...extraRoles];
   // Only show roles in columnOrder that are not session-hidden
   const orderedRoles = columnOrder
     .map(id => allRolesBase.find(r => r.id === id))
@@ -135,7 +138,7 @@ export default function GridHeader({ onAddColumn, colWidth, onColWidthChange }) 
               alignItems: 'center', justifyContent: 'center',
               position: 'relative',
               opacity: isDragging ? 0.4 : 1,
-              background: isDragging ? 'var(--purple-pale)' : 'var(--cream)',
+              background: isDragging ? 'var(--purple-pale)' : role.deleted ? '#fff0f0' : 'var(--cream)',
               transition: 'background 0.1s, opacity 0.1s',
               userSelect: 'none',
             }}
@@ -156,8 +159,13 @@ export default function GridHeader({ onAddColumn, colWidth, onColWidthChange }) 
 
             <div style={{
               fontFamily: "'DM Sans', sans-serif", fontWeight: 700,
-              fontSize: 12, color: 'var(--dark)', letterSpacing: '0.02em',
+              fontSize: 12, color: role.deleted ? 'var(--red, #c0392b)' : 'var(--dark)',
+              letterSpacing: '0.02em', textDecoration: role.deleted ? 'line-through' : 'none',
             }}>{role.label}</div>
+            {role.deleted && (
+              <div style={{ fontSize: 9, color: 'var(--red, #c0392b)', fontWeight: 700,
+                letterSpacing: '0.06em', marginTop: 1 }}>DELETED</div>
+            )}
 
             <div style={{ fontSize: 10, color: 'var(--gray)', marginTop: 1 }}>{role.sub}</div>
 

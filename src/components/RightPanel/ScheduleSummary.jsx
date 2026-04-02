@@ -1,6 +1,6 @@
 import { useMemo, useState, useRef, useEffect } from 'react';
 import { useScheduler } from '../../context/SchedulerContext';
-import { computeSummary, computeTaskDuration } from '../../utils/calculations';
+import { computeSummary, computeTaskDuration, computeRoleSpan } from '../../utils/calculations';
 import { formatMin } from '../../utils/scheduling';
 
 function fmtDelta(mins) {
@@ -117,8 +117,23 @@ export default function ScheduleSummary() {
       }}>Schedule Summary</div>
 
       <Row label="Tasks placed" value={summary.taskCount} />
-      <Row label="Hours scheduled" value={`${summary.schedHrs.toFixed(1)}h`} />
-      <Row label="Hours available" value={`${summary.hrsAvail.toFixed(1)}h`} />
+      <Row
+        label="Hours scheduled"
+        value={`${summary.schedHrs.toFixed(1)}h`}
+        tooltip={
+          <SchedHrsBreakdown
+            effectiveRoles={effectiveRoles}
+            schedule={schedule}
+            taskLibrary={taskLibrary}
+            getTaskDefault={getTaskDefault}
+          />
+        }
+      />
+      <Row
+        label="Hours available"
+        value={`${summary.hrsAvail.toFixed(1)}h`}
+        tooltip={<HrsAvailBreakdown effectiveRoles={effectiveRoles} />}
+      />
       <Row label="Open slots" value={`${summary.openSlots} (${Math.round(summary.openMins)}m)`} />
 
       <div style={{ borderTop: '1px solid var(--gray-light)', margin: '8px 0' }} />
@@ -175,6 +190,93 @@ function ReqBreakdown({ items, totalMins }) {
             </tr>
           </tfoot>
         </table>
+      </div>
+    </div>
+  );
+}
+
+function SchedHrsBreakdown({ effectiveRoles, schedule, taskLibrary, getTaskDefault }) {
+  const eligible = effectiveRoles.filter(r => r.includeInHrs !== false);
+  const rows = eligible.map(role => {
+    const span = computeRoleSpan(role.id, schedule, taskLibrary, getTaskDefault, effectiveRoles);
+    const hrs  = span ? ((span.endMin - span.startMin) - span.nonCountedMins) / 60 : 0;
+    return { label: role.label || role.id, hrs };
+  });
+  const total = rows.reduce((a, r) => a + r.hrs, 0);
+  return (
+    <div>
+      <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--purple)', marginBottom: 6 }}>
+        Hours Scheduled = counted task span per eligible role
+      </div>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
+        <thead>
+          <tr style={{ borderBottom: '1px solid var(--gray-light)' }}>
+            <th style={{ textAlign: 'left',  padding: '2px 4px', color: 'var(--gray)', fontWeight: 600 }}>Role</th>
+            <th style={{ textAlign: 'right', padding: '2px 4px', color: 'var(--gray)', fontWeight: 600 }}>Sched Hrs</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i} style={{ borderBottom: '1px solid #f0f0f0' }}>
+              <td style={{ padding: '2px 4px', color: 'var(--dark)', fontFamily: "'DM Mono', monospace" }}>{r.label}</td>
+              <td style={{ padding: '2px 4px', textAlign: 'right', color: r.hrs > 0 ? 'var(--dark)' : 'var(--gray)' }}>
+                {r.hrs > 0 ? `${r.hrs.toFixed(1)}h` : '—'}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr style={{ borderTop: '1px solid var(--gray-light)' }}>
+            <td style={{ padding: '3px 4px', fontWeight: 700, color: 'var(--purple)' }}>Total</td>
+            <td style={{ padding: '3px 4px', textAlign: 'right', fontWeight: 700, color: 'var(--purple)' }}>{total.toFixed(1)}h</td>
+          </tr>
+        </tfoot>
+      </table>
+      <div style={{ fontSize: 9, color: 'var(--gray)', marginTop: 6, lineHeight: 1.4 }}>
+        Only roles with "In Hrs" checked are included. Non-productive tasks (e.g. BRK-30) are excluded from the span.
+      </div>
+    </div>
+  );
+}
+
+function HrsAvailBreakdown({ effectiveRoles }) {
+  const eligible = effectiveRoles.filter(r => r.includeInHrs !== false);
+  const total    = eligible.reduce((a, r) => a + (r.hours ?? 0), 0);
+  const excluded = effectiveRoles.filter(r => r.includeInHrs === false);
+  return (
+    <div>
+      <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--purple)', marginBottom: 6 }}>
+        Hours Available = configured shift hours per eligible role
+      </div>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
+        <thead>
+          <tr style={{ borderBottom: '1px solid var(--gray-light)' }}>
+            <th style={{ textAlign: 'left',  padding: '2px 4px', color: 'var(--gray)', fontWeight: 600 }}>Role</th>
+            <th style={{ textAlign: 'right', padding: '2px 4px', color: 'var(--gray)', fontWeight: 600 }}>Shift Hrs</th>
+          </tr>
+        </thead>
+        <tbody>
+          {eligible.map((r, i) => (
+            <tr key={i} style={{ borderBottom: '1px solid #f0f0f0' }}>
+              <td style={{ padding: '2px 4px', color: 'var(--dark)', fontFamily: "'DM Mono', monospace" }}>{r.label || r.id}</td>
+              <td style={{ padding: '2px 4px', textAlign: 'right', color: 'var(--dark)' }}>{(r.hours ?? 0).toFixed(1)}h</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr style={{ borderTop: '1px solid var(--gray-light)' }}>
+            <td style={{ padding: '3px 4px', fontWeight: 700, color: 'var(--purple)' }}>Total</td>
+            <td style={{ padding: '3px 4px', textAlign: 'right', fontWeight: 700, color: 'var(--purple)' }}>{total.toFixed(1)}h</td>
+          </tr>
+        </tfoot>
+      </table>
+      {excluded.length > 0 && (
+        <div style={{ fontSize: 9, color: 'var(--gray)', marginTop: 6, lineHeight: 1.4 }}>
+          Excluded (In Hrs unchecked): {excluded.map(r => r.label || r.id).join(', ')}
+        </div>
+      )}
+      <div style={{ fontSize: 9, color: 'var(--gray)', marginTop: 4, lineHeight: 1.4 }}>
+        Shift hours are configured in Role Config. Toggle "In Hrs" to include or exclude a role.
       </div>
     </div>
   );

@@ -224,7 +224,7 @@ export function SchedulerProvider({ children }) {
       shiftStart:   role.shiftStart,
       shiftEnd:     role.shiftEnd,
       hours:        role.hours,
-      includeInHrs: role.includeInHrs ?? (role.type === 'TM' || role.type === 'TL'),
+      includeInHrs: role.includeInHrs,
     };
   }, [userRoleDefs]);
 
@@ -242,7 +242,26 @@ export function SchedulerProvider({ children }) {
         shiftEnd:     r.shiftEnd     ?? 17,
         unpaidBreak:  r.unpaidBreak  ?? 0,
         hours:        r.hours        ?? 7.5,
-        includeInHrs: r.includeInHrs ?? (r.type === 'TM' || r.type === 'TL'),
+        includeInHrs: r.includeInHrs,
+      }));
+  }, [userRoleDefs]);
+
+  // Returns soft-deleted roles in the same shape — used by the grid to show
+  // deleted role columns still referenced in saved schedules/drafts/templates.
+  const getDeletedRoles = useCallback(() => {
+    return Object.entries(userRoleDefs)
+      .filter(([, r]) => r.deleted)
+      .map(([id, r]) => ({
+        id,
+        label:        r.label        || id,
+        sub:          r.sub          || '',
+        type:         r.type         || 'TM',
+        shiftStart:   r.shiftStart   ?? 9,
+        shiftEnd:     r.shiftEnd     ?? 17,
+        unpaidBreak:  r.unpaidBreak  ?? 0,
+        hours:        r.hours        ?? 7.5,
+        includeInHrs: false,
+        deleted:      true,
       }));
   }, [userRoleDefs]);
 
@@ -609,7 +628,7 @@ export function SchedulerProvider({ children }) {
       colWidth, setColWidth,
       NOBLE_PROGRAM_DEFAULTS,
       // Getters
-      getTaskDefault, getRoleConfig, getProgramPct, getDerivedValues, getEffectiveRoles,
+      getTaskDefault, getRoleConfig, getProgramPct, getDerivedValues, getEffectiveRoles, getDeletedRoles,
       // User defaults setters
       setUserTaskDefs, setUserRoleDefs, setUserProgramDefs,
       // Skipped tasks
