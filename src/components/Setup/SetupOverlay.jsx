@@ -432,12 +432,11 @@ function ProgramMixTab({ assumptions, onAssumption, userProgramDefs, defaults, o
 }
 
 function SkillsTab({ skillsData, setSkillsData }) {
-  const sortedSkills = [...skillsData].sort((a, b) => {
-    if ((a.isActive !== false) !== (b.isActive !== false)) {
-      return a.isActive === false ? 1 : -1;
-    }
-    return String(a.code || '').localeCompare(String(b.code || ''));
-  });
+  const [showInactive, setShowInactive] = useState(false);
+  const isDraggingRef = useRef(false);
+  const dragIdRef = useRef(null);
+
+  const visibleSkills = skillsData.filter((skill) => showInactive || skill.isActive !== false);
 
   function addSkill() {
     setSkillsData((prev) => [
@@ -448,6 +447,7 @@ function SkillsTab({ skillsData, setSkillsData }) {
         label: '',
         description: '',
         isActive: true,
+        sortOrder: prev.length,
       },
     ]);
   }
@@ -466,21 +466,48 @@ function SkillsTab({ skillsData, setSkillsData }) {
   function toggleSkill(id) {
     setSkillsData((prev) => prev.map((skill) => (
       skill.id === id
-        ? { ...skill, isActive: skill.isActive === false }
+        ? { ...skill, isActive: skill.isActive === false, sortOrder: skill.sortOrder ?? prev.indexOf(skill) }
         : skill
     )));
+  }
+
+  function handleGripPointerDown(e, skillId) {
+    e.stopPropagation();
+    e.preventDefault();
+    isDraggingRef.current = true;
+    dragIdRef.current = skillId;
+    function onUp() {
+      isDraggingRef.current = false;
+      dragIdRef.current = null;
+      document.removeEventListener('pointerup', onUp);
+    }
+    document.addEventListener('pointerup', onUp);
+  }
+
+  function handleRowPointerEnter(skillId) {
+    if (!isDraggingRef.current || !dragIdRef.current || dragIdRef.current === skillId) return;
+    const draggingId = dragIdRef.current;
+    setSkillsData((prev) => {
+      const from = prev.findIndex((skill) => skill.id === draggingId);
+      const to = prev.findIndex((skill) => skill.id === skillId);
+      if (from === -1 || to === -1) return prev;
+      const next = [...prev];
+      next.splice(to, 0, next.splice(from, 1)[0]);
+      return next.map((skill, index) => ({ ...skill, sortOrder: index }));
+    });
   }
 
   return (
     <div>
       <p style={{ fontSize: 12, color: 'var(--gray)', marginTop: 0 }}>
         Skills are reusable capabilities that later phases will connect to staff and task defaults.
-        Keep codes short and unique.
+        Keep codes short and unique. Drag ⠿ to reorder active skills.
       </p>
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
             <tr style={{ background: 'var(--gray-light)' }}>
+              <Th style={{ width: 24 }}></Th>
               <Th>Code</Th>
               <Th>Label</Th>
               <Th>Description</Th>
@@ -489,8 +516,19 @@ function SkillsTab({ skillsData, setSkillsData }) {
             </tr>
           </thead>
           <tbody>
-            {sortedSkills.map((skill) => (
-              <tr key={skill.id} style={{ borderBottom: '1px solid var(--gray-light)', opacity: skill.isActive === false ? 0.6 : 1 }}>
+            {visibleSkills.map((skill) => (
+              <tr
+                key={skill.id}
+                style={{ borderBottom: '1px solid var(--gray-light)', opacity: skill.isActive === false ? 0.6 : 1 }}
+                onPointerEnter={() => handleRowPointerEnter(skill.id)}
+              >
+                <Td>
+                  <div
+                    onPointerDown={(e) => handleGripPointerDown(e, skill.id)}
+                    style={{ cursor: 'grab', color: 'var(--gray)', fontSize: 14, userSelect: 'none', padding: '0 4px', lineHeight: 1 }}
+                    title="Drag to reorder"
+                  >⠿</div>
+                </Td>
                 <Td>
                   <input
                     value={skill.code || ''}
@@ -536,17 +574,19 @@ function SkillsTab({ skillsData, setSkillsData }) {
                 </Td>
               </tr>
             ))}
-            {sortedSkills.length === 0 && (
+            {visibleSkills.length === 0 && (
               <tr>
-                <Td colSpan={5} style={{ color: 'var(--gray)', fontStyle: 'italic' }}>
-                  No skills yet. Add your first skill to get started.
+                <Td colSpan={6} style={{ color: 'var(--gray)', fontStyle: 'italic' }}>
+                  {showInactive
+                    ? 'No skills yet. Add your first skill to get started.'
+                    : 'No active skills. Toggle inactive skills or add a new one.'}
                 </Td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
-      <div style={{ marginTop: 14 }}>
+      <div style={{ marginTop: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
         <button
           onClick={addSkill}
           style={{
@@ -555,6 +595,22 @@ function SkillsTab({ skillsData, setSkillsData }) {
             fontWeight: 600, fontFamily: "'DM Sans', sans-serif", cursor: 'pointer',
           }}
         >+ Add Skill</button>
+        <button
+          onClick={() => setShowInactive((prev) => !prev)}
+          style={{
+            padding: '8px 14px',
+            borderRadius: 7,
+            border: '1px solid var(--gray-light)',
+            background: 'var(--cream)',
+            color: 'var(--dark)',
+            fontSize: 12,
+            fontWeight: 600,
+            fontFamily: "'DM Sans', sans-serif",
+            cursor: 'pointer',
+          }}
+        >
+          {showInactive ? 'Hide Inactive Skills' : 'Show Inactive Skills'}
+        </button>
       </div>
     </div>
   );
