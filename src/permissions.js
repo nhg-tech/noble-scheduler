@@ -3,6 +3,7 @@ export const RESOURCES = {
   SETUP_TASK_DEFAULTS: 'setup_task_defaults',
   SETUP_ROLE_CONFIG: 'setup_role_config',
   SETUP_CATEGORIES: 'setup_categories',
+  SETUP_SKILLS: 'setup_skills',
   SETUP_TASK_ORDER: 'setup_task_order',
   MASTER_TEMPLATES: 'master_templates',
   USER_TEMPLATES: 'user_templates',
@@ -32,6 +33,7 @@ export function canViewAnySetup(can) {
     can(RESOURCES.SETUP_TASK_DEFAULTS, ACTIONS.VIEW) ||
     can(RESOURCES.SETUP_ROLE_CONFIG, ACTIONS.VIEW) ||
     can(RESOURCES.SETUP_CATEGORIES, ACTIONS.VIEW) ||
+    can(RESOURCES.SETUP_SKILLS, ACTIONS.VIEW) ||
     can(RESOURCES.SETUP_TASK_ORDER, ACTIONS.VIEW)
   );
 }

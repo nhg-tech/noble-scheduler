@@ -6,7 +6,7 @@ import { getExpectedInstances, UNIT_BASIS_OPTIONS } from '../../utils/calculatio
 import CreateTaskModal from '../Modals/CreateTaskModal';
 import Modal, { ModalFooter, Btn } from '../Modals/Modal';
 
-const TABS = ['Program Mix', 'Task Defaults', 'Role Config', 'Categories'];
+const TABS = ['Program Mix', 'Task Defaults', 'Role Config', 'Skills', 'Categories'];
 
 export default function SetupOverlay({ onClose }) {
   const [tab, setTab] = useState(0);
@@ -18,6 +18,7 @@ export default function SetupOverlay({ onClose }) {
     userTaskDefs, setUserTaskDefs,
     sessionTaskDefs, setSessionTaskDefs,
     userProgramDefs, setUserProgramDefs,
+    skillsData, setSkillsData,
     userRoleDefs,
     columnOrder,
     NOBLE_PROGRAM_DEFAULTS,
@@ -47,6 +48,7 @@ export default function SetupOverlay({ onClose }) {
       noble_task_defaults:    userTaskDefs,
       noble_role_defaults:    userRoleDefs,
       noble_program_defaults: userProgramDefs,
+      noble_skills:           skillsData,
       noble_cat_defs:         userCatDefs,
       noble_cat_order:        catOrder,
       noble_task_order:       taskOrder,
@@ -71,6 +73,7 @@ export default function SetupOverlay({ onClose }) {
         if (!data.version) throw new Error('Not a valid Noble Setup backup file.');
         const keys = [
           'noble_task_defaults', 'noble_role_defaults', 'noble_program_defaults',
+          'noble_skills',
           'noble_cat_defs', 'noble_cat_order', 'noble_task_order',
         ];
         keys.forEach(k => {
@@ -133,10 +136,10 @@ export default function SetupOverlay({ onClose }) {
     // Persist to API with the updated task — don't wait for state to settle
     const newDefs = { ...userTaskDefs, [taskId]: newTaskDef };
     try {
-      await persistDefaultsToApi(newDefs, userRoleDefs, userProgramDefs, userCatDefs, catOrder, taskOrder);
-    } catch (err) {
-      alert(`Failed to sync task to server:\n${err.message}`);
-    }
+                  await persistDefaultsToApi(newDefs, userRoleDefs, userProgramDefs, skillsData, userCatDefs, catOrder, taskOrder);
+                } catch (err) {
+                  alert(`Failed to sync task to server:\n${err.message}`);
+                }
   }
 
   return (
@@ -235,6 +238,12 @@ export default function SetupOverlay({ onClose }) {
 
           {tab === 2 && <RoleConfigTab />}
           {tab === 3 && (
+            <SkillsTab
+              skillsData={skillsData}
+              setSkillsData={setSkillsData}
+            />
+          )}
+          {tab === 4 && (
             <CategoriesTab
               getFullCatList={getFullCatList}
               userCatDefs={userCatDefs}
@@ -243,7 +252,7 @@ export default function SetupOverlay({ onClose }) {
               setCatOrder={setCatOrder}
               onSave={async (newDefs, newOrder) => {
                 try {
-                  await persistDefaultsToApi(userTaskDefs, userRoleDefs, userProgramDefs, newDefs, newOrder, taskOrder);
+                  await persistDefaultsToApi(userTaskDefs, userRoleDefs, userProgramDefs, skillsData, newDefs, newOrder, taskOrder);
                 } catch (err) {
                   alert(`Failed to sync categories to server:\n${err.message}`);
                 }
@@ -309,7 +318,7 @@ export default function SetupOverlay({ onClose }) {
               onClick={async () => {
                 saveDefaults();
                 try {
-                  await persistDefaultsToApi(userTaskDefs, userRoleDefs, userProgramDefs, userCatDefs, catOrder, taskOrder, columnOrder);
+                  await persistDefaultsToApi(userTaskDefs, userRoleDefs, userProgramDefs, skillsData, userCatDefs, catOrder, taskOrder, columnOrder);
                 } catch (err) {
                   alert(`Setup saved locally but failed to sync to server:\n${err.message}`);
                 }
@@ -417,6 +426,135 @@ function ProgramMixTab({ assumptions, onAssumption, userProgramDefs, defaults, o
             </div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function SkillsTab({ skillsData, setSkillsData }) {
+  const sortedSkills = [...skillsData].sort((a, b) => {
+    if ((a.isActive !== false) !== (b.isActive !== false)) {
+      return a.isActive === false ? 1 : -1;
+    }
+    return String(a.code || '').localeCompare(String(b.code || ''));
+  });
+
+  function addSkill() {
+    setSkillsData((prev) => [
+      ...prev,
+      {
+        id: `tmp-${Date.now()}`,
+        code: '',
+        label: '',
+        description: '',
+        isActive: true,
+      },
+    ]);
+  }
+
+  function updateSkill(id, field, value) {
+    setSkillsData((prev) => prev.map((skill) => (
+      skill.id === id
+        ? {
+            ...skill,
+            [field]: field === 'code' ? value.toUpperCase() : value,
+          }
+        : skill
+    )));
+  }
+
+  function toggleSkill(id) {
+    setSkillsData((prev) => prev.map((skill) => (
+      skill.id === id
+        ? { ...skill, isActive: skill.isActive === false }
+        : skill
+    )));
+  }
+
+  return (
+    <div>
+      <p style={{ fontSize: 12, color: 'var(--gray)', marginTop: 0 }}>
+        Skills are reusable capabilities that later phases will connect to staff and task defaults.
+        Keep codes short and unique.
+      </p>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead>
+            <tr style={{ background: 'var(--gray-light)' }}>
+              <Th>Code</Th>
+              <Th>Label</Th>
+              <Th>Description</Th>
+              <Th>Status</Th>
+              <Th></Th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedSkills.map((skill) => (
+              <tr key={skill.id} style={{ borderBottom: '1px solid var(--gray-light)', opacity: skill.isActive === false ? 0.6 : 1 }}>
+                <Td>
+                  <input
+                    value={skill.code || ''}
+                    onChange={(e) => updateSkill(skill.id, 'code', e.target.value.trimStart())}
+                    placeholder="FD"
+                    maxLength={12}
+                    style={{ ...inputStyle, width: 90 }}
+                  />
+                </Td>
+                <Td>
+                  <input
+                    value={skill.label || ''}
+                    onChange={(e) => updateSkill(skill.id, 'label', e.target.value)}
+                    placeholder="Front Desk"
+                    style={{ ...inputStyle, width: 180 }}
+                  />
+                </Td>
+                <Td>
+                  <input
+                    value={skill.description || ''}
+                    onChange={(e) => updateSkill(skill.id, 'description', e.target.value)}
+                    placeholder="Optional description"
+                    style={{ ...inputStyle, width: '100%' }}
+                  />
+                </Td>
+                <Td>
+                  <span style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    letterSpacing: '0.04em',
+                    color: skill.isActive === false ? 'var(--red)' : '#4CAF50',
+                  }}>
+                    {skill.isActive === false ? 'INACTIVE' : 'ACTIVE'}
+                  </span>
+                </Td>
+                <Td>
+                  <button
+                    onClick={() => toggleSkill(skill.id)}
+                    style={{ ...actionBtnStyle, fontSize: 11, padding: '3px 8px', color: skill.isActive === false ? 'var(--purple)' : 'var(--red)' }}
+                  >
+                    {skill.isActive === false ? 'Reactivate' : 'Deactivate'}
+                  </button>
+                </Td>
+              </tr>
+            ))}
+            {sortedSkills.length === 0 && (
+              <tr>
+                <Td colSpan={5} style={{ color: 'var(--gray)', fontStyle: 'italic' }}>
+                  No skills yet. Add your first skill to get started.
+                </Td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ marginTop: 14 }}>
+        <button
+          onClick={addSkill}
+          style={{
+            padding: '8px 16px', borderRadius: 7, border: '1.5px dashed var(--purple-light)',
+            background: 'transparent', color: 'var(--purple)', fontSize: 12,
+            fontWeight: 600, fontFamily: "'DM Sans', sans-serif", cursor: 'pointer',
+          }}
+        >+ Add Skill</button>
       </div>
     </div>
   );
@@ -1045,7 +1183,7 @@ function RoleConfigTab() {
   );
 }
 
-function Th({ children, style }) {
+function Th({ children, style, ...props }) {
   return (
     <th style={{
       padding: '6px 10px',
@@ -1056,13 +1194,13 @@ function Th({ children, style }) {
       textTransform: 'uppercase',
       color: 'var(--gray)',
       ...style,
-    }}>{children}</th>
+    }} {...props}>{children}</th>
   );
 }
 
-function Td({ children, style }) {
+function Td({ children, style, ...props }) {
   return (
-    <td style={{ padding: '6px 10px', ...style }}>
+    <td style={{ padding: '6px 10px', ...style }} {...props}>
       {children}
     </td>
   );

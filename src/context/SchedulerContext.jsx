@@ -20,6 +20,7 @@ const LS_DRAFTS           = 'noble_drafts';
 const LS_EXTRA_ROLES = 'noble_extra_roles';
 const LS_COL_ORDER   = 'noble_column_order';
 const LS_COL_WIDTH   = 'noble_col_width';
+const LS_SKILLS      = 'noble_skills';
 const LS_CAT_DEFS    = 'noble_cat_defs';    // { [catId]: { label?, deleted?, custom?, color? } }
 const LS_CAT_ORDER   = 'noble_cat_order';   // [catId, ...]
 const LS_TASK_ORDER  = 'noble_task_order';  // { [catId]: [taskId, ...] }
@@ -53,6 +54,7 @@ export function SchedulerProvider({ children }) {
   const [userTaskDefs,   setUserTaskDefs]   = useState(() => loadLS(LS_TASKS, {}));
   const [userRoleDefs,   setUserRoleDefs]   = useState(() => loadLS(LS_ROLES, {}));
   const [userProgramDefs,setUserProgramDefs]= useState(() => loadLS(LS_PROGRAMS, {}));
+  const [skillsData,     setSkillsData]     = useState(() => loadLS(LS_SKILLS, []));
   const [extraRoles,     setExtraRoles]     = useState(() => loadLS(LS_EXTRA_ROLES, []));
   const [columnOrder,    setColumnOrder]    = useState(() => {
     const stored     = loadLS(LS_COL_ORDER, null);
@@ -89,6 +91,7 @@ export function SchedulerProvider({ children }) {
   useEffect(() => { saveLS(LS_TASKS,       userTaskDefs);    }, [userTaskDefs]);
   useEffect(() => { saveLS(LS_ROLES,       userRoleDefs);    }, [userRoleDefs]);
   useEffect(() => { saveLS(LS_PROGRAMS,    userProgramDefs); }, [userProgramDefs]);
+  useEffect(() => { saveLS(LS_SKILLS,      skillsData);      }, [skillsData]);
   useEffect(() => { saveLS(LS_EXTRA_ROLES, extraRoles);      }, [extraRoles]);
   useEffect(() => { saveLS(LS_COL_ORDER,   columnOrder);     }, [columnOrder]);
   useEffect(() => { saveLS(LS_COL_WIDTH,   colWidth);        }, [colWidth]);
@@ -107,10 +110,11 @@ export function SchedulerProvider({ children }) {
     if (!isLoggedIn()) return;
     async function hydrate() {
       try {
-        const [tasks, roles, progMix, cats, master, user, drafts, postings] = await Promise.allSettled([
+        const [tasks, roles, progMix, skills, cats, master, user, drafts, postings] = await Promise.allSettled([
           apiSetup.getTasks(),
           apiSetup.getRoles(),
           apiSetup.getProgramMix(),
+          apiSetup.getSkills(),
           apiSetup.getCategories(),
           apiTemplates.getMaster(),
           apiTemplates.getUser(),
@@ -164,6 +168,9 @@ export function SchedulerProvider({ children }) {
             ...(prev.socpg == null && pm.defaultSocpg != null && { socpg: pm.defaultSocpg }),
             ...(prev.selpg == null && pm.defaultSelpg != null && { selpg: pm.defaultSelpg }),
           }));
+        }
+        if (skills.status   === 'fulfilled') {
+          setSkillsData(Array.isArray(skills.value) ? skills.value : []);
         }
         if (cats.status     === 'fulfilled') {
           const { catDefs, catOrder: co, taskOrder: to } = cats.value;
@@ -585,7 +592,7 @@ export function SchedulerProvider({ children }) {
   }, [getTaskDefault, userTaskDefs]);
 
   // Also push setup defaults to API — throws on failure so callers can surface the error
-  const persistDefaultsToApi = useCallback(async (tasks, roles, progMix, cats, co, to, colOrder) => {
+  const persistDefaultsToApi = useCallback(async (tasks, roles, progMix, skills, cats, co, to, colOrder) => {
     if (!isLoggedIn()) return;
     // Include "Today's Actuals" from assumptions so they persist as defaults in the DB
     const progMixWithActuals = {
@@ -598,6 +605,7 @@ export function SchedulerProvider({ children }) {
       Object.keys(tasks).length  && apiSetup.saveTasks(tasks),
       Object.keys(roles).length  && apiSetup.saveRoles(roles, colOrder ?? []),
       apiSetup.saveProgramMix(progMixWithActuals),
+      apiSetup.saveSkills(skills ?? []),
       apiSetup.saveCategories({ catDefs: cats, catOrder: co, taskOrder: to }),
     ].filter(Boolean));
   }, [assumptions]);
@@ -626,6 +634,7 @@ export function SchedulerProvider({ children }) {
       taskLibrary,
       // Defaults
       userTaskDefs, userRoleDefs, userProgramDefs,
+      skillsData, setSkillsData,
       // Session-only custom tasks (not persisted; saved/restored with schedule)
       sessionTaskDefs, setSessionTaskDefs,
       colWidth, setColWidth,
