@@ -12,18 +12,21 @@ import {
 
 import { useScheduler } from './context/SchedulerContext';
 import {
-  makeKey,
   keyToRoleAndMin,
-  findTaskAtMinute,
-  findOverlapInRange,
-  findNextFreeMinute,
-  freeTimeFrom,
-  doMerge,
   getBlockDurationMin,
-  minutesToGridSlots,
 } from './utils/scheduling';
 import { resolveBlockHex, resolveBlockText } from './data/palette';
 import { computeTaskDuration } from './utils/calculations';
+import {
+  editBlockSchedule,
+  fitConflictSchedule,
+  mergeConflictSchedule,
+  removeBlockSchedule,
+  resolvePlacement,
+  resizeBlockSchedule,
+  splitBlockSchedule,
+  waterfallConflictSchedule,
+} from './domain/scheduleMutations';
 
 import Header from './components/Header/Header';
 import LeftPanel from './components/LeftPanel/LeftPanel';
@@ -48,15 +51,13 @@ export default function App() {
     assumptions,
     scheduleLabel, setScheduleLabel,
     currentLoadedEntity, setCurrentLoadedEntity,
-    userTaskDefs, setUserTaskDefs,
-    sessionTaskDefs, setSessionTaskDefs,
+    userTaskDefs, setSessionTaskDefs,
     setExtraRoles, setColumnOrder, restoreColumn,
     extraRoles,
     captureState,
     getDerivedValues,
     getEffectiveRoles, getDeletedRoles,
     getUserTemplates, getMasterTemplates, getUserPostings, getUserDrafts,
-    saveUserTemplates, saveMasterTemplates, saveUserPostings, saveUserDrafts,
     apiSaveTemplate, apiSaveSchedule,
   } = useScheduler();
 
@@ -210,188 +211,59 @@ export default function App() {
 
   // ─── Core placement logic ──────────────────────────────────────────────────
   function attemptPlaceInSchedule(baseSchedule, sourceKey, roleId, startMin, task, durationMin, colorHex) {
-    const existingKey = findOverlapInRange(baseSchedule, roleId, startMin, durationMin);
-
-    if (!existingKey) {
-      // No overlap — place directly
-      const newSchedule = { ...baseSchedule };
-      const key = makeKey(roleId, startMin);
-      newSchedule[key] = {
-        name: task.name,
-        code: task.code,
-        color: colorHex,
-        slots: minutesToGridSlots(durationMin),
-        durationMin,
-        notes: task.notes || task.desc || '',
-        ...(task.id ? { taskId: task.id } : {}),
-      };
-      setSchedule(newSchedule);
-      return;
-    }
-
-    const existingTask = baseSchedule[existingKey];
-    const existMergeCount = existingTask?.merged ? (existingTask.constituents?.length || 1) : 1;
-    const { startMin: existStart } = keyToRoleAndMin(existingKey);
-    const existDur = getBlockDurationMin(existingTask);
-    const existEnd = existStart + existDur;
-
-    // Determine auto-placement position and available space
-    let autoStart, availableMin;
-    if (existStart > startMin) {
-      // Existing block is ahead — new task may fit in the gap before it
-      autoStart    = startMin;
-      availableMin = existStart - startMin;
-    } else {
-      // Existing block starts at/before drop — try placing right after it
-      autoStart    = existEnd;
-      availableMin = freeTimeFrom(baseSchedule, roleId, existingKey, existEnd, roleConfigs);
-    }
-
-    // If there's enough room, auto-place without showing the conflict modal
-    if (availableMin >= durationMin) {
-      const newSchedule = { ...baseSchedule };
-      if (sourceKey) delete newSchedule[sourceKey];
-      const key = makeKey(roleId, autoStart);
-      newSchedule[key] = {
-        name: task.name, code: task.code, color: colorHex,
-        slots: minutesToGridSlots(durationMin), durationMin,
-        notes: task.notes || task.desc || '',
-        ...(task.id ? { taskId: task.id } : {}),
-      };
-      setSchedule(newSchedule);
-      return;
-    }
-
-    // Not enough room — show conflict modal
-    const freeMinutes = existStart > startMin
-      ? existStart - startMin
-      : freeTimeFrom(baseSchedule, roleId, existingKey, startMin, roleConfigs);
-    setConflictState({
-      baseSchedule, sourceKey, roleId, startMin, task, durationMin, colorHex,
-      existingKey, existingTask, freeMinutes,
-      canMerge: existMergeCount < 3,
-      draggedTask: task, targetRoleId: roleId, targetStartMin: startMin,
+    const result = resolvePlacement({
+      baseSchedule,
+      sourceKey,
+      roleId,
+      startMin,
+      task,
+      durationMin,
+      colorHex,
+      roleConfigs,
     });
+    if (result.type === 'placed') {
+      setSchedule(result.schedule);
+      return;
+    }
+    setConflictState(result.conflictState);
   }
 
   // ─── Conflict resolution ──────────────────────────────────────────────────
   function handleConflictMerge() {
     if (!conflictState) return;
-    const { baseSchedule, roleId, startMin, task, durationMin, colorHex, existingKey, existingTask } = conflictState;
-    const { startMin: existStart } = keyToRoleAndMin(existingKey);
-    const existDur = getBlockDurationMin(existingTask);
-    const existConst = existingTask.merged
-      ? existingTask.constituents
-      : [{ code: existingTask.code, taskId: existingTask.taskId, name: existingTask.name, durationMin: existDur, color: existingTask.color }];
-    const newConst = [...existConst, { code: task.code, taskId: task.id, name: task.name, durationMin, color: colorHex }];
-    const codes  = newConst.map(c => c.code);
-    const colors = newConst.map(c => resolveBlockHex(c.color));
-    const total  = newConst.reduce((s, c) => s + c.durationMin, 0);
-    setSchedule(doMerge(baseSchedule, existingKey, codes, colors, total, newConst, existStart, roleId));
+    setSchedule(mergeConflictSchedule(conflictState));
     setConflictState(null);
   }
 
   function handleConflictFit() {
     if (!conflictState) return;
-    const { baseSchedule, roleId, startMin, task, durationMin, colorHex, freeMinutes } = conflictState;
-    const fitDur = Math.max(10, Math.min(durationMin, freeMinutes));
-    const key = makeKey(roleId, startMin);
-    setSchedule({
-      ...baseSchedule,
-      [key]: {
-        name: task.name, code: task.code, color: colorHex,
-        slots: minutesToGridSlots(fitDur), durationMin: fitDur,
-        notes: task.notes || task.desc || '',
-        ...(task.id ? { taskId: task.id } : {}),
-      },
-    });
+    setSchedule(fitConflictSchedule(conflictState));
     setConflictState(null);
   }
 
   function handleConflictWaterfall() {
     if (!conflictState) return;
-    const { baseSchedule, roleId, startMin, task, durationMin, colorHex } = conflictState;
-    const key = makeKey(roleId, startMin);
-    setSchedule({
-      ...baseSchedule,
-      [key]: {
-        name: task.name, code: task.code, color: colorHex,
-        slots: minutesToGridSlots(durationMin), durationMin,
-        notes: task.notes || task.desc || '',
-        overflow: true,
-        ...(task.id ? { taskId: task.id } : {}),
-      },
-    });
+    setSchedule(waterfallConflictSchedule(conflictState));
     setConflictState(null);
   }
 
   // ─── Block handlers ───────────────────────────────────────────────────────
   function handleEditSave(blockKey, { notes, durationMin, color }) {
-    setSchedule(prev => ({
-      ...prev,
-      [blockKey]: {
-        ...prev[blockKey],
-        notes,
-        durationMin,
-        slots: minutesToGridSlots(durationMin),
-        color: resolveBlockHex(color) || prev[blockKey].color,
-      },
-    }));
+    setSchedule(prev => editBlockSchedule(prev, blockKey, { notes, durationMin, color }));
     setEditKey(null);
   }
 
   function handleRemove(blockKey) {
-    setSchedule(prev => { const n = { ...prev }; delete n[blockKey]; return n; });
+    setSchedule(prev => removeBlockSchedule(prev, blockKey));
   }
 
   function handleSplitConfirm(blockKey, splitAt) {
-    const task = schedule[blockKey];
-    if (!task) return;
-    const { roleId, startMin } = keyToRoleAndMin(blockKey);
-    const newSchedule = { ...schedule };
-    delete newSchedule[blockKey];
-
-    if (task.merged && task.constituents) {
-      // Split merged block back into constituents
-      let cursor = startMin;
-      task.constituents.forEach((c, i) => {
-        const free = findNextFreeMinute(newSchedule, roleId, cursor, c.durationMin, roleConfigs) ?? cursor;
-        const key = makeKey(roleId, free);
-        newSchedule[key] = {
-          name: c.name, code: c.code,
-          color: resolveBlockHex(c.color || task.colors?.[i]),
-          slots: minutesToGridSlots(c.durationMin), durationMin: c.durationMin, notes: '',
-        };
-        cursor = free + c.durationMin;
-      });
-    } else {
-      // Time-based split at splitAt minutes from start
-      const totalDur  = getBlockDurationMin(task);
-      const firstDur  = splitAt;
-      const secondDur = totalDur - splitAt;
-      const key1 = makeKey(roleId, startMin);
-      newSchedule[key1] = {
-        ...task, durationMin: firstDur, slots: minutesToGridSlots(firstDur),
-      };
-      // Use findNextFreeMinute so the second piece doesn't blindly overwrite
-      // an existing block (e.g. a task placed after the original overflow block)
-      const naturalSplit = startMin + firstDur;
-      const freeStart    = findNextFreeMinute(newSchedule, roleId, naturalSplit, secondDur, roleConfigs) ?? naturalSplit;
-      const key2 = makeKey(roleId, freeStart);
-      newSchedule[key2] = {
-        ...task, durationMin: secondDur, slots: minutesToGridSlots(secondDur),
-      };
-    }
-
-    setSchedule(newSchedule);
+    setSchedule(prev => splitBlockSchedule(prev, blockKey, splitAt, roleConfigs));
     setSplitKey(null);
   }
 
   function handleResize(blockKey, newMins) {
-    setSchedule(prev => ({
-      ...prev,
-      [blockKey]: { ...prev[blockKey], durationMin: newMins, slots: minutesToGridSlots(newMins), resizedMins: newMins },
-    }));
+    setSchedule(prev => resizeBlockSchedule(prev, blockKey, newMins));
   }
 
   // ─── Save handlers ────────────────────────────────────────────────────────

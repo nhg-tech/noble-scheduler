@@ -4,6 +4,8 @@
 **Version**: 1.0 (Phase 2 — current)
 **Last Updated**: 2026-04-02
 **Environment**: Production and QA; specify target environment for each run
+**QA URL**: `https://noble-scheduler-git-phase-2-nhg-techs-projects.vercel.app`
+**Production URL**: `https://noble-scheduler.vercel.app`
 
 ---
 
@@ -18,6 +20,11 @@ Work through sections in order — later sections depend on setup done in earlie
 
 **Before you start**: Open the app in an incognito / private browser window to ensure no leftover session data affects results.
 
+**Agent start point**:
+1. For full regression runs, start in QA at `https://noble-scheduler-git-phase-2-nhg-techs-projects.vercel.app`
+2. If login is required, create a new QA user account and continue with that account
+3. Use production only for a short manual smoke check unless the test run explicitly says production
+
 ---
 
 ## Agent QA Handoff
@@ -28,6 +35,7 @@ Use this section when handing QA to an agent such as ChatGPT Agent, Claude, or a
 
 - Use the environment explicitly named for the current test run.
 - For staged rollout validation, use the `phase-2` QA deployment unless told otherwise.
+- QA entry URL for agent testing: `https://noble-scheduler-git-phase-2-nhg-techs-projects.vercel.app`
 - Record only observed behavior.
 - Mark every scenario as exactly one of: `PASS`, `FAIL`, or `SKIPPED`.
 - If a scenario fails, record:

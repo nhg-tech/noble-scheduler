@@ -2,6 +2,12 @@ import { createContext, useContext, useState, useEffect, useCallback, useMemo } 
 import { resolveBlockHex } from '../data/palette';
 import { legacySlotsToMinutes, makeKey, minutesToGridSlots } from '../utils/scheduling';
 import { apiSetup, apiTemplates, apiSchedules, isLoggedIn } from '../api';
+import {
+  deleteScheduleRecord,
+  deleteTemplateRecord,
+  persistScheduleRecord,
+  persistTemplateRecord,
+} from './schedulerPersistence';
 
 // ─── localStorage keys ───────────────────────────────────────────────────────
 const LS_TASKS    = 'noble_task_defaults';
@@ -482,87 +488,67 @@ export function SchedulerProvider({ children }) {
 
   // ─── API-backed save for a single template/schedule ───────────────────────
   const apiSaveTemplate = useCallback(async (name, state, type) => {
-    if (type === 'master') {
-      const result = await apiTemplates.saveMaster(name, state);
-      const updated = { ...masterTemplatesData, [name]: { ...state, id: result.id, updatedAt: result.updated_at } };
-      setMasterTemplatesData(updated); saveLS(LS_MASTER_TEMPLATES, updated);
-      return { ...result, type };
-    }
-
-    const result = await apiTemplates.saveUser(name, state);
-    const updated = { ...userTemplatesData, [name]: { ...state, id: result.id, updatedAt: result.updated_at } };
-    setUserTemplatesData(updated); saveLS(LS_TEMPLATES, updated);
-    return { ...result, type };
+    return persistTemplateRecord({
+      name,
+      state,
+      type,
+      apiTemplates,
+      masterTemplatesData,
+      userTemplatesData,
+      setMasterTemplatesData,
+      setUserTemplatesData,
+      saveLS,
+      masterTemplatesKey: LS_MASTER_TEMPLATES,
+      userTemplatesKey: LS_TEMPLATES,
+    });
   }, [masterTemplatesData, userTemplatesData]);
 
   const apiSaveSchedule = useCallback(async (name, state, status, existingSchedule = null) => {
-    const payload = {
+    return persistScheduleRecord({
       name,
-      scheduleDate:    state.assumptions?.date || null,
+      state,
       status,
-      schedule:        state.schedule        || {},
-      assumptions:     state.assumptions     || {},
-      sessionTaskDefs: state.sessionTaskDefs || {},
-      skippedTasks:    state.skippedTasks    || [],
-      hiddenColumns:   state.hiddenColumns   || [],
-      columnOrder:     state.columnOrder     || [],
-      extraRoles:      state.extraRoles      || [],
-    };
-
-    const result = existingSchedule?.id
-      ? await apiSchedules.update(existingSchedule.id, payload)
-      : await apiSchedules.save(payload);
-
-    const entry = {
-      ...state,
-      id: result.id,
-      status: result.status,
-      scheduleDate: payload.scheduleDate,
-      updatedAt: result.updated_at,
-    };
-
-    if (status === 'draft') {
-      const updated = { ...draftsData };
-      if (existingSchedule?.name && existingSchedule.name !== name) delete updated[existingSchedule.name];
-      updated[name] = entry;
-      setDraftsData(updated); saveLS(LS_DRAFTS, updated);
-      return result;
-    }
-
-    const updated = { ...postingsData };
-    if (existingSchedule?.name && existingSchedule.name !== name) delete updated[existingSchedule.name];
-    updated[name] = entry;
-    setPostingsData(updated); saveLS(LS_POSTINGS, updated);
-    return result;
+      existingSchedule,
+      apiSchedules,
+      draftsData,
+      postingsData,
+      setDraftsData,
+      setPostingsData,
+      saveLS,
+      draftsKey: LS_DRAFTS,
+      postingsKey: LS_POSTINGS,
+    });
   }, [draftsData, postingsData]);
 
   const apiDeleteSchedule = useCallback(async (id, status, name) => {
-    await apiSchedules.delete(id);
-    if (status === 'draft') {
-      const updated = { ...draftsData };
-      delete updated[name];
-      setDraftsData(updated); saveLS(LS_DRAFTS, updated);
-      return;
-    }
-    const updated = { ...postingsData };
-    delete updated[name];
-    setPostingsData(updated); saveLS(LS_POSTINGS, updated);
+    return deleteScheduleRecord({
+      id,
+      status,
+      name,
+      apiSchedules,
+      draftsData,
+      postingsData,
+      setDraftsData,
+      setPostingsData,
+      saveLS,
+      draftsKey: LS_DRAFTS,
+      postingsKey: LS_POSTINGS,
+    });
   }, [draftsData, postingsData]);
 
   const apiDeleteTemplate = useCallback(async (name, type) => {
-    try {
-      if (type === 'master') await apiTemplates.deleteMaster(name);
-      else                   await apiTemplates.deleteUser(name);
-    } catch (err) {
-      console.warn('API delete failed:', err.message);
-    }
-    if (type === 'master') {
-      const updated = { ...masterTemplatesData }; delete updated[name];
-      setMasterTemplatesData(updated); saveLS(LS_MASTER_TEMPLATES, updated);
-    } else {
-      const updated = { ...userTemplatesData }; delete updated[name];
-      setUserTemplatesData(updated); saveLS(LS_TEMPLATES, updated);
-    }
+    return deleteTemplateRecord({
+      name,
+      type,
+      apiTemplates,
+      masterTemplatesData,
+      userTemplatesData,
+      setMasterTemplatesData,
+      setUserTemplatesData,
+      saveLS,
+      masterTemplatesKey: LS_MASTER_TEMPLATES,
+      userTemplatesKey: LS_TEMPLATES,
+    });
   }, [masterTemplatesData, userTemplatesData]);
 
   // ─── Save user defaults ───────────────────────────────────────────────────
