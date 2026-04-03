@@ -2,11 +2,9 @@ import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 
 export default function LoginPage() {
-  const { login, register, authError } = useAuth();
-  const [mode,     setMode]     = useState('login');   // 'login' | 'register'
+  const { login, authError } = useAuth();
   const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
-  const [name,     setName]     = useState('');
   const [loading,  setLoading]  = useState(false);
   const [localErr, setLocalErr] = useState('');
 
@@ -15,12 +13,7 @@ export default function LoginPage() {
     setLocalErr('');
     setLoading(true);
     try {
-      if (mode === 'login') {
-        await login(email, password);
-      } else {
-        if (!name.trim()) { setLocalErr('Name is required'); setLoading(false); return; }
-        await register(email, password, name);
-      }
+      await login(email, password);
     } catch (err) {
       setLocalErr(err.message);
     } finally {
@@ -59,32 +52,7 @@ export default function LoginPage() {
           <div style={{ fontSize: 12, color: 'var(--gray)', marginTop: 3 }}>Noble Pet Resort</div>
         </div>
 
-        {/* Mode toggle */}
-        <div style={{ display: 'flex', gap: 0, borderRadius: 8, overflow: 'hidden',
-          border: '1.5px solid var(--gray-light)', marginBottom: 24 }}>
-          {['login','register'].map(m => (
-            <button key={m} onClick={() => { setMode(m); setLocalErr(''); }}
-              style={{
-                flex: 1, padding: '8px', border: 'none', cursor: 'pointer',
-                fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 600,
-                background: mode === m ? 'var(--purple)' : '#fff',
-                color: mode === m ? '#fff' : 'var(--gray)',
-                transition: 'all 0.15s',
-              }}>
-              {m === 'login' ? 'Sign In' : 'Create Account'}
-            </button>
-          ))}
-        </div>
-
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {mode === 'register' && (
-            <div>
-              <label style={lbl}>Full Name</label>
-              <input style={inp} value={name} onChange={e => setName(e.target.value)}
-                placeholder="e.g. Jane Smith" autoComplete="name" />
-            </div>
-          )}
-
           <div>
             <label style={lbl}>Email</label>
             <input style={inp} type="email" value={email} onChange={e => setEmail(e.target.value)}
@@ -94,7 +62,7 @@ export default function LoginPage() {
           <div>
             <label style={lbl}>Password</label>
             <input style={inp} type="password" value={password} onChange={e => setPassword(e.target.value)}
-              placeholder="••••••••" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
+              placeholder="••••••••" autoComplete="current-password" />
           </div>
 
           {(localErr || authError) && (
@@ -111,9 +79,19 @@ export default function LoginPage() {
             fontSize: 14, fontWeight: 600, cursor: loading ? 'default' : 'pointer',
             fontFamily: "'DM Sans', sans-serif", transition: 'all 0.15s',
           }}>
-            {loading ? 'Please wait…' : mode === 'login' ? 'Sign In' : 'Create Account'}
+            {loading ? 'Please wait…' : 'Sign In'}
           </button>
         </form>
+
+        <div style={{
+          marginTop: 16,
+          fontSize: 12,
+          color: 'var(--gray)',
+          textAlign: 'center',
+          lineHeight: 1.5,
+        }}>
+          Accounts are created by an administrator. If you need access, please contact your admin.
+        </div>
       </div>
     </div>
   );

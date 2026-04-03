@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import { apiLogin, apiRegister, apiLogout, apiGetMe, isLoggedIn } from '../api';
+import { apiLogin, apiLogout, apiGetMe, isLoggedIn } from '../api';
 import { permissionKey } from '../permissions';
 
 const AuthContext = createContext(null);
@@ -37,18 +37,6 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  const register = useCallback(async (email, password, name) => {
-    setAuthError(null);
-    try {
-      const me = await apiRegister(email, password, name);
-      setUser(me);
-      return me;
-    } catch (err) {
-      setAuthError(err.message);
-      throw err;
-    }
-  }, []);
-
   const logout = useCallback(() => {
     apiLogout();
     setUser(null);
@@ -60,7 +48,7 @@ export function AuthProvider({ children }) {
   }, [permissions, user?.isAdmin]);
 
   return (
-    <AuthContext.Provider value={{ user, permissions, authChecked, authError, login, register, logout, can }}>
+    <AuthContext.Provider value={{ user, permissions, authChecked, authError, login, logout, can }}>
       {children}
     </AuthContext.Provider>
   );

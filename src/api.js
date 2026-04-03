@@ -52,12 +52,6 @@ export async function apiLogin(email, password) {
   return data.user;
 }
 
-export async function apiRegister(email, password, name) {
-  const data = await api.post('/auth/register', { email, password, name });
-  setToken(data.token);
-  return data.user;
-}
-
 export function apiLogout() {
   setToken(null);
 }
