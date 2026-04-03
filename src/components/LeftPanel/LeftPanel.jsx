@@ -244,16 +244,18 @@ function LoadSchedule() {
       )}
 
       {/* Date — always visible, below the load button */}
-      <div style={{ marginTop: 8, borderTop: '1px solid var(--gray-light)', paddingTop: 8 }}>
-        <InputRow label="Schedule Date">
-          <Inp
-            type="date"
-            value={assumptions.date || ''}
-            disabled={!canEditSchedules}
-            onChange={e => setAssumptions(prev => ({ ...prev, date: e.target.value }))}
-          />
-        </InputRow>
-      </div>
+      {canEditSchedules && (
+        <div style={{ marginTop: 8, borderTop: '1px solid var(--gray-light)', paddingTop: 8 }}>
+          <InputRow label="Schedule Date">
+            <Inp
+              type="date"
+              value={assumptions.date || ''}
+              disabled={!canEditSchedules}
+              onChange={e => setAssumptions(prev => ({ ...prev, date: e.target.value }))}
+            />
+          </InputRow>
+        </div>
+      )}
     </div>
   );
 }
@@ -265,6 +267,8 @@ function Assumptions() {
   const pct = getProgramPct();
   const [open, setOpen] = useState(true);
   const canEditSchedule = can(RESOURCES.DAILY_SCHEDULES, ACTIONS.EDIT);
+
+  if (!canEditSchedule) return null;
 
   function update(field, value) {
     if (!canEditSchedule) return;

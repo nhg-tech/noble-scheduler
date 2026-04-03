@@ -13,6 +13,8 @@ export default function Header({
   canSaveDraft = true,
   canSaveTemplate = true,
   canPostSchedule = true,
+  canValidate = true,
+  canChecklist = true,
   canEditSchedule = true,
 }) {
   const { scheduleLabel, setSchedule } = useScheduler();
@@ -57,8 +59,8 @@ export default function Header({
         {canSaveDraft && <Btn onClick={onSaveDraft}>📝 Save Draft</Btn>}
         {canSaveTemplate && <Btn onClick={onSaveTemplate}>💾 Save Template</Btn>}
         {canPostSchedule && <Btn onClick={onPostSchedule}>📋 Post Schedule</Btn>}
-        <Btn onClick={onValidate}>⚡ Validate</Btn>
-        <Btn onClick={onChecklist}>☑ Checklist</Btn>
+        {canValidate && <Btn onClick={onValidate}>⚡ Validate</Btn>}
+        {canChecklist && <Btn onClick={onChecklist}>☑ Checklist</Btn>}
         {canEditSchedule && <Btn onClick={handleClear}>🗑 Clear</Btn>}
         <Btn onClick={onPrint} gold>🖨 Print</Btn>
         {user && (

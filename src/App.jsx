@@ -109,6 +109,7 @@ export default function App() {
   const isViewingPostedSchedule = currentLoadedEntity?.kind === 'schedule' && currentLoadedEntity?.status === 'posted';
   const canEditCurrentSchedule = isViewingPostedSchedule ? canEditPublishedSchedules : canEditDailySchedules;
   const canSaveAnyTemplate = canCreateUserTemplate || canCreateMasterTemplate;
+  const canUseWorkflowTools = canEditCurrentSchedule || canPublishSchedules;
   const allowedTemplateTypes = [
     ...(canCreateMasterTemplate ? ['master'] : []),
     ...(canCreateUserTemplate ? ['my'] : []),
@@ -413,6 +414,8 @@ export default function App() {
         canSaveDraft={canCreateDraft}
         canSaveTemplate={canSaveAnyTemplate}
         canPostSchedule={canPublishSchedules}
+        canValidate={canUseWorkflowTools}
+        canChecklist={canUseWorkflowTools}
         canEditSchedule={canEditCurrentSchedule}
       />
       {saveError && (
@@ -475,7 +478,7 @@ export default function App() {
             />
           </div>
 
-          <RightPanel onCreateCustom={() => setShowCreate(true)} />
+          {canEditCurrentSchedule && <RightPanel onCreateCustom={() => setShowCreate(true)} />}
         </div>
 
         <DragOverlay dropAnimation={null}>
