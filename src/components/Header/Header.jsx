@@ -1,7 +1,20 @@
 import { useScheduler } from '../../context/SchedulerContext';
 import { useAuth } from '../../context/AuthContext';
 
-export default function Header({ onSetup, onSaveDraft, onSaveTemplate, onPostSchedule, onValidate, onChecklist, onPrint }) {
+export default function Header({
+  onSetup,
+  onSaveDraft,
+  onSaveTemplate,
+  onPostSchedule,
+  onValidate,
+  onChecklist,
+  onPrint,
+  canViewSetup = true,
+  canSaveDraft = true,
+  canSaveTemplate = true,
+  canPostSchedule = true,
+  canEditSchedule = true,
+}) {
   const { scheduleLabel, setSchedule } = useScheduler();
   const { user, logout } = useAuth();
 
@@ -40,13 +53,13 @@ export default function Header({ onSetup, onSaveDraft, onSaveTemplate, onPostSch
 
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', marginRight: 4 }}>{scheduleLabel}</span>
-        <Btn onClick={onSetup}>⚙ Setup</Btn>
-        <Btn onClick={onSaveDraft}>📝 Save Draft</Btn>
-        <Btn onClick={onSaveTemplate}>💾 Save Template</Btn>
-        <Btn onClick={onPostSchedule}>📋 Post Schedule</Btn>
+        {canViewSetup && <Btn onClick={onSetup}>⚙ Setup</Btn>}
+        {canSaveDraft && <Btn onClick={onSaveDraft}>📝 Save Draft</Btn>}
+        {canSaveTemplate && <Btn onClick={onSaveTemplate}>💾 Save Template</Btn>}
+        {canPostSchedule && <Btn onClick={onPostSchedule}>📋 Post Schedule</Btn>}
         <Btn onClick={onValidate}>⚡ Validate</Btn>
         <Btn onClick={onChecklist}>☑ Checklist</Btn>
-        <Btn onClick={handleClear}>🗑 Clear</Btn>
+        {canEditSchedule && <Btn onClick={handleClear}>🗑 Clear</Btn>}
         <Btn onClick={onPrint} gold>🖨 Print</Btn>
         {user && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 4,
@@ -76,7 +89,6 @@ function Btn({ children, onClick, gold }) {
       background: gold ? 'var(--gold)' : 'rgba(255,255,255,0.12)',
       color: gold ? 'var(--purple)' : '#fff',
       border: gold ? 'none' : '1px solid rgba(255,255,255,0.2)',
-      fontWeight: gold ? 600 : 500,
     }}>
       {children}
     </button>

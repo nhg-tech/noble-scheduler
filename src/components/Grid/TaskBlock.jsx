@@ -12,12 +12,13 @@ function fmtDuration(mins) {
   return m === 0 ? `${h}h` : `${h}h ${m}m`;
 }
 
-export default function TaskBlock({ blockKey, task, slotMin, onEdit, onRemove, onSplit, onResize }) {
+export default function TaskBlock({ blockKey, task, slotMin, onEdit, onRemove, onResize, isReadOnly = false }) {
   const { startMin } = keyToRoleAndMin(blockKey);
 
   const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({
     id: blockKey,
     data: { type: 'block', blockKey },
+    disabled: isReadOnly,
   });
 
   // Also act as a drop target so chips dropped onto visible blocks trigger conflict detection
@@ -42,12 +43,9 @@ export default function TaskBlock({ blockKey, task, slotMin, onEdit, onRemove, o
   const topPx        = Math.round((offsetInSlot / GRID_SLOT_MINUTES) * SLOT_H) + 2;
   const heightPx     = Math.round((durationMin / GRID_SLOT_MINUTES) * SLOT_H) - 2;
 
-  const overflowStyle = (task.overlap || task.overflow)
-    ? 'outline: 2px solid #FF5252; outline-offset: -2px;'
-    : '';
-
   // Resize via mousedown on handle
   function startResizeDrag(e) {
+    if (isReadOnly) return;
     e.stopPropagation();
     e.preventDefault();
     startYRef.current  = e.clientY;
@@ -117,7 +115,7 @@ export default function TaskBlock({ blockKey, task, slotMin, onEdit, onRemove, o
       ref={(node) => { setDragRef(node); setDropRef(node); resizeRef.current = node; }}
       {...listeners}
       {...attributes}
-      onDoubleClick={() => onEdit(blockKey)}
+      onDoubleClick={() => !isReadOnly && onEdit(blockKey)}
       onContextMenu={(e) => { e.preventDefault(); /* handled by wrapper */ }}
       style={{
         position: 'absolute',
@@ -126,7 +124,7 @@ export default function TaskBlock({ blockKey, task, slotMin, onEdit, onRemove, o
         height: `${heightPx}px`,
         borderRadius: 5,
         padding: '4px 7px',
-        cursor: isDragging ? 'grabbing' : 'grab',
+        cursor: isReadOnly ? 'default' : (isDragging ? 'grabbing' : 'grab'),
         zIndex: 10,
         overflow: 'hidden',
         boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
@@ -148,27 +146,31 @@ export default function TaskBlock({ blockKey, task, slotMin, onEdit, onRemove, o
           borderRadius: '50%', background: '#FF5252' }} />
       )}
       {/* Remove button */}
-      <button
-        onPointerDown={e => e.stopPropagation()}
-        onClick={(e) => { e.stopPropagation(); onRemove(blockKey); }}
-        style={{
-          position: 'absolute', top: 2, right: 3, width: 14, height: 14,
-          borderRadius: '50%', background: 'rgba(0,0,0,0.15)', color: 'inherit',
-          border: 'none', cursor: 'pointer', fontSize: 9,
-          display: 'none', alignItems: 'center', justifyContent: 'center',
-        }}
-        className="block-del"
-      >✕</button>
+      {!isReadOnly && (
+        <button
+          onPointerDown={e => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); onRemove(blockKey); }}
+          style={{
+            position: 'absolute', top: 2, right: 3, width: 14, height: 14,
+            borderRadius: '50%', background: 'rgba(0,0,0,0.15)', color: 'inherit',
+            border: 'none', cursor: 'pointer', fontSize: 9,
+            display: 'none', alignItems: 'center', justifyContent: 'center',
+          }}
+          className="block-del"
+        >✕</button>
+      )}
       {/* Resize handle */}
-      <div
-        onMouseDown={startResizeDrag}
-        onPointerDown={e => e.stopPropagation()}
-        style={{
-          position: 'absolute', bottom: 0, left: 0, right: 0, height: 10,
-          cursor: 'ns-resize', borderRadius: '0 0 5px 5px',
-          background: 'rgba(0,0,0,0.12)',
-        }}
-      />
+      {!isReadOnly && (
+        <div
+          onMouseDown={startResizeDrag}
+          onPointerDown={e => e.stopPropagation()}
+          style={{
+            position: 'absolute', bottom: 0, left: 0, right: 0, height: 10,
+            cursor: 'ns-resize', borderRadius: '0 0 5px 5px',
+            background: 'rgba(0,0,0,0.12)',
+          }}
+        />
+      )}
       <style>{`.task-block:hover .block-del { display: flex !important; }`}</style>
     </div>
   );

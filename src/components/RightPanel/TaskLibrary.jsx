@@ -1,18 +1,22 @@
 import { useState } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { useScheduler } from '../../context/SchedulerContext';
+import { useAuth } from '../../context/AuthContext';
 import { getSchedulingStatus, isTaskRelevant } from '../../utils/calculations';
 import { resolveBlockHex, resolveBlockText } from '../../data/palette';
+import { ACTIONS, RESOURCES } from '../../permissions';
 
 export default function TaskLibrary({ onCreateCustom }) {
+  const { can } = useAuth();
   const [filter, setFilter] = useState('pending'); // 'pending' | 'all'
   // undefined entries treated as true — so any new/future category is expanded by default
   const [expanded, setExpanded] = useState({});
   const { schedule, assumptions, getDerivedValues, userTaskDefs, sessionTaskDefs,
           extraRoles, getFullCatList, taskOrder, skippedTasks, toggleSkipTask,
           getEffectiveRoles, taskLibrary, hiddenColumns, columnOrder } = useScheduler();
-  const { scCount, totalRooms } = getDerivedValues();
+  const { scCount } = getDerivedValues();
   const { socpg, selpg } = assumptions;
+  const canEditSchedule = can(RESOURCES.DAILY_SCHEDULES, ACTIONS.EDIT);
 
   // Total employee columns = roles in columnOrder that aren't hidden
   // 99 = all roles means every visible column regardless of type (GM, MR, ON included)
@@ -22,8 +26,6 @@ export default function TaskLibrary({ onCreateCustom }) {
   // Full cat list for label lookup; active-only for display
   const fullCatList = getFullCatList();
   const activeCats  = fullCatList.filter(c => !c.deleted);
-  const catLabelMap = Object.fromEntries(fullCatList.map(c => [c.id, c.deleted ? `${c.label} – Deleted` : c.label]));
-
   // undefined = expanded (true by default); explicit false = collapsed
   function isCatExpanded(catId) { return expanded[catId] !== false; }
 
@@ -167,6 +169,7 @@ export default function TaskLibrary({ onCreateCustom }) {
                   filter={filter}
                   skippedTasks={skippedTasks}
                   toggleSkipTask={toggleSkipTask}
+                  readOnly={!canEditSchedule}
                 />
               ))}
             </div>
@@ -174,37 +177,40 @@ export default function TaskLibrary({ onCreateCustom }) {
         })}
 
         {/* Create custom task */}
-        <div style={{ padding: '10px 14px' }}>
-          <button
-            onClick={onCreateCustom}
-            style={{
-              width: '100%',
-              padding: '7px',
-              borderRadius: 6,
-              border: '1.5px dashed var(--purple-light)',
-              background: 'transparent',
-              color: 'var(--purple)',
-              fontSize: 12,
-              fontWeight: 600,
-              fontFamily: "'DM Sans', sans-serif",
-              cursor: 'pointer',
-              transition: 'all 0.15s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'var(--purple-pale)'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-          >
-            + Custom Task
-          </button>
-        </div>
+        {canEditSchedule && (
+          <div style={{ padding: '10px 14px' }}>
+            <button
+              onClick={onCreateCustom}
+              style={{
+                width: '100%',
+                padding: '7px',
+                borderRadius: 6,
+                border: '1.5px dashed var(--purple-light)',
+                background: 'transparent',
+                color: 'var(--purple)',
+                fontSize: 12,
+                fontWeight: 600,
+                fontFamily: "'DM Sans', sans-serif",
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--purple-pale)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+            >
+              + Custom Task
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function TaskChip({ task, schedule, socpg, selpg, scCount, userTaskDefs, totalRoleCount, filter, skippedTasks, toggleSkipTask }) {
+function TaskChip({ task, schedule, socpg, selpg, scCount, userTaskDefs, totalRoleCount, filter, toggleSkipTask, readOnly = false }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `chip:${task.id}`,
     data: { type: 'chip', task },
+    disabled: readOnly,
   });
 
   const { scheduled, expected, done, partial } = getSchedulingStatus(task, schedule, socpg, selpg, scCount, totalRoleCount, userTaskDefs);
@@ -228,7 +234,7 @@ function TaskChip({ task, schedule, socpg, selpg, scCount, userTaskDefs, totalRo
         borderRadius: 6,
         background: bgHex,
         color: textCol,
-        cursor: 'grab',
+        cursor: readOnly ? 'default' : 'grab',
         opacity: isDragging ? 0.5 : done ? 0.55 : 1,
         display: 'flex',
         alignItems: 'center',
@@ -273,7 +279,7 @@ function TaskChip({ task, schedule, socpg, selpg, scCount, userTaskDefs, totalRo
       }}>
         {scheduled}/{expected}
       </div>
-      {filter !== 'skipped' ? (
+      {!readOnly && filter !== 'skipped' ? (
         <button
           onClick={e => { e.stopPropagation(); toggleSkipTask(task.id); }}
           title="Mark as Not Needed"
@@ -283,7 +289,7 @@ function TaskChip({ task, schedule, socpg, selpg, scCount, userTaskDefs, totalRo
             fontSize: 13, padding: '0 2px', lineHeight: 1,
           }}
         >✕</button>
-      ) : (
+      ) : !readOnly ? (
         <button
           onClick={e => { e.stopPropagation(); toggleSkipTask(task.id); }}
           title="Mark as Needed"
@@ -293,7 +299,7 @@ function TaskChip({ task, schedule, socpg, selpg, scCount, userTaskDefs, totalRo
             fontSize: 11, padding: '0 2px', lineHeight: 1,
           }}
         >↩</button>
-      )}
+      ) : null}
     </div>
   );
 }

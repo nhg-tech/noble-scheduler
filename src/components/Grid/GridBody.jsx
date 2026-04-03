@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { TIME_SLOTS } from '../../data/roles';
-import { GRID_SLOT_MINUTES, inShift, slotStartMin, keyToRoleAndMin } from '../../utils/scheduling';
+import { GRID_SLOT_MINUTES, inShift, keyToRoleAndMin } from '../../utils/scheduling';
 import { formatMin } from '../../utils/scheduling';
 import GridCell from './GridCell';
 import TaskBlock from './TaskBlock';
@@ -10,7 +10,19 @@ import { useScheduler } from '../../context/SchedulerContext';
 const TIME_COL_W = 52;
 const SLOT_H = 22; // 15-min slot height — keeps same px/min density as the old 44px/30min
 
-export default function GridBody({ schedule, onEdit, onRemove, onSplit, onResize, onCopy, onPasteAt, hasClipboard, onCreateHere, onAddColumn }) {
+export default function GridBody({
+  schedule,
+  onEdit,
+  onRemove,
+  onSplit,
+  onResize,
+  onCopy,
+  onPasteAt,
+  hasClipboard,
+  onCreateHere,
+  onAddColumn,
+  isReadOnly = false,
+}) {
   const { extraRoles, columnOrder, getEffectiveRoles, getDeletedRoles, userTaskDefs, hiddenColumns, taskLibrary, colWidth, setColWidth } = useScheduler();
   const effectiveRoles = getEffectiveRoles();
   // Include soft-deleted roles still referenced in columnOrder (from saved schedules/drafts)
@@ -44,12 +56,14 @@ export default function GridBody({ schedule, onEdit, onRemove, onSplit, onResize
   }, [schedule, allRoles, userTaskDefs]);
 
   function handleBlockContextMenu(e, blockKey) {
+    if (isReadOnly) return;
     e.preventDefault();
     e.stopPropagation(); // prevent cell handler from also firing
     setContextMenu({ type: 'block', x: e.clientX, y: e.clientY, blockKey });
   }
 
   function handleCellContextMenu(e, roleId, slotMin) {
+    if (isReadOnly) return;
     // Only show if the click wasn't on a task block (stopPropagation handles that)
     setContextMenu({ type: 'cell', x: e.clientX, y: e.clientY, roleId, slotMin });
   }
@@ -143,6 +157,7 @@ export default function GridBody({ schedule, onEdit, onRemove, onSplit, onResize
                   isInShift={isInShiftVal}
                   isMidnight={slot.isMidnight}
                   onContextMenu={handleCellContextMenu}
+                  isReadOnly={isReadOnly}
                 />
               );
             })}
@@ -168,11 +183,12 @@ export default function GridBody({ schedule, onEdit, onRemove, onSplit, onResize
                     slotMin={slotMin}
                     onEdit={onEdit}
                     onRemove={onRemove}
-                    onSplit={onSplit}
-                    onResize={onResize}
-                  />
-                </div>
-              );
+                  onSplit={onSplit}
+                  onResize={onResize}
+                  isReadOnly={isReadOnly}
+                />
+              </div>
+            );
             })}
           </div>
         );
@@ -184,7 +200,7 @@ export default function GridBody({ schedule, onEdit, onRemove, onSplit, onResize
       </div>{/* end grid rows */}
 
       {/* Context menu — block variant */}
-      {contextMenu?.type === 'block' && (
+      {!isReadOnly && contextMenu?.type === 'block' && (
         <div
           style={{
             position: 'fixed',
@@ -210,7 +226,7 @@ export default function GridBody({ schedule, onEdit, onRemove, onSplit, onResize
       )}
 
       {/* Context menu — empty cell variant */}
-      {contextMenu?.type === 'cell' && (
+      {!isReadOnly && contextMenu?.type === 'cell' && (
         <div
           style={{
             position: 'fixed',

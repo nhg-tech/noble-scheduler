@@ -11,6 +11,7 @@ import {
 } from '@dnd-kit/core';
 
 import { useScheduler } from './context/SchedulerContext';
+import { useAuth } from './context/AuthContext';
 import {
   keyToRoleAndMin,
   getBlockDurationMin,
@@ -27,6 +28,7 @@ import {
   splitBlockSchedule,
   waterfallConflictSchedule,
 } from './domain/scheduleMutations';
+import { ACTIONS, RESOURCES, canViewAnySetup } from './permissions';
 
 import Header from './components/Header/Header';
 import LeftPanel from './components/LeftPanel/LeftPanel';
@@ -46,6 +48,7 @@ import ChecklistModal from './components/Modals/ChecklistModal';
 import SetupOverlay from './components/Setup/SetupOverlay';
 
 export default function App() {
+  const { can } = useAuth();
   const {
     schedule, setSchedule,
     assumptions,
@@ -95,6 +98,22 @@ export default function App() {
       ? scheduleLabel
       : null;
 
+  const canViewSetupPanel = canViewAnySetup(can);
+  const canCreateDraft = can(RESOURCES.DAILY_SCHEDULES, ACTIONS.CREATE);
+  const canEditDailySchedules = can(RESOURCES.DAILY_SCHEDULES, ACTIONS.EDIT);
+  const canCreateUserTemplate = can(RESOURCES.USER_TEMPLATES, ACTIONS.CREATE);
+  const canCreateMasterTemplate = can(RESOURCES.MASTER_TEMPLATES, ACTIONS.CREATE);
+  const canPublishSchedules = can(RESOURCES.PUBLISHED_SCHEDULES, ACTIONS.PUBLISH);
+  const canEditPublishedSchedules = can(RESOURCES.PUBLISHED_SCHEDULES, ACTIONS.EDIT);
+
+  const isViewingPostedSchedule = currentLoadedEntity?.kind === 'schedule' && currentLoadedEntity?.status === 'posted';
+  const canEditCurrentSchedule = isViewingPostedSchedule ? canEditPublishedSchedules : canEditDailySchedules;
+  const canSaveAnyTemplate = canCreateUserTemplate || canCreateMasterTemplate;
+  const allowedTemplateTypes = [
+    ...(canCreateMasterTemplate ? ['master'] : []),
+    ...(canCreateUserTemplate ? ['my'] : []),
+  ];
+
   // Modal state
   const [conflictState, setConflictState] = useState(null);
   const [splitKey, setSplitKey]           = useState(null);
@@ -119,12 +138,14 @@ export default function App() {
   const [clipboard, setClipboard] = useState(null); // { task, colorHex }
 
   function handleCopy(blockKey) {
+    if (!canEditCurrentSchedule) return;
     const task = schedule[blockKey];
     if (!task) return;
     setClipboard({ task: { ...task }, colorHex: task.color });
   }
 
   function handlePasteAt(roleId, slotMin) {
+    if (!canEditCurrentSchedule) return;
     if (!clipboard) return;
     const { task, colorHex } = clipboard;
     const durationMin = getBlockDurationMin(task);
@@ -138,6 +159,7 @@ export default function App() {
 
   // ─── Drag start ───────────────────────────────────────────────────────────
   function handleDragStart({ active }) {
+    if (!canEditCurrentSchedule) return;
     const data = active.data.current;
     if (data?.type === 'chip') {
       const override = userTaskDefs[data.task.id] || {};
@@ -154,6 +176,7 @@ export default function App() {
 
   // ─── Drag end ─────────────────────────────────────────────────────────────
   function handleDragEnd({ active, over }) {
+    if (!canEditCurrentSchedule) return;
     setDragLabel(null);
     setDragMeta(null);
     if (!over) return;
@@ -230,18 +253,21 @@ export default function App() {
 
   // ─── Conflict resolution ──────────────────────────────────────────────────
   function handleConflictMerge() {
+    if (!canEditCurrentSchedule) return;
     if (!conflictState) return;
     setSchedule(mergeConflictSchedule(conflictState));
     setConflictState(null);
   }
 
   function handleConflictFit() {
+    if (!canEditCurrentSchedule) return;
     if (!conflictState) return;
     setSchedule(fitConflictSchedule(conflictState));
     setConflictState(null);
   }
 
   function handleConflictWaterfall() {
+    if (!canEditCurrentSchedule) return;
     if (!conflictState) return;
     setSchedule(waterfallConflictSchedule(conflictState));
     setConflictState(null);
@@ -249,20 +275,24 @@ export default function App() {
 
   // ─── Block handlers ───────────────────────────────────────────────────────
   function handleEditSave(blockKey, { notes, durationMin, color }) {
+    if (!canEditCurrentSchedule) return;
     setSchedule(prev => editBlockSchedule(prev, blockKey, { notes, durationMin, color }));
     setEditKey(null);
   }
 
   function handleRemove(blockKey) {
+    if (!canEditCurrentSchedule) return;
     setSchedule(prev => removeBlockSchedule(prev, blockKey));
   }
 
   function handleSplitConfirm(blockKey, splitAt) {
+    if (!canEditCurrentSchedule) return;
     setSchedule(prev => splitBlockSchedule(prev, blockKey, splitAt, roleConfigs));
     setSplitKey(null);
   }
 
   function handleResize(blockKey, newMins) {
+    if (!canEditCurrentSchedule) return;
     setSchedule(prev => resizeBlockSchedule(prev, blockKey, newMins));
   }
 
@@ -272,6 +302,7 @@ export default function App() {
     setSaveError(null);
     try {
       if (saveMode === 'draft') {
+        if (!canCreateDraft) throw new Error('You do not have permission to save drafts.');
         const result = await apiSaveSchedule(
           name,
           state,
@@ -283,11 +314,18 @@ export default function App() {
         setCurrentLoadedEntity({ kind: 'schedule', status: 'draft', id: result.id, name });
         setScheduleLabel(name);
       } else if (saveMode === 'template') {
+        if (tplType === 'master' && !canCreateMasterTemplate) {
+          throw new Error('You do not have permission to save master templates.');
+        }
+        if (tplType !== 'master' && !canCreateUserTemplate) {
+          throw new Error('You do not have permission to save personal templates.');
+        }
         const type = tplType === 'master' ? 'master' : 'user';
         const result = await apiSaveTemplate(name, state, type);
         setCurrentLoadedEntity({ kind: 'template', scope: type, id: result.id, name });
         setScheduleLabel(name);
       } else if (saveMode === 'post') {
+        if (!canPublishSchedules) throw new Error('You do not have permission to publish schedules.');
         const result = await apiSaveSchedule(
           name,
           state,
@@ -306,6 +344,7 @@ export default function App() {
   }
 
   function handleCreateCustom(taskData) {
+    if (!canEditCurrentSchedule) return;
     // Custom tasks live only in the current session — they are NOT added to the
     // persistent userTaskDefs library. They are saved/restored with schedule drafts.
     setSessionTaskDefs(prev => ({ ...prev, [taskData.id]: taskData }));
@@ -321,6 +360,7 @@ export default function App() {
   }
 
   function handleAddColumnSave(label, sub) {
+    if (!canEditCurrentSchedule) return;
     const id = `custom_${Date.now()}`;
     setExtraRoles(prev => [...prev, {
       id, label: label.trim(), sub: (sub || 'TM').trim(),
@@ -362,13 +402,18 @@ export default function App() {
       background: 'var(--cream)',
     }}>
       <Header
-        onSetup={() => setShowSetup(true)}
-        onSaveDraft={() => setSaveMode('draft')}
-        onSaveTemplate={() => setSaveMode('template')}
-        onPostSchedule={() => setSaveMode('post')}
+        onSetup={() => canViewSetupPanel && setShowSetup(true)}
+        onSaveDraft={() => canCreateDraft && setSaveMode('draft')}
+        onSaveTemplate={() => canSaveAnyTemplate && setSaveMode('template')}
+        onPostSchedule={() => canPublishSchedules && setSaveMode('post')}
         onValidate={() => setShowValidate(true)}
         onChecklist={() => setShowChecklist(true)}
         onPrint={() => setShowPrint(true)}
+        canViewSetup={canViewSetupPanel}
+        canSaveDraft={canCreateDraft}
+        canSaveTemplate={canSaveAnyTemplate}
+        canPostSchedule={canPublishSchedules}
+        canEditSchedule={canEditCurrentSchedule}
       />
       {saveError && (
         <div style={{
@@ -426,6 +471,7 @@ export default function App() {
               hasClipboard={!!clipboard}
               onCreateHere={(roleId, slotMin) => { setCreateHereCtx({ roleId, slotMin }); setShowCreate(true); }}
               onAddColumn={() => setShowAddColumn(true)}
+              isReadOnly={!canEditCurrentSchedule}
             />
           </div>
 
@@ -512,13 +558,14 @@ export default function App() {
                 ? draftNames
                 : postingNames
           }
+          allowedTemplateTypes={allowedTemplateTypes}
           onSave={handleSaveConfirm}
           onClose={() => setSaveMode(null)}
         />
       )}
       {showValidate && <ValidationModal onClose={() => setShowValidate(false)} />}
       {showChecklist && <ChecklistModal onClose={() => setShowChecklist(false)} />}
-      {showSetup && <SetupOverlay onClose={() => setShowSetup(false)} />}
+      {showSetup && canViewSetupPanel && <SetupOverlay onClose={() => setShowSetup(false)} />}
       {showPrint && (
         <PrintModal
           onPrint={handlePrint}

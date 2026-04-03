@@ -2,13 +2,14 @@ import { useDroppable } from '@dnd-kit/core';
 
 const SLOT_H = 22; // must match GridBody.jsx and TaskBlock.jsx
 
-export default function GridCell({ roleId, slotIdx, slotMin, isInShift, isMidnight, onContextMenu, children }) {
+export default function GridCell({ roleId, slotIdx, slotMin, isInShift, isMidnight, onContextMenu, children, isReadOnly = false }) {
   const id = `cell:${roleId}:${slotMin}`;
 
-  const { isOver, setNodeRef } = useDroppable({ id, data: { type: 'cell', roleId, slotMin } });
+  const { isOver, setNodeRef } = useDroppable({ id, data: { type: 'cell', roleId, slotMin }, disabled: isReadOnly });
 
   function handleContextMenu(e) {
     e.preventDefault();
+    if (isReadOnly) return;
     onContextMenu?.(e, roleId, slotMin);
   }
 

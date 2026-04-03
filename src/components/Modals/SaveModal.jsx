@@ -18,13 +18,19 @@ export default function SaveModal({
   existingScope = null,
   initialTemplateType = null,
   existingNames = [],
+  allowedTemplateTypes = ['master', 'my'],
   onSave,
   onClose,
 }) {
   const [name, setName] = useState('');
   const normalizedExistingScope = existingScope === 'user' ? 'my' : existingScope;
+  const resolvedInitialTemplateType = allowedTemplateTypes.includes(initialTemplateType)
+    ? initialTemplateType
+    : allowedTemplateTypes.includes(normalizedExistingScope)
+      ? normalizedExistingScope
+      : allowedTemplateTypes[0] || 'master';
   const [tplType, setTplType] = useState(
-    mode === 'template' ? (initialTemplateType || normalizedExistingScope || 'master') : 'master'
+    mode === 'template' ? resolvedInitialTemplateType : 'master'
   ); // 'master' | 'my' — only used for template mode
   const [nameError, setNameError] = useState('');
 
@@ -72,12 +78,12 @@ export default function SaveModal({
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 
         {/* Template type toggle — Master vs My */}
-        {mode === 'template' && (
+        {mode === 'template' && allowedTemplateTypes.length > 1 && (
           <div style={{ display: 'flex', gap: 0, borderRadius: 7, overflow: 'hidden', border: '1.5px solid var(--purple-light)' }}>
             {[
               { value: 'master', label: '🏢 Master Template', desc: 'Shared business template' },
               { value: 'my',     label: '👤 My Template',     desc: 'Personal saved template' },
-            ].map(opt => (
+            ].filter(opt => allowedTemplateTypes.includes(opt.value)).map(opt => (
               <button
                 key={opt.value}
                 onClick={() => {

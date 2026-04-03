@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useScheduler } from '../../context/SchedulerContext';
 import { apiSchedules } from '../../api';
+import { useAuth } from '../../context/AuthContext';
+import { ACTIONS, RESOURCES } from '../../permissions';
 
 const PANEL_TITLE = { fontFamily: "'Cormorant Garamond', serif", fontSize: 13, fontWeight: 600,
   letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--purple)', marginBottom: 8 };
@@ -8,10 +10,11 @@ const PANEL_SECTION = { borderBottom: '1px solid var(--gray-light)', padding: '1
 
 // ─── Load Schedule Panel ─────────────────────────────────────────────────────
 function LoadSchedule() {
+  const { can } = useAuth();
   const {
     loadTemplate, getUserTemplates, getMasterTemplates, getUserPostings, getUserDrafts,
     applyState, setScheduleLabel,
-    saveUserTemplates, saveMasterTemplates, saveUserPostings, saveUserDrafts,
+    saveUserDrafts,
     apiDeleteTemplate, apiDeleteSchedule,
     assumptions, setAssumptions,
     currentLoadedEntity, setCurrentLoadedEntity,
@@ -32,6 +35,21 @@ function LoadSchedule() {
   const draftKeys    = Object.keys(userDrafts);
   const postingKeys  = Object.keys(userPostings);
 
+  const canViewMasterTemplates = can(RESOURCES.MASTER_TEMPLATES, ACTIONS.VIEW);
+  const canDeleteMasterTemplates = can(RESOURCES.MASTER_TEMPLATES, ACTIONS.DELETE);
+  const canViewUserTemplates = can(RESOURCES.USER_TEMPLATES, ACTIONS.VIEW);
+  const canDeleteUserTemplates = can(RESOURCES.USER_TEMPLATES, ACTIONS.DELETE);
+  const canEditSchedules = can(RESOURCES.DAILY_SCHEDULES, ACTIONS.EDIT);
+  const canViewDrafts = can(RESOURCES.DAILY_SCHEDULES, ACTIONS.VIEW);
+  const canDeleteDrafts = can(RESOURCES.DAILY_SCHEDULES, ACTIONS.DELETE);
+  const canViewPosted = can(RESOURCES.PUBLISHED_SCHEDULES, ACTIONS.VIEW);
+
+  const availableTabs = [
+    (canViewMasterTemplates || canViewUserTemplates) ? 'template' : null,
+    canViewDrafts ? 'draft' : null,
+    canViewPosted ? 'posting' : null,
+  ].filter(Boolean);
+
   // Auto-select first item when lists populate (e.g. after API hydration)
   useEffect(() => {
     if (!draftValue && draftKeys.length > 0) setDraftValue(draftKeys[0]);
@@ -39,6 +57,10 @@ function LoadSchedule() {
   useEffect(() => {
     if (!postingValue && postingKeys.length > 0) setPostingValue(postingKeys[0]);
   }, [postingKeys.length]); // eslint-disable-line
+  useEffect(() => {
+    if (!availableTabs.length) return;
+    if (!availableTabs.includes(loadTab)) setLoadTab(availableTabs[0]);
+  }, [availableTabs, loadTab]);
   useEffect(() => {
     if (currentLoadedEntity?.kind === 'template' && currentLoadedEntity?.name) {
       const nextValue = currentLoadedEntity.scope === 'master'
@@ -52,10 +74,6 @@ function LoadSchedule() {
       if (tplValue !== 'blank') setTplValue('blank');
     }
   }, [currentLoadedEntity]);
-
-  const BUILTIN_LABELS = {
-    blank: 'Blank Schedule',
-  };
 
   function handleLoadTemplate() {
     if (!tplValue) return;
@@ -121,24 +139,37 @@ function LoadSchedule() {
   return (
     <div style={PANEL_SECTION}>
       <div style={PANEL_TITLE}>Load Schedule</div>
-      <div style={{ display: 'flex', gap: 2, marginBottom: 8, background: 'var(--cream)', borderRadius: 6, padding: 2 }}>
-        <button style={tabStyle(loadTab === 'template')} onClick={() => setLoadTab('template')}>Templates</button>
-        <button style={tabStyle(loadTab === 'draft')}    onClick={() => setLoadTab('draft')}>📝 Drafts</button>
-        <button style={tabStyle(loadTab === 'posting')}  onClick={() => setLoadTab('posting')}>✅ Posted</button>
-      </div>
+      {availableTabs.length > 0 && (
+        <div style={{ display: 'flex', gap: 2, marginBottom: 8, background: 'var(--cream)', borderRadius: 6, padding: 2 }}>
+          {availableTabs.includes('template') && (
+            <button style={tabStyle(loadTab === 'template')} onClick={() => setLoadTab('template')}>Templates</button>
+          )}
+          {availableTabs.includes('draft') && (
+            <button style={tabStyle(loadTab === 'draft')} onClick={() => setLoadTab('draft')}>📝 Drafts</button>
+          )}
+          {availableTabs.includes('posting') && (
+            <button style={tabStyle(loadTab === 'posting')} onClick={() => setLoadTab('posting')}>✅ Posted</button>
+          )}
+        </div>
+      )}
+      {availableTabs.length === 0 && (
+        <div style={{ fontSize: 11, color: 'var(--gray)', marginBottom: 8 }}>
+          You have view-only access to summary data, but no saved schedules or templates are available for your role.
+        </div>
+      )}
 
       {loadTab === 'template' && (
         <>
           <SelectWrap value={tplValue} onChange={setTplValue}>
             <option value="blank">— New Blank Schedule —</option>
-            {masterKeys.length > 0 && (
+            {canViewMasterTemplates && masterKeys.length > 0 && (
               <optgroup label="— Master Templates —">
                 {masterKeys.map(name => (
                   <option key={name} value={`master_${name}`}>{name}</option>
                 ))}
               </optgroup>
             )}
-            {templateKeys.length > 0 && (
+            {canViewUserTemplates && templateKeys.length > 0 && (
               <optgroup label="— My Templates —">
                 {templateKeys.map(name => (
                   <option key={name} value={`user_${name}`}>{name}</option>
@@ -149,7 +180,7 @@ function LoadSchedule() {
           <LoadBtn onClick={handleLoadTemplate}>
             {tplValue === 'blank' ? 'New Blank Schedule' : 'Load Template'}
           </LoadBtn>
-          {(tplValue.startsWith('master_') || tplValue.startsWith('user_')) && (
+          {((tplValue.startsWith('master_') && canDeleteMasterTemplates) || (tplValue.startsWith('user_') && canDeleteUserTemplates)) && (
             <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
               <SmBtn onClick={handleDeleteTemplate} danger>🗑 Delete</SmBtn>
             </div>
@@ -168,7 +199,7 @@ function LoadSchedule() {
             }
           </SelectWrap>
           <LoadBtn onClick={() => handleLoad(userDrafts, draftValue)}>Load Draft</LoadBtn>
-          {draftValue && (
+          {draftValue && canDeleteDrafts && (
             <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
               <SmBtn danger onClick={async () => {
                 if (!window.confirm(`Delete draft "${draftValue}"?`)) return;
@@ -218,6 +249,7 @@ function LoadSchedule() {
           <Inp
             type="date"
             value={assumptions.date || ''}
+            disabled={!canEditSchedules}
             onChange={e => setAssumptions(prev => ({ ...prev, date: e.target.value }))}
           />
         </InputRow>
@@ -228,11 +260,14 @@ function LoadSchedule() {
 
 // ─── Assumptions Panel ───────────────────────────────────────────────────────
 function Assumptions() {
+  const { can } = useAuth();
   const { assumptions, setAssumptions, getProgramPct, getEffectiveRoles } = useScheduler();
   const pct = getProgramPct();
   const [open, setOpen] = useState(true);
+  const canEditSchedule = can(RESOURCES.DAILY_SCHEDULES, ACTIONS.EDIT);
 
   function update(field, value) {
+    if (!canEditSchedule) return;
     setAssumptions(a => ({ ...a, [field]: value }));
   }
 
@@ -274,11 +309,13 @@ function Assumptions() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 2 }}>
           <InputRow label="Total Dogs">
             <Inp type="number" value={assumptions.dogs} min={1} max={200}
+              disabled={!canEditSchedule}
               onChange={e => update('dogs', parseInt(e.target.value) || 65)} />
           </InputRow>
           <InputRow label="Dog Rooms ↺">
             <Inp type="number"
               value={assumptions.roomsUserEdited ? (assumptions.roomsActual ?? '') : estRooms}
+              disabled={!canEditSchedule}
               style={assumptions.roomsUserEdited ? { borderColor: 'var(--gold-dark)', background: 'var(--gold-light)' } : {}}
               onChange={e => {
                 const v = parseInt(e.target.value);
@@ -290,15 +327,18 @@ function Assumptions() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
           <InputRow label="# SocPGs">
             <Inp type="number" value={assumptions.socpg} min={1} max={6}
+              disabled={!canEditSchedule}
               onChange={e => update('socpg', parseInt(e.target.value) || 2)} />
           </InputRow>
           <InputRow label="# SelPGs">
             <Inp type="number" value={assumptions.selpg} min={0} max={4}
+              disabled={!canEditSchedule}
               onChange={e => update('selpg', parseInt(e.target.value) || 0)} />
           </InputRow>
           <InputRow label="# SCs ↺">
             <Inp type="number"
               value={assumptions.scUserEdited ? (assumptions.scActual ?? '') : estSC}
+              disabled={!canEditSchedule}
               style={assumptions.scUserEdited ? { borderColor: 'var(--gold-dark)', background: 'var(--gold-light)' } : {}}
               onChange={e => {
                 const v = parseInt(e.target.value);
@@ -313,6 +353,7 @@ function Assumptions() {
           <InputRow label="Cats ↺">
             <Inp type="number"
               value={assumptions.catsUserEdited ? (assumptions.catsActual ?? '') : estCats}
+              disabled={!canEditSchedule}
               style={assumptions.catsUserEdited ? { borderColor: 'var(--gold-dark)', background: 'var(--gold-light)' } : {}}
               onChange={e => {
                 const v = parseInt(e.target.value);
@@ -323,6 +364,7 @@ function Assumptions() {
           <InputRow label="Cat Rooms ↺">
             <Inp type="number"
               value={assumptions.catRoomsUserEdited ? (assumptions.catRoomsActual ?? '') : estBung}
+              disabled={!canEditSchedule}
               style={assumptions.catRoomsUserEdited ? { borderColor: 'var(--gold-dark)', background: 'var(--gold-light)' } : {}}
               onChange={e => {
                 const v = parseInt(e.target.value);

@@ -7,7 +7,6 @@ export default function LoginPage() {
   const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
   const [name,     setName]     = useState('');
-  const [role,     setRole]     = useState('gm');
   const [loading,  setLoading]  = useState(false);
   const [localErr, setLocalErr] = useState('');
 
@@ -20,7 +19,7 @@ export default function LoginPage() {
         await login(email, password);
       } else {
         if (!name.trim()) { setLocalErr('Name is required'); setLoading(false); return; }
-        await register(email, password, name, role);
+        await register(email, password, name);
       }
     } catch (err) {
       setLocalErr(err.message);
@@ -97,19 +96,6 @@ export default function LoginPage() {
             <input style={inp} type="password" value={password} onChange={e => setPassword(e.target.value)}
               placeholder="••••••••" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
           </div>
-
-          {mode === 'register' && (
-            <div>
-              <label style={lbl}>Role</label>
-              <select value={role} onChange={e => setRole(e.target.value)}
-                style={{ ...inp, marginTop: 4, appearance: 'none' }}>
-                <option value="owner">Owner</option>
-                <option value="gm">General Manager</option>
-                <option value="tl">Team Lead</option>
-                <option value="viewer">Viewer</option>
-              </select>
-            </div>
-          )}
 
           {(localErr || authError) && (
             <div style={{ fontSize: 12, color: '#e53935', background: '#FFEBEE',

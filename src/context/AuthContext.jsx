@@ -1,19 +1,18 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { apiLogin, apiRegister, apiLogout, apiGetMe, isLoggedIn, getToken } from '../api';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import { apiLogin, apiRegister, apiLogout, apiGetMe, isLoggedIn } from '../api';
+import { permissionKey } from '../permissions';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user,         setUser]         = useState(null);
-  const [authChecked,  setAuthChecked]  = useState(false); // true once initial check done
+  const [authChecked,  setAuthChecked]  = useState(() => !isLoggedIn()); // true once initial check done
   const [authError,    setAuthError]    = useState(null);
+  const permissions = useMemo(() => user?.permissions || [], [user]);
 
   // On mount — validate any stored token
   useEffect(() => {
-    if (!isLoggedIn()) {
-      setAuthChecked(true);
-      return;
-    }
+    if (!isLoggedIn()) return;
     apiGetMe()
       .then(me => { setUser(me); setAuthChecked(true); })
       .catch(() => { setUser(null); setAuthChecked(true); });
@@ -38,10 +37,10 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  const register = useCallback(async (email, password, name, role) => {
+  const register = useCallback(async (email, password, name) => {
     setAuthError(null);
     try {
-      const me = await apiRegister(email, password, name, role);
+      const me = await apiRegister(email, password, name);
       setUser(me);
       return me;
     } catch (err) {
@@ -55,8 +54,13 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
+  const can = useCallback((resource, action) => {
+    if (user?.isAdmin) return true;
+    return permissions.includes(permissionKey(resource, action));
+  }, [permissions, user?.isAdmin]);
+
   return (
-    <AuthContext.Provider value={{ user, authChecked, authError, login, register, logout }}>
+    <AuthContext.Provider value={{ user, permissions, authChecked, authError, login, register, logout, can }}>
       {children}
     </AuthContext.Provider>
   );
