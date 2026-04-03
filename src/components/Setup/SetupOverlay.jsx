@@ -6,7 +6,7 @@ import { getExpectedInstances, UNIT_BASIS_OPTIONS } from '../../utils/calculatio
 import CreateTaskModal from '../Modals/CreateTaskModal';
 import Modal, { ModalFooter, Btn } from '../Modals/Modal';
 
-const TABS = ['Program Mix', 'Task Defaults', 'Role Config', 'Skills', 'Categories'];
+const TABS = ['Program Mix', 'Task Defaults', 'Role Config', 'Skills', 'Staff', 'Categories'];
 
 export default function SetupOverlay({ onClose }) {
   const [tab, setTab] = useState(0);
@@ -19,6 +19,7 @@ export default function SetupOverlay({ onClose }) {
     sessionTaskDefs, setSessionTaskDefs,
     userProgramDefs, setUserProgramDefs,
     skillsData, setSkillsData,
+    staffData, setStaffData,
     userRoleDefs,
     columnOrder,
     NOBLE_PROGRAM_DEFAULTS,
@@ -49,6 +50,7 @@ export default function SetupOverlay({ onClose }) {
       noble_role_defaults:    userRoleDefs,
       noble_program_defaults: userProgramDefs,
       noble_skills:           skillsData,
+      noble_staff:            staffData,
       noble_cat_defs:         userCatDefs,
       noble_cat_order:        catOrder,
       noble_task_order:       taskOrder,
@@ -73,7 +75,7 @@ export default function SetupOverlay({ onClose }) {
         if (!data.version) throw new Error('Not a valid Noble Setup backup file.');
         const keys = [
           'noble_task_defaults', 'noble_role_defaults', 'noble_program_defaults',
-          'noble_skills',
+          'noble_skills', 'noble_staff',
           'noble_cat_defs', 'noble_cat_order', 'noble_task_order',
         ];
         keys.forEach(k => {
@@ -136,7 +138,7 @@ export default function SetupOverlay({ onClose }) {
     // Persist to API with the updated task — don't wait for state to settle
     const newDefs = { ...userTaskDefs, [taskId]: newTaskDef };
     try {
-                  await persistDefaultsToApi(newDefs, userRoleDefs, userProgramDefs, skillsData, userCatDefs, catOrder, taskOrder);
+                  await persistDefaultsToApi(newDefs, userRoleDefs, userProgramDefs, skillsData, staffData, userCatDefs, catOrder, taskOrder);
                 } catch (err) {
                   alert(`Failed to sync task to server:\n${err.message}`);
                 }
@@ -244,6 +246,12 @@ export default function SetupOverlay({ onClose }) {
             />
           )}
           {tab === 4 && (
+            <StaffTab
+              staffData={staffData}
+              setStaffData={setStaffData}
+            />
+          )}
+          {tab === 5 && (
             <CategoriesTab
               getFullCatList={getFullCatList}
               userCatDefs={userCatDefs}
@@ -252,7 +260,7 @@ export default function SetupOverlay({ onClose }) {
               setCatOrder={setCatOrder}
               onSave={async (newDefs, newOrder) => {
                 try {
-                  await persistDefaultsToApi(userTaskDefs, userRoleDefs, userProgramDefs, skillsData, newDefs, newOrder, taskOrder);
+                  await persistDefaultsToApi(userTaskDefs, userRoleDefs, userProgramDefs, skillsData, staffData, newDefs, newOrder, taskOrder);
                 } catch (err) {
                   alert(`Failed to sync categories to server:\n${err.message}`);
                 }
@@ -318,7 +326,7 @@ export default function SetupOverlay({ onClose }) {
               onClick={async () => {
                 saveDefaults();
                 try {
-                  await persistDefaultsToApi(userTaskDefs, userRoleDefs, userProgramDefs, skillsData, userCatDefs, catOrder, taskOrder, columnOrder);
+                  await persistDefaultsToApi(userTaskDefs, userRoleDefs, userProgramDefs, skillsData, staffData, userCatDefs, catOrder, taskOrder, columnOrder);
                 } catch (err) {
                   alert(`Setup saved locally but failed to sync to server:\n${err.message}`);
                 }
@@ -610,6 +618,222 @@ function SkillsTab({ skillsData, setSkillsData }) {
           }}
         >
           {showInactive ? 'Hide Inactive Skills' : 'Show Inactive Skills'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function StaffTab({ staffData, setStaffData }) {
+  const [showInactive, setShowInactive] = useState(false);
+  const isDraggingRef = useRef(false);
+  const dragIdRef = useRef(null);
+
+  const visibleStaff = staffData.filter((person) => showInactive || person.isActive !== false);
+
+  function addStaff() {
+    setStaffData((prev) => [
+      ...prev,
+      {
+        id: `tmp-${Date.now()}`,
+        employeeCode: '',
+        firstName: '',
+        lastName: '',
+        email: '',
+        phone: '',
+        notes: '',
+        isActive: true,
+        sortOrder: prev.length,
+      },
+    ]);
+  }
+
+  function updateStaff(id, field, value) {
+    setStaffData((prev) => prev.map((person) => (
+      person.id === id
+        ? {
+            ...person,
+            [field]: field === 'employeeCode' ? value.toUpperCase() : value,
+          }
+        : person
+    )));
+  }
+
+  function toggleStaff(id) {
+    setStaffData((prev) => prev.map((person) => (
+      person.id === id
+        ? { ...person, isActive: person.isActive === false, sortOrder: person.sortOrder ?? prev.indexOf(person) }
+        : person
+    )));
+  }
+
+  function handleGripPointerDown(e, staffId) {
+    e.stopPropagation();
+    e.preventDefault();
+    isDraggingRef.current = true;
+    dragIdRef.current = staffId;
+    function onUp() {
+      isDraggingRef.current = false;
+      dragIdRef.current = null;
+      document.removeEventListener('pointerup', onUp);
+    }
+    document.addEventListener('pointerup', onUp);
+  }
+
+  function handleRowPointerEnter(staffId) {
+    if (!isDraggingRef.current || !dragIdRef.current || dragIdRef.current === staffId) return;
+    const draggingId = dragIdRef.current;
+    setStaffData((prev) => {
+      const from = prev.findIndex((person) => person.id === draggingId);
+      const to = prev.findIndex((person) => person.id === staffId);
+      if (from === -1 || to === -1) return prev;
+      const next = [...prev];
+      next.splice(to, 0, next.splice(from, 1)[0]);
+      return next.map((person, index) => ({ ...person, sortOrder: index }));
+    });
+  }
+
+  return (
+    <div>
+      <p style={{ fontSize: 12, color: 'var(--gray)', marginTop: 0 }}>
+        Maintain the staff directory here before later phases connect staff to skills and shift assignments.
+        Drag ⠿ to reorder active staff.
+      </p>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 980 }}>
+          <thead>
+            <tr style={{ background: 'var(--gray-light)' }}>
+              <Th style={{ width: 24 }}></Th>
+              <Th>Employee Code</Th>
+              <Th>First Name</Th>
+              <Th>Last Name</Th>
+              <Th>Email</Th>
+              <Th>Phone</Th>
+              <Th>Notes</Th>
+              <Th>Status</Th>
+              <Th></Th>
+            </tr>
+          </thead>
+          <tbody>
+            {visibleStaff.map((person) => (
+              <tr
+                key={person.id}
+                style={{ borderBottom: '1px solid var(--gray-light)', opacity: person.isActive === false ? 0.6 : 1 }}
+                onPointerEnter={() => handleRowPointerEnter(person.id)}
+              >
+                <Td>
+                  <div
+                    onPointerDown={(e) => handleGripPointerDown(e, person.id)}
+                    style={{ cursor: 'grab', color: 'var(--gray)', fontSize: 14, userSelect: 'none', padding: '0 4px', lineHeight: 1 }}
+                    title="Drag to reorder"
+                  >⠿</div>
+                </Td>
+                <Td>
+                  <input
+                    value={person.employeeCode || ''}
+                    onChange={(e) => updateStaff(person.id, 'employeeCode', e.target.value.trimStart())}
+                    placeholder="E001"
+                    maxLength={20}
+                    style={{ ...inputStyle, width: 110 }}
+                  />
+                </Td>
+                <Td>
+                  <input
+                    value={person.firstName || ''}
+                    onChange={(e) => updateStaff(person.id, 'firstName', e.target.value)}
+                    placeholder="Jane"
+                    style={{ ...inputStyle, width: 120 }}
+                  />
+                </Td>
+                <Td>
+                  <input
+                    value={person.lastName || ''}
+                    onChange={(e) => updateStaff(person.id, 'lastName', e.target.value)}
+                    placeholder="Smith"
+                    style={{ ...inputStyle, width: 120 }}
+                  />
+                </Td>
+                <Td>
+                  <input
+                    type="email"
+                    value={person.email || ''}
+                    onChange={(e) => updateStaff(person.id, 'email', e.target.value)}
+                    placeholder="jane@noble.com"
+                    style={{ ...inputStyle, width: 180 }}
+                  />
+                </Td>
+                <Td>
+                  <input
+                    value={person.phone || ''}
+                    onChange={(e) => updateStaff(person.id, 'phone', e.target.value)}
+                    placeholder="555-123-4567"
+                    style={{ ...inputStyle, width: 130 }}
+                  />
+                </Td>
+                <Td>
+                  <input
+                    value={person.notes || ''}
+                    onChange={(e) => updateStaff(person.id, 'notes', e.target.value)}
+                    placeholder="Optional notes"
+                    style={{ ...inputStyle, width: 180 }}
+                  />
+                </Td>
+                <Td>
+                  <span style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    letterSpacing: '0.04em',
+                    color: person.isActive === false ? 'var(--red)' : '#4CAF50',
+                  }}>
+                    {person.isActive === false ? 'INACTIVE' : 'ACTIVE'}
+                  </span>
+                </Td>
+                <Td>
+                  <button
+                    onClick={() => toggleStaff(person.id)}
+                    style={{ ...actionBtnStyle, fontSize: 11, padding: '3px 8px', color: person.isActive === false ? 'var(--purple)' : 'var(--red)' }}
+                  >
+                    {person.isActive === false ? 'Reactivate' : 'Deactivate'}
+                  </button>
+                </Td>
+              </tr>
+            ))}
+            {visibleStaff.length === 0 && (
+              <tr>
+                <Td colSpan={9} style={{ color: 'var(--gray)', fontStyle: 'italic' }}>
+                  {showInactive
+                    ? 'No staff yet. Add your first team member to get started.'
+                    : 'No active staff. Toggle inactive staff or add a new team member.'}
+                </Td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ marginTop: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+        <button
+          onClick={addStaff}
+          style={{
+            padding: '8px 16px', borderRadius: 7, border: '1.5px dashed var(--purple-light)',
+            background: 'transparent', color: 'var(--purple)', fontSize: 12,
+            fontWeight: 600, fontFamily: "'DM Sans', sans-serif", cursor: 'pointer',
+          }}
+        >+ Add Staff</button>
+        <button
+          onClick={() => setShowInactive((prev) => !prev)}
+          style={{
+            padding: '8px 14px',
+            borderRadius: 7,
+            border: '1px solid var(--gray-light)',
+            background: 'var(--cream)',
+            color: 'var(--dark)',
+            fontSize: 12,
+            fontWeight: 600,
+            fontFamily: "'DM Sans', sans-serif",
+            cursor: 'pointer',
+          }}
+        >
+          {showInactive ? 'Hide Inactive Staff' : 'Show Inactive Staff'}
         </button>
       </div>
     </div>
