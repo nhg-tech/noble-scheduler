@@ -70,6 +70,32 @@ function readRangeSummary(records, startDate, endDate) {
   return `${records.length} saved day${records.length === 1 ? '' : 's'} in range ${startDate} to ${endDate}${unavailableCount ? ` • ${unavailableCount} unavailable` : ''}${preferred ? ' • time preference present' : ''}`;
 }
 
+function formatDisplayDate(value) {
+  if (!value) return '';
+  const normalized = String(value).slice(0, 10);
+  const date = new Date(`${normalized}T12:00:00`);
+  return Number.isNaN(date.getTime())
+    ? normalized
+    : date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function formatDisplayTime(value) {
+  if (!value) return '';
+  const [hours, minutes] = String(value).split(':').map(Number);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return value;
+  const date = new Date();
+  date.setHours(hours, minutes, 0, 0);
+  return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+}
+
+function describeException(exception) {
+  if (exception.mode === 'unavailable') return 'Unavailable all day';
+  if (exception.mode === 'unavailable_window') {
+    return `Unavailable from ${formatDisplayTime(exception.availableStart)} - ${formatDisplayTime(exception.availableEnd)}`;
+  }
+  return `Available from ${formatDisplayTime(exception.availableStart)} - ${formatDisplayTime(exception.availableEnd)}`;
+}
+
 export default function StaffingModal({ scheduleDate, staffData, onClose }) {
   const today = scheduleDate || new Date().toISOString().slice(0, 10);
   const activeStaff = useMemo(
@@ -100,7 +126,6 @@ export default function StaffingModal({ scheduleDate, staffData, onClose }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingExceptions, setIsLoadingExceptions] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [isSavingExceptions, setIsSavingExceptions] = useState(false);
   const [error, setError] = useState('');
   const [exceptionDraft, setExceptionDraft] = useState(() => ({
     startDate: today,
@@ -179,50 +204,43 @@ export default function StaffingModal({ scheduleDate, staffData, onClose }) {
     setIsSaving(true);
     setError('');
     try {
-      await apiStaffing.saveAvailability({
-        staffId: selectedStaffId,
-        startDate,
-        endDate,
-        mode,
-        defaultAvailability,
-        weekdayPattern,
-        preferredStart: preferenceMode === 'none' ? null : preferredStart,
-        preferredEnd: preferenceMode === 'none' ? null : preferredEnd,
-        notes,
-      });
-      const records = await apiStaffing.getAvailability({ staffId: selectedStaffId, startDate, endDate });
-      setSavedRecords(records);
-    } catch (err) {
-      setError(err.message || 'Failed to save staffing availability.');
-    } finally {
-      setIsSaving(false);
-    }
-  }
+      await Promise.all([
+        apiStaffing.saveAvailability({
+          staffId: selectedStaffId,
+          startDate,
+          endDate,
+          mode,
+          defaultAvailability,
+          weekdayPattern,
+          preferredStart: preferenceMode === 'none' ? null : preferredStart,
+          preferredEnd: preferenceMode === 'none' ? null : preferredEnd,
+          notes,
+        }),
+        apiStaffing.saveExceptions({
+          staffId: selectedStaffId,
+          exceptions: exceptions.map((exception) => ({
+            startDate: String(exception.startDate).slice(0, 10),
+            endDate: String(exception.endDate).slice(0, 10),
+            mode: exception.mode,
+            availableStart: ['available_window', 'unavailable_window'].includes(exception.mode) ? (exception.availableStart || null) : null,
+            availableEnd: ['available_window', 'unavailable_window'].includes(exception.mode) ? (exception.availableEnd || null) : null,
+            preferredStart: exception.preferredStart || null,
+            preferredEnd: exception.preferredEnd || null,
+            notes: exception.notes || '',
+          })),
+        }),
+      ]);
 
-  async function handleSaveExceptions() {
-    if (!selectedStaffId) return;
-    setIsSavingExceptions(true);
-    setError('');
-    try {
-      await apiStaffing.saveExceptions({
-        staffId: selectedStaffId,
-        exceptions: exceptions.map((exception) => ({
-          startDate: exception.startDate,
-          endDate: exception.endDate,
-          mode: exception.mode,
-          availableStart: exception.mode === 'available_window' ? exception.availableStart : null,
-          availableEnd: exception.mode === 'available_window' ? exception.availableEnd : null,
-          preferredStart: exception.preferredStart || null,
-          preferredEnd: exception.preferredEnd || null,
-          notes: exception.notes || '',
-        })),
-      });
-      const rows = await apiStaffing.getExceptions({ staffId: selectedStaffId });
+      const [records, rows] = await Promise.all([
+        apiStaffing.getAvailability({ staffId: selectedStaffId, startDate, endDate }),
+        apiStaffing.getExceptions({ staffId: selectedStaffId }),
+      ]);
+      setSavedRecords(records);
       setExceptions(rows);
     } catch (err) {
-      setError(err.message || 'Failed to save staffing exceptions.');
+      setError(err.message || 'Failed to save staffing details.');
     } finally {
-      setIsSavingExceptions(false);
+      setIsSaving(false);
     }
   }
 
@@ -471,12 +489,9 @@ export default function StaffingModal({ scheduleDate, staffData, onClose }) {
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--purple)' }}>Availability Exceptions</div>
                         <div style={{ fontSize: 11, color: 'var(--gray)', marginTop: 2 }}>
-                          Exceptions override the base staffing plan for vacations, one-off changes, or specific-time availability.
+                          Add exceptions here, then use Save Staffing once to persist both the base plan and the exception list.
                         </div>
                       </div>
-                      <Btn onClick={handleSaveExceptions} variant="secondary" disabled={isSavingExceptions}>
-                        {isSavingExceptions ? 'Saving Exceptions...' : 'Save Exceptions'}
-                      </Btn>
                     </div>
 
                     <div style={{
@@ -611,17 +626,13 @@ export default function StaffingModal({ scheduleDate, staffData, onClose }) {
                             <div style={{ minWidth: 0 }}>
                               <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--dark)' }}>
                                 {exception.startDate === exception.endDate
-                                  ? exception.startDate
-                                  : `${exception.startDate} to ${exception.endDate}`}
+                                  ? formatDisplayDate(exception.startDate)
+                                  : `${formatDisplayDate(exception.startDate)} to ${formatDisplayDate(exception.endDate)}`}
                               </div>
                               <div style={{ fontSize: 11, color: 'var(--gray)', marginTop: 3 }}>
-                                {exception.mode === 'unavailable'
-                                  ? 'Unavailable'
-                                  : exception.mode === 'unavailable_window'
-                                    ? `Unavailable ${exception.availableStart || '--'} - ${exception.availableEnd || '--'}`
-                                    : `Available ${exception.availableStart || '--'} - ${exception.availableEnd || '--'}`}
+                                {describeException(exception)}
                                 {exception.preferredStart && exception.preferredEnd
-                                  ? ` • Prefers ${exception.preferredStart} - ${exception.preferredEnd}`
+                                  ? ` • Prefers ${formatDisplayTime(exception.preferredStart)} - ${formatDisplayTime(exception.preferredEnd)}`
                                   : ''}
                               </div>
                               {exception.notes && (
@@ -670,7 +681,7 @@ export default function StaffingModal({ scheduleDate, staffData, onClose }) {
       <ModalFooter>
         <Btn onClick={onClose} variant="secondary">Cancel</Btn>
         <Btn onClick={handleSave} variant="primary" disabled={isSaving || !selectedStaffId}>
-          {isSaving ? 'Saving...' : 'Save Staffing'}
+          {isSaving ? 'Saving Staffing...' : 'Save Staffing'}
         </Btn>
       </ModalFooter>
     </Modal>
