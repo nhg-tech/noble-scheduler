@@ -659,7 +659,7 @@ function StaffTab({ staffData, setStaffData, skillsData, onCreateStaff, onEditSt
   const [showInactive, setShowInactive] = useState(false);
   const isDraggingRef = useRef(false);
   const dragIdRef = useRef(null);
-  const skillLabelById = Object.fromEntries(skillsData.map((skill) => [skill.id, skill.label || skill.code]));
+  const skillById = Object.fromEntries(skillsData.map((skill) => [skill.id, skill]));
 
   const visibleStaff = staffData.filter((person) => showInactive || person.isActive !== false);
 
@@ -751,22 +751,24 @@ function StaffTab({ staffData, setStaffData, skillsData, onCreateStaff, onEditSt
                 <Td>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, maxWidth: 180 }}>
                     {(person.skillIds || [])
-                      .map((skillId) => skillLabelById[skillId])
+                      .map((skillId) => skillById[skillId])
                       .filter(Boolean)
                       .slice(0, 3)
-                      .map((label) => (
+                      .map((skill) => (
                         <span
-                          key={`${person.id}-${label}`}
+                          key={`${person.id}-${skill.id}`}
                           style={{
                             padding: '2px 6px',
                             borderRadius: 999,
-                            background: 'var(--purple-pale)',
-                            color: 'var(--purple)',
+                            background: skill.isActive === false ? 'var(--gray-light)' : 'var(--purple-pale)',
+                            color: skill.isActive === false ? 'var(--gray)' : 'var(--purple)',
                             fontSize: 10,
                             fontWeight: 600,
+                            border: skill.isActive === false ? '1px solid #d6dbe3' : 'none',
                           }}
                         >
-                          {label}
+                          {skill.label || skill.code}
+                          {skill.isActive === false ? ' (Inactive)' : ''}
                         </span>
                       ))}
                     {(person.skillIds || []).length > 3 && (
@@ -867,6 +869,9 @@ function StaffModal({ initialData, skillsData, onSave, onClose }) {
     isActive: initialData?.isActive !== false,
     skillIds: initialData?.skillIds || [],
   });
+  const inactiveAssignedSkills = skillsData.filter(
+    (skill) => skill.isActive === false && local.skillIds.includes(skill.id)
+  );
 
   function toggleSkill(skillId) {
     setLocal((prev) => ({
@@ -963,10 +968,41 @@ function StaffModal({ initialData, skillsData, onSave, onClose }) {
                 </span>
               </label>
             ))}
-            {activeSkills.length === 0 && (
+            {activeSkills.length === 0 && inactiveAssignedSkills.length === 0 && (
               <span style={{ fontSize: 12, color: 'var(--gray)' }}>No active skills yet.</span>
             )}
           </div>
+          {inactiveAssignedSkills.length > 0 && (
+            <div style={{
+              marginTop: 10,
+              padding: '10px 12px',
+              border: '1px solid #d6dbe3',
+              borderRadius: 8,
+              background: '#f7f8fa',
+            }}>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--gray)', marginBottom: 8 }}>
+                Inactive Assigned Skills
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+                {inactiveAssignedSkills.map((skill) => (
+                  <label key={skill.id} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', opacity: 0.75 }}>
+                    <input
+                      type="checkbox"
+                      checked={local.skillIds.includes(skill.id)}
+                      onChange={() => toggleSkill(skill.id)}
+                      style={{ accentColor: '#94a3b8' }}
+                    />
+                    <span style={{ fontSize: 12, color: 'var(--gray)' }}>
+                      <strong>{skill.code}</strong> · {skill.label} (Inactive)
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--gray)', marginTop: 8 }}>
+                Inactive skills are kept on existing staff records for reference, but cannot be newly assigned.
+              </div>
+            </div>
+          )}
         </div>
       </div>
       <ModalFooter>
