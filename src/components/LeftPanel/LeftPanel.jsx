@@ -7,14 +7,15 @@ import { ACTIONS, RESOURCES } from '../../permissions';
 const PANEL_TITLE = { fontFamily: "'Cormorant Garamond', serif", fontSize: 13, fontWeight: 600,
   letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--purple)', marginBottom: 8 };
 const PANEL_SECTION = { borderBottom: '1px solid var(--gray-light)', padding: '10px 14px' };
-const STAFF_ROLE_COLORS = [
-  { bg: '#E8F1FF', text: '#1D4E89', border: '#B8D0F2' },
-  { bg: '#E9F7EF', text: '#22633A', border: '#B8E0C4' },
-  { bg: '#FFF2DF', text: '#8A5A12', border: '#E7CE9D' },
-  { bg: '#F6EAFE', text: '#6B3EA8', border: '#D7C0F6' },
-  { bg: '#FCE8EE', text: '#9A395B', border: '#E8BDD0' },
-  { bg: '#E8F7F6', text: '#0F6B67', border: '#BCE3E0' },
-];
+const EMPLOYEE_CARD_STYLE = {
+  background: 'var(--purple-pale)',
+  color: 'var(--purple)',
+  border: '1px solid rgba(62,42,126,0.16)',
+};
+const EMPLOYEE_GROUP_STYLE = {
+  background: 'var(--gold-light)',
+  color: 'var(--gold-dark)',
+};
 
 // ─── Load Schedule Panel ─────────────────────────────────────────────────────
 function LoadSchedule() {
@@ -420,14 +421,13 @@ function EmployeesLibrary() {
 
   const orderedGroups = Object.entries(groupedStaff)
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([role, people], index) => ({
+    .map(([role, people]) => ({
       role,
       people: people.slice().sort((a, b) => {
         const last = (a.lastName || '').localeCompare(b.lastName || '');
         if (last !== 0) return last;
         return (a.firstName || '').localeCompare(b.firstName || '');
       }),
-      color: STAFF_ROLE_COLORS[index % STAFF_ROLE_COLORS.length],
     }));
 
   function isExpanded(role) {
@@ -489,7 +489,7 @@ function EmployeesLibrary() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              background: 'var(--gray-light)',
+              background: EMPLOYEE_GROUP_STYLE.background,
               border: 'none',
               borderRadius: 6,
               cursor: 'pointer',
@@ -502,11 +502,11 @@ function EmployeesLibrary() {
               fontWeight: 700,
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
-              color: 'var(--gray)',
+              color: EMPLOYEE_GROUP_STYLE.color,
             }}>
               {group.role}
             </span>
-            <span style={{ fontSize: 10, color: 'var(--gray)' }}>
+            <span style={{ fontSize: 10, color: EMPLOYEE_GROUP_STYLE.color }}>
               {isExpanded(group.role) ? '▲' : '▼'}
             </span>
           </button>
@@ -518,9 +518,9 @@ function EmployeesLibrary() {
                 marginBottom: 6,
                 padding: '7px 10px',
                 borderRadius: 8,
-                background: group.color.bg,
-                color: group.color.text,
-                border: `1px solid ${group.color.border}`,
+                background: EMPLOYEE_CARD_STYLE.background,
+                color: EMPLOYEE_CARD_STYLE.color,
+                border: EMPLOYEE_CARD_STYLE.border,
                 boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
               }}
             >

@@ -3,15 +3,15 @@ import { useAuth } from '../../context/AuthContext';
 
 export default function Header({
   onSetup,
-  onSaveDraft,
-  onSaveTemplate,
+  onStaffing,
+  onSave,
   onPostSchedule,
   onValidate,
   onChecklist,
   onPrint,
   canViewSetup = true,
-  canSaveDraft = true,
-  canSaveTemplate = true,
+  canViewStaffing = true,
+  canSave = true,
   canPostSchedule = true,
   canValidate = true,
   canChecklist = true,
@@ -56,8 +56,8 @@ export default function Header({
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', marginRight: 4 }}>{scheduleLabel}</span>
         {canViewSetup && <Btn onClick={onSetup}>⚙ Setup</Btn>}
-        {canSaveDraft && <Btn onClick={onSaveDraft}>📝 Save Draft</Btn>}
-        {canSaveTemplate && <Btn onClick={onSaveTemplate}>💾 Save Template</Btn>}
+        {canViewStaffing && <Btn onClick={onStaffing}>👥 Staffing</Btn>}
+        {canSave && <Btn onClick={onSave}>💾 Save</Btn>}
         {canPostSchedule && <Btn onClick={onPostSchedule}>📋 Post Schedule</Btn>}
         {canValidate && <Btn onClick={onValidate}>⚡ Validate</Btn>}
         {canChecklist && <Btn onClick={onChecklist}>☑ Checklist</Btn>}

@@ -43,8 +43,10 @@ import SplitModal from './components/Modals/SplitModal';
 import EditModal from './components/Modals/EditModal';
 import CreateTaskModal from './components/Modals/CreateTaskModal';
 import SaveModal from './components/Modals/SaveModal';
+import SaveChooserModal from './components/Modals/SaveChooserModal';
 import ValidationModal from './components/Modals/ValidationModal';
 import ChecklistModal from './components/Modals/ChecklistModal';
+import StaffingModal from './components/Modals/StaffingModal';
 import SetupOverlay from './components/Setup/SetupOverlay';
 
 export default function App() {
@@ -122,10 +124,12 @@ export default function App() {
   const [showCreate, setShowCreate]       = useState(false);
   const [createHereCtx, setCreateHereCtx] = useState(null); // { roleId, slotMin } when triggered from cell
   const [showAddColumn, setShowAddColumn] = useState(false);
+  const [showSaveChooser, setShowSaveChooser] = useState(false);
   const [saveMode, setSaveMode]           = useState(null); // 'draft'|'template'|'post'
   const [showValidate, setShowValidate]   = useState(false);
   const [showChecklist, setShowChecklist] = useState(false);
   const [showSetup, setShowSetup]         = useState(false);
+  const [showStaffing, setShowStaffing]   = useState(false);
   const [showPrint, setShowPrint]         = useState(false);
   const [printOpts, setPrintOpts]         = useState({ paperSize: 'legal', inclSummary: true, inclAssumptions: true, excludedCols: [] });
   const [saveError, setSaveError]         = useState(null);
@@ -404,15 +408,15 @@ export default function App() {
     }}>
       <Header
         onSetup={() => canViewSetupPanel && setShowSetup(true)}
-        onSaveDraft={() => canCreateDraft && setSaveMode('draft')}
-        onSaveTemplate={() => canSaveAnyTemplate && setSaveMode('template')}
+        onStaffing={() => canUseWorkflowTools && setShowStaffing(true)}
+        onSave={() => (canCreateDraft || canSaveAnyTemplate) && setShowSaveChooser(true)}
         onPostSchedule={() => canPublishSchedules && setSaveMode('post')}
         onValidate={() => setShowValidate(true)}
         onChecklist={() => setShowChecklist(true)}
         onPrint={() => setShowPrint(true)}
         canViewSetup={canViewSetupPanel}
-        canSaveDraft={canCreateDraft}
-        canSaveTemplate={canSaveAnyTemplate}
+        canViewStaffing={canUseWorkflowTools}
+        canSave={canCreateDraft || canSaveAnyTemplate}
         canPostSchedule={canPublishSchedules}
         canValidate={canUseWorkflowTools}
         canChecklist={canUseWorkflowTools}
@@ -566,9 +570,26 @@ export default function App() {
           onClose={() => setSaveMode(null)}
         />
       )}
+      {showSaveChooser && (
+        <SaveChooserModal
+          canSaveDraft={canCreateDraft}
+          canSaveTemplate={canSaveAnyTemplate}
+          onChoose={(mode) => {
+            setShowSaveChooser(false);
+            setSaveMode(mode);
+          }}
+          onClose={() => setShowSaveChooser(false)}
+        />
+      )}
       {showValidate && <ValidationModal onClose={() => setShowValidate(false)} />}
       {showChecklist && <ChecklistModal onClose={() => setShowChecklist(false)} />}
       {showSetup && canViewSetupPanel && <SetupOverlay onClose={() => setShowSetup(false)} />}
+      {showStaffing && canUseWorkflowTools && (
+        <StaffingModal
+          scheduleDate={assumptions.date}
+          onClose={() => setShowStaffing(false)}
+        />
+      )}
       {showPrint && (
         <PrintModal
           onPrint={handlePrint}
