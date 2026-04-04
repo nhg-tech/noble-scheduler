@@ -671,6 +671,14 @@ function StaffTab({ staffData, setStaffData, skillsData, onCreateStaff, onEditSt
     )));
   }
 
+  function removeSkillFromStaff(staffId, skillId) {
+    setStaffData((prev) => prev.map((person) => (
+      person.id === staffId
+        ? { ...person, skillIds: (person.skillIds || []).filter((id) => id !== skillId) }
+        : person
+    )));
+  }
+
   function handleGripPointerDown(e, staffId) {
     e.stopPropagation();
     e.preventDefault();
@@ -758,6 +766,9 @@ function StaffTab({ staffData, setStaffData, skillsData, onCreateStaff, onEditSt
                         <span
                           key={`${person.id}-${skill.id}`}
                           style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
                             padding: '2px 6px',
                             borderRadius: 999,
                             background: skill.isActive === false ? 'var(--gray-light)' : 'var(--purple-pale)',
@@ -769,6 +780,27 @@ function StaffTab({ staffData, setStaffData, skillsData, onCreateStaff, onEditSt
                         >
                           {skill.label || skill.code}
                           {skill.isActive === false ? ' (Inactive)' : ''}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeSkillFromStaff(person.id, skill.id);
+                            }}
+                            title={`Remove ${skill.label || skill.code}`}
+                            style={{
+                              border: 'none',
+                              background: 'transparent',
+                              color: 'inherit',
+                              cursor: 'pointer',
+                              fontSize: 10,
+                              lineHeight: 1,
+                              padding: 0,
+                              marginLeft: 2,
+                              opacity: 0.8,
+                            }}
+                          >
+                            ×
+                          </button>
                         </span>
                       ))}
                     {(person.skillIds || []).length > 3 && (
