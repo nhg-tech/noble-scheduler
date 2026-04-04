@@ -534,19 +534,9 @@ function EmployeesLibrary() {
                   <div style={{
                     fontSize: 11,
                     fontWeight: 700,
-                    fontFamily: "'DM Mono', monospace",
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
-                  }}>
-                    {person.employeeCode}
-                  </div>
-                  <div style={{
-                    fontSize: 10,
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    opacity: 0.9,
                   }}>
                     {`${person.firstName || ''} ${person.lastName || ''}`.trim() || 'Unnamed Employee'}
                   </div>
