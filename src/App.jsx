@@ -12,7 +12,7 @@ import {
 
 import { useScheduler } from './context/SchedulerContext';
 import { useAuth } from './context/AuthContext';
-import { apiSchedules } from './api';
+import { apiSchedules, apiStaffing } from './api';
 import {
   keyToRoleAndMin,
   getBlockDurationMin,
@@ -30,6 +30,7 @@ import {
   waterfallConflictSchedule,
 } from './domain/scheduleMutations';
 import { ACTIONS, RESOURCES, canViewAnySetup } from './permissions';
+import { buildAssignmentWarnings } from './utils/staffingWarnings';
 
 import Header from './components/Header/Header';
 import LeftPanel from './components/LeftPanel/LeftPanel';
@@ -49,6 +50,7 @@ import ValidationModal from './components/Modals/ValidationModal';
 import ChecklistModal from './components/Modals/ChecklistModal';
 import StaffingModal from './components/Modals/StaffingModal';
 import VersionHistoryModal from './components/Modals/VersionHistoryModal';
+import AssignmentWarningModal from './components/Modals/AssignmentWarningModal';
 import SetupOverlay from './components/Setup/SetupOverlay';
 
 export default function App() {
@@ -69,6 +71,7 @@ export default function App() {
     applyState,
     saveUserPostings,
     apiSaveTemplate, apiSaveSchedule,
+    skillsData,
     staffData,
   } = useScheduler();
 
@@ -138,8 +141,22 @@ export default function App() {
   const [showStaffing, setShowStaffing]   = useState(false);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [showPrint, setShowPrint]         = useState(false);
+  const [pendingAssignment, setPendingAssignment] = useState(null);
   const [printOpts, setPrintOpts]         = useState({ paperSize: 'legal', inclSummary: true, inclAssumptions: true, excludedCols: [] });
   const [saveError, setSaveError]         = useState(null);
+
+  function applyEmployeeAssignment(roleId, person) {
+    setEmployeeAssignments(prev => ({
+      ...prev,
+      [roleId]: {
+        staffId: person.id,
+        employeeCode: person.employeeCode,
+        firstName: person.firstName,
+        lastName: person.lastName,
+        role: person.role,
+      },
+    }));
+  }
 
   // Drag overlay label + meta
   const [dragLabel, setDragLabel] = useState(null);
@@ -191,7 +208,7 @@ export default function App() {
   }
 
   // ─── Drag end ─────────────────────────────────────────────────────────────
-  function handleDragEnd({ active, over }) {
+  async function handleDragEnd({ active, over }) {
     if (!canEditCurrentSchedule) return;
     setDragLabel(null);
     setDragMeta(null);
@@ -214,16 +231,42 @@ export default function App() {
 
     if (activeData?.type === 'staff' && overData?.type === 'staff-column') {
       const person = activeData.staff;
-      setEmployeeAssignments(prev => ({
-        ...prev,
-        [overData.roleId]: {
-          staffId: person.id,
-          employeeCode: person.employeeCode,
-          firstName: person.firstName,
-          lastName: person.lastName,
-          role: person.role,
-        },
-      }));
+      const role = roleConfigs.find((entry) => entry.id === overData.roleId);
+      try {
+        const [availabilityRecords, exceptions] = await Promise.all([
+          assumptions.date
+            ? apiStaffing.getAvailability({
+                staffId: person.id,
+                startDate: assumptions.date,
+                endDate: assumptions.date,
+              })
+            : Promise.resolve([]),
+          apiStaffing.getExceptions({ staffId: person.id }),
+        ]);
+        const warnings = buildAssignmentWarnings({
+          schedule,
+          role,
+          roleId: overData.roleId,
+          person,
+          taskDefs: userTaskDefs,
+          skills: skillsData,
+          availabilityRecords,
+          exceptions,
+          scheduleDate: assumptions.date,
+        });
+        if (warnings.length > 0) {
+          setPendingAssignment({
+            roleId: overData.roleId,
+            roleLabel: role?.label || overData.roleId,
+            person,
+            warnings,
+          });
+        } else {
+          applyEmployeeAssignment(overData.roleId, person);
+        }
+      } catch (err) {
+        setSaveError(err.message || 'Failed to evaluate staffing warnings.');
+      }
       return;
     }
 
@@ -666,6 +709,18 @@ export default function App() {
         <PrintModal
           onPrint={handlePrint}
           onClose={() => setShowPrint(false)}
+        />
+      )}
+      {pendingAssignment && (
+        <AssignmentWarningModal
+          employeeName={`${pendingAssignment.person.firstName || ''} ${pendingAssignment.person.lastName || ''}`.trim()}
+          columnLabel={pendingAssignment.roleLabel}
+          warnings={pendingAssignment.warnings}
+          onConfirm={() => {
+            applyEmployeeAssignment(pendingAssignment.roleId, pendingAssignment.person);
+            setPendingAssignment(null);
+          }}
+          onClose={() => setPendingAssignment(null)}
         />
       )}
 
