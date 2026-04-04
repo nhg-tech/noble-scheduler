@@ -717,6 +717,8 @@ function StaffTab({ staffData, setStaffData, skillsData, onCreateStaff, onEditSt
             <tr style={{ background: 'var(--gray-light)' }}>
               <Th style={{ width: 24 }}></Th>
               <Th>Employee Code</Th>
+              <Th>Role</Th>
+              <Th></Th>
               <Th>First Name</Th>
               <Th>Last Name</Th>
               <Th>Email</Th>
@@ -724,7 +726,6 @@ function StaffTab({ staffData, setStaffData, skillsData, onCreateStaff, onEditSt
               <Th>Skills</Th>
               <Th>Notes</Th>
               <Th>Status</Th>
-              <Th></Th>
             </tr>
           </thead>
           <tbody>
@@ -743,6 +744,25 @@ function StaffTab({ staffData, setStaffData, skillsData, onCreateStaff, onEditSt
                 </Td>
                 <Td>
                   <span style={{ fontFamily: "'DM Mono', monospace" }}>{person.employeeCode || '—'}</span>
+                </Td>
+                <Td>
+                  {person.role || '—'}
+                </Td>
+                <Td>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button
+                      onClick={() => onEditStaff(person)}
+                      style={{ ...actionBtnStyle, fontSize: 11, padding: '3px 8px', color: 'var(--purple)' }}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => toggleStaff(person.id)}
+                      style={{ ...actionBtnStyle, fontSize: 11, padding: '3px 8px', color: person.isActive === false ? 'var(--purple)' : 'var(--red)' }}
+                    >
+                      {person.isActive === false ? 'Reactivate' : 'Deactivate'}
+                    </button>
+                  </div>
                 </Td>
                 <Td>
                   {person.firstName || '—'}
@@ -828,27 +848,11 @@ function StaffTab({ staffData, setStaffData, skillsData, onCreateStaff, onEditSt
                     {person.isActive === false ? 'INACTIVE' : 'ACTIVE'}
                   </span>
                 </Td>
-                <Td>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button
-                      onClick={() => onEditStaff(person)}
-                      style={{ ...actionBtnStyle, fontSize: 11, padding: '3px 8px', color: 'var(--purple)' }}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => toggleStaff(person.id)}
-                      style={{ ...actionBtnStyle, fontSize: 11, padding: '3px 8px', color: person.isActive === false ? 'var(--purple)' : 'var(--red)' }}
-                    >
-                      {person.isActive === false ? 'Reactivate' : 'Deactivate'}
-                    </button>
-                  </div>
-                </Td>
               </tr>
             ))}
             {visibleStaff.length === 0 && (
               <tr>
-                <Td colSpan={10} style={{ color: 'var(--gray)', fontStyle: 'italic' }}>
+                <Td colSpan={11} style={{ color: 'var(--gray)', fontStyle: 'italic' }}>
                   {showInactive
                     ? 'No staff yet. Add your first team member to get started.'
                     : 'No active staff. Toggle inactive staff or add a new team member.'}
@@ -893,6 +897,7 @@ function StaffModal({ initialData, skillsData, onSave, onClose }) {
   const [local, setLocal] = useState({
     id: initialData?.id,
     employeeCode: initialData?.employeeCode || '',
+    role: initialData?.role || '',
     firstName: initialData?.firstName || '',
     lastName: initialData?.lastName || '',
     email: initialData?.email || '',
@@ -922,6 +927,7 @@ function StaffModal({ initialData, skillsData, onSave, onClose }) {
     onSave({
       ...local,
       employeeCode: local.employeeCode.trim().toUpperCase(),
+      role: local.role.trim(),
       firstName: local.firstName.trim(),
       lastName: local.lastName.trim(),
       email: local.email.trim(),
@@ -933,7 +939,7 @@ function StaffModal({ initialData, skillsData, onSave, onClose }) {
   return (
     <Modal title={initialData ? `Edit Staff: ${initialData.firstName} ${initialData.lastName}` : 'Add Staff'} onClose={onClose} width={620}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12 }}>
           <div>
             <label style={editLabelStyle}>Employee Code</label>
             <input
@@ -942,6 +948,10 @@ function StaffModal({ initialData, skillsData, onSave, onClose }) {
               onChange={(e) => setLocal((prev) => ({ ...prev, employeeCode: e.target.value.replace(/\s+/g, '') }))}
               style={editInputStyle}
             />
+          </div>
+          <div>
+            <label style={editLabelStyle}>Role</label>
+            <input value={local.role} onChange={(e) => setLocal((prev) => ({ ...prev, role: e.target.value }))} style={editInputStyle} />
           </div>
           <div>
             <label style={editLabelStyle}>First Name</label>
