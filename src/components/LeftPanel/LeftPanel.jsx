@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { useScheduler } from '../../context/SchedulerContext';
-import { apiSchedules } from '../../api';
+import { apiSchedules, apiStaffing } from '../../api';
 import { useAuth } from '../../context/AuthContext';
 import { ACTIONS, RESOURCES } from '../../permissions';
 
@@ -16,6 +16,11 @@ const EMPLOYEE_CARD_STYLE = {
 const EMPLOYEE_GROUP_STYLE = {
   background: 'var(--gold-light)',
   color: 'var(--gold-dark)',
+};
+const EMPLOYEE_CARD_UNAVAILABLE_STYLE = {
+  background: '#F4F4F6',
+  color: '#7A7A88',
+  border: '1px solid rgba(122,122,136,0.22)',
 };
 
 const CALENDAR_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -550,13 +555,75 @@ function Assumptions() {
 
 function EmployeesLibrary() {
   const { can } = useAuth();
-  const { staffData } = useScheduler();
+  const { staffData, assumptions, employeeAssignments } = useScheduler();
   const canEditSchedule = can(RESOURCES.DAILY_SCHEDULES, ACTIONS.EDIT);
   const [expanded, setExpanded] = useState({});
+  const [availabilityStatus, setAvailabilityStatus] = useState({});
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function hydrateAvailability() {
+      if (!assumptions.date) {
+        if (isMounted) setAvailabilityStatus({});
+        return;
+      }
+
+      const activePeople = staffData.filter((person) => person.isActive !== false);
+      if (activePeople.length === 0) {
+        if (isMounted) setAvailabilityStatus({});
+        return;
+      }
+
+      try {
+        const rows = await Promise.all(activePeople.map(async (person) => {
+          const [availabilityRecords, exceptions] = await Promise.all([
+            apiStaffing.getAvailability({
+              staffId: person.id,
+              startDate: assumptions.date,
+              endDate: assumptions.date,
+            }),
+            apiStaffing.getExceptions({ staffId: person.id }),
+          ]);
+
+          const hasBaseUnavailable = availabilityRecords.some((record) => record.date === assumptions.date && record.isAvailable === false);
+          const hasExceptionUnavailable = exceptions.some((exception) => (
+            assumptions.date >= exception.startDate &&
+            assumptions.date <= exception.endDate &&
+            exception.mode === 'unavailable'
+          ));
+
+          return [
+            String(person.id),
+            {
+              isUnavailable: hasBaseUnavailable || hasExceptionUnavailable,
+            },
+          ];
+        }));
+
+        if (isMounted) {
+          setAvailabilityStatus(Object.fromEntries(rows));
+        }
+      } catch {
+        if (isMounted) setAvailabilityStatus({});
+      }
+    }
+
+    hydrateAvailability();
+    return () => { isMounted = false; };
+  }, [assumptions.date, staffData]);
+
+  const assignedStaffIds = useMemo(
+    () => new Set(Object.values(employeeAssignments || {}).map((entry) => String(entry.staffId)).filter(Boolean)),
+    [employeeAssignments]
+  );
+
+  const activeStaff = staffData
+    .filter((person) => person.isActive !== false)
+    .filter((person) => !assignedStaffIds.has(String(person.id)));
 
   if (!canEditSchedule) return null;
 
-  const activeStaff = staffData.filter((person) => person.isActive !== false);
   const groupedStaff = activeStaff.reduce((acc, person) => {
     const roleKey = person.role?.trim() || 'Other';
     if (!acc[roleKey]) acc[roleKey] = [];
@@ -657,7 +724,12 @@ function EmployeesLibrary() {
           </button>
 
           {isExpanded(group.role) && group.people.map((person) => (
-            <EmployeeCard key={person.id} person={person} roleLabel={group.role} />
+            <EmployeeCard
+              key={person.id}
+              person={person}
+              roleLabel={group.role}
+              isUnavailable={availabilityStatus[String(person.id)]?.isUnavailable}
+            />
           ))}
         </div>
       ))}
@@ -665,7 +737,7 @@ function EmployeesLibrary() {
   );
 }
 
-function EmployeeCard({ person, roleLabel }) {
+function EmployeeCard({ person, roleLabel, isUnavailable = false }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `staff-${person.id}`,
     data: {
@@ -683,14 +755,15 @@ function EmployeeCard({ person, roleLabel }) {
         marginBottom: 6,
         padding: '7px 10px',
         borderRadius: 8,
-        background: EMPLOYEE_CARD_STYLE.background,
-        color: EMPLOYEE_CARD_STYLE.color,
-        border: EMPLOYEE_CARD_STYLE.border,
+        background: isUnavailable ? EMPLOYEE_CARD_UNAVAILABLE_STYLE.background : EMPLOYEE_CARD_STYLE.background,
+        color: isUnavailable ? EMPLOYEE_CARD_UNAVAILABLE_STYLE.color : EMPLOYEE_CARD_STYLE.color,
+        border: isUnavailable ? EMPLOYEE_CARD_UNAVAILABLE_STYLE.border : EMPLOYEE_CARD_STYLE.border,
         boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
         cursor: isDragging ? 'grabbing' : 'grab',
-        opacity: isDragging ? 0.5 : 1,
+        opacity: isDragging ? 0.5 : isUnavailable ? 0.78 : 1,
         transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
       }}
+      title={isUnavailable ? 'Unavailable for the selected date. You can still assign with a warning.' : undefined}
     >
       <div style={{
         display: 'flex',
@@ -708,6 +781,18 @@ function EmployeeCard({ person, roleLabel }) {
           }}>
             {`${person.firstName || ''} ${person.lastName || ''}`.trim() || 'Unnamed Employee'}
           </div>
+          {isUnavailable && (
+            <div style={{
+              marginTop: 3,
+              fontSize: 9,
+              fontWeight: 700,
+              letterSpacing: '0.05em',
+              textTransform: 'uppercase',
+              opacity: 0.8,
+            }}>
+              Unavailable
+            </div>
+          )}
         </div>
         <div style={{
           fontSize: 10,
