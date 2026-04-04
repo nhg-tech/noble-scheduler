@@ -44,6 +44,16 @@ export function buildSavedScheduleEntry(state, result, payload) {
   };
 }
 
+export function sanitizeTemplateState(state) {
+  return {
+    ...state,
+    assumptions: {
+      ...(state.assumptions || {}),
+      date: '',
+    },
+  };
+}
+
 export async function persistTemplateRecord({
   name,
   state,
@@ -57,23 +67,24 @@ export async function persistTemplateRecord({
   masterTemplatesKey,
   userTemplatesKey,
 }) {
+  const sanitizedState = sanitizeTemplateState(state);
   if (type === 'master') {
-    const result = await apiTemplates.saveMaster(name, state);
+    const result = await apiTemplates.saveMaster(name, sanitizedState);
     const updated = updateNamedEntryStore(
       masterTemplatesData,
       name,
-      { ...state, id: result.id, updatedAt: result.updated_at }
+      { ...sanitizedState, id: result.id, updatedAt: result.updated_at }
     );
     setMasterTemplatesData(updated);
     saveLS(masterTemplatesKey, updated);
     return { ...result, type };
   }
 
-  const result = await apiTemplates.saveUser(name, state);
+  const result = await apiTemplates.saveUser(name, sanitizedState);
   const updated = updateNamedEntryStore(
     userTemplatesData,
     name,
-    { ...state, id: result.id, updatedAt: result.updated_at }
+    { ...sanitizedState, id: result.id, updatedAt: result.updated_at }
   );
   setUserTemplatesData(updated);
   saveLS(userTemplatesKey, updated);

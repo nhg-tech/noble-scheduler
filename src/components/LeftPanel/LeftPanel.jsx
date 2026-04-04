@@ -175,7 +175,7 @@ function DateMarkerCalendar({
 }
 
 // ─── Load Schedule Panel ─────────────────────────────────────────────────────
-function LoadSchedule() {
+function LoadSchedule({ onBeforeReplaceSchedule, onAfterStateLoaded }) {
   const { can } = useAuth();
   const {
     loadTemplate, getUserTemplates, getMasterTemplates, getUserPostings, getUserDrafts,
@@ -224,29 +224,48 @@ function LoadSchedule() {
 
   function handleLoadTemplate() {
     if (!resolvedTemplateValue) return;
+    if (!onBeforeReplaceSchedule()) return;
     if (resolvedTemplateValue.startsWith('master_')) {
       const name = resolvedTemplateValue.replace('master_', '');
       const state = masterTemplates[name];
       if (!state) return;
+      const preservedDate = assumptions.date || '';
       setScheduleLabel(name);
       setCurrentLoadedEntity({ kind: 'template', scope: 'master', id: state.id, name });
-      applyState(state);
+      applyState({
+        ...state,
+        assumptions: {
+          ...(state.assumptions || {}),
+          date: preservedDate,
+        },
+      });
+      onAfterStateLoaded?.();
     } else if (resolvedTemplateValue.startsWith('user_')) {
       const name = resolvedTemplateValue.replace('user_', '');
       const state = userTemplates[name];
       if (!state) return;
+      const preservedDate = assumptions.date || '';
       setScheduleLabel(name);
       setCurrentLoadedEntity({ kind: 'template', scope: 'user', id: state.id, name });
-      applyState(state);
+      applyState({
+        ...state,
+        assumptions: {
+          ...(state.assumptions || {}),
+          date: preservedDate,
+        },
+      });
+      onAfterStateLoaded?.();
     } else {
       // Built-in Noble Template
       loadTemplate(resolvedTemplateValue);
+      onAfterStateLoaded?.();
     }
   }
 
   async function handleLoad(storeObj, name) {
     let state = storeObj[name];
     if (!state) return;
+    if (!onBeforeReplaceSchedule()) return;
     // If the entry is metadata-only (from list endpoint hydration), fetch full data by ID
     if (state.id && !state.schedule) {
       try {
@@ -265,6 +284,7 @@ function LoadSchedule() {
       rootScheduleId: state.rootScheduleId,
     });
     applyState(state);
+    onAfterStateLoaded?.();
   }
 
   async function handleDeleteTemplate() {
@@ -898,14 +918,14 @@ const calendarNavBtnStyle = {
 };
 
 // ─── Export ──────────────────────────────────────────────────────────────────
-export default function LeftPanel() {
+export default function LeftPanel({ onBeforeReplaceSchedule = () => true, onAfterStateLoaded = () => {} }) {
   return (
     <div style={{
       background: '#fff', borderRight: '1px solid var(--gray-light)',
       overflowY: 'auto', display: 'flex', flexDirection: 'column',
       width: 300, flexShrink: 0,
     }}>
-      <LoadSchedule />
+      <LoadSchedule onBeforeReplaceSchedule={onBeforeReplaceSchedule} onAfterStateLoaded={onAfterStateLoaded} />
       <Assumptions />
       <EmployeesLibrary />
     </div>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import {
   DndContext,
@@ -59,7 +59,7 @@ function getColumnsWithTasks(schedule) {
 }
 
 export default function App() {
-  const { can } = useAuth();
+  const { can, logout } = useAuth();
   const {
     schedule, setSchedule,
     assumptions,
@@ -150,6 +150,35 @@ export default function App() {
   const [publishReviewState, setPublishReviewState] = useState(null);
   const [printOpts, setPrintOpts]         = useState({ paperSize: 'legal', inclSummary: true, inclAssumptions: true, excludedCols: [] });
   const [saveError, setSaveError]         = useState(null);
+  const captureStateRef = useRef(captureState);
+  const currentSnapshot = useMemo(() => JSON.stringify(captureState()), [captureState]);
+  const [savedSnapshot, setSavedSnapshot] = useState(currentSnapshot);
+  const hasUnsavedChanges = currentSnapshot !== savedSnapshot;
+
+  useEffect(() => {
+    captureStateRef.current = captureState;
+  }, [captureState]);
+
+  const syncSavedSnapshot = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      setSavedSnapshot(JSON.stringify(captureStateRef.current()));
+    });
+  }, []);
+
+  const confirmIfUnsaved = useCallback((message = 'You have unsaved changes. Continue without saving?') => {
+    if (!hasUnsavedChanges) return true;
+    return window.confirm(message);
+  }, [hasUnsavedChanges]);
+
+  useEffect(() => {
+    function handleBeforeUnload(event) {
+      if (!hasUnsavedChanges) return;
+      event.preventDefault();
+      event.returnValue = '';
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges]);
 
   function applyEmployeeAssignment(roleId, person) {
     setEmployeeAssignments(prev => ({
@@ -499,6 +528,7 @@ export default function App() {
         );
         setCurrentLoadedEntity({ kind: 'schedule', status: 'draft', id: result.id, name });
         setScheduleLabel(name);
+        setSavedSnapshot(JSON.stringify(state));
       } else if (saveMode === 'template') {
         if (tplType === 'master' && !canCreateMasterTemplate) {
           throw new Error('You do not have permission to save master templates.');
@@ -510,6 +540,7 @@ export default function App() {
         const result = await apiSaveTemplate(name, state, type);
         setCurrentLoadedEntity({ kind: 'template', scope: type, id: result.id, name });
         setScheduleLabel(name);
+        setSavedSnapshot(JSON.stringify(state));
       } else if (saveMode === 'post') {
         if (!assumptions.date) throw new Error('Select a schedule date before publishing a schedule.');
         if (!canPublishSchedules) throw new Error('You do not have permission to publish schedules.');
@@ -530,6 +561,7 @@ export default function App() {
           rootScheduleId: result.root_schedule_id ?? result.rootScheduleId ?? result.id,
         });
         setScheduleLabel(name);
+        setSavedSnapshot(JSON.stringify(state));
       }
       setSaveMode(null);
     } catch (err) {
@@ -551,6 +583,7 @@ export default function App() {
       rootScheduleId: full.rootScheduleId,
     });
     setScheduleLabel(full.name);
+    setSavedSnapshot(JSON.stringify(full));
     setShowVersionHistory(false);
   }
 
@@ -629,6 +662,10 @@ export default function App() {
         canValidate={canUseWorkflowTools}
         canChecklist={canUseWorkflowTools}
         canEditSchedule={canEditCurrentSchedule}
+        onLogout={() => {
+          if (!confirmIfUnsaved('You have unsaved changes. Sign out anyway?')) return;
+          logout();
+        }}
       />
       {saveError && (
         <div style={{
@@ -672,7 +709,10 @@ export default function App() {
         onDragEnd={handleDragEnd}
       >
         <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-          <LeftPanel />
+          <LeftPanel
+            onBeforeReplaceSchedule={() => confirmIfUnsaved('You have unsaved changes. Load another schedule anyway?')}
+            onAfterStateLoaded={syncSavedSnapshot}
+          />
 
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
             <GridBody

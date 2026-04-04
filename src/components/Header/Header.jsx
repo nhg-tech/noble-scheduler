@@ -18,9 +18,10 @@ export default function Header({
   canValidate = true,
   canChecklist = true,
   canEditSchedule = true,
+  onLogout,
 }) {
   const { scheduleLabel, setSchedule } = useScheduler();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
 
   function handleClear() {
     if (window.confirm('Clear all scheduled tasks?')) setSchedule({});
@@ -72,7 +73,7 @@ export default function Header({
             <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)' }}>
               {user.name} · <span style={{ textTransform: 'capitalize' }}>{user.role}</span>
             </span>
-            <button onClick={logout} title="Sign out" style={{
+            <button onClick={onLogout} title="Sign out" style={{
               background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)',
               color: 'rgba(255,255,255,0.7)', borderRadius: 5, padding: '3px 8px',
               fontSize: 11, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
