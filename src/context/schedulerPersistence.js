@@ -25,6 +25,7 @@ export function buildSchedulePayload(name, state, status) {
     hiddenColumns: state.hiddenColumns || [],
     columnOrder: state.columnOrder || [],
     extraRoles: state.extraRoles || [],
+    employeeAssignments: state.employeeAssignments || {},
   };
 }
 

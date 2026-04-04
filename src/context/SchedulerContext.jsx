@@ -68,6 +68,7 @@ export function SchedulerProvider({ children }) {
   });
   // Persisted in LS_SESSION so it survives page reload; also saved with templates/drafts
   const [hiddenColumns,  setHiddenColumns]  = useState(() => new Set(loadLS(LS_SESSION, null)?.hiddenColumns ?? []));
+  const [employeeAssignments, setEmployeeAssignments] = useState(() => loadLS(LS_SESSION, null)?.employeeAssignments ?? {});
   const [scheduleLabel,  setScheduleLabel]  = useState('Blank Schedule');
   const [currentLoadedEntity, setCurrentLoadedEntity] = useState({ kind: 'builtin', scope: 'builtin', name: 'blank' });
   const [userCatDefs,    setUserCatDefs]    = useState(() => loadLS(LS_CAT_DEFS,   {}));
@@ -104,8 +105,16 @@ export function SchedulerProvider({ children }) {
 
   // Auto-save current schedule + assumptions so they survive page reloads
   useEffect(() => {
-    saveLS(LS_SESSION, { schedule, assumptions, skippedTasks: [...skippedTasks], hiddenColumns: [...hiddenColumns], sessionTaskDefs, scheduleLabel });
-  }, [schedule, assumptions, skippedTasks, hiddenColumns, sessionTaskDefs, scheduleLabel]);
+    saveLS(LS_SESSION, {
+      schedule,
+      assumptions,
+      skippedTasks: [...skippedTasks],
+      hiddenColumns: [...hiddenColumns],
+      sessionTaskDefs,
+      scheduleLabel,
+      employeeAssignments,
+    });
+  }, [schedule, assumptions, skippedTasks, hiddenColumns, sessionTaskDefs, scheduleLabel, employeeAssignments]);
 
   // ─── API hydration on mount ───────────────────────────────────────────────
   // Fetch all data from API and update state (API wins over localStorage cache)
@@ -447,6 +456,7 @@ export function SchedulerProvider({ children }) {
     setScheduleLabel(labels[tpl] || tpl);
     setCurrentLoadedEntity({ kind: 'builtin', scope: 'builtin', name: tpl });
     setSessionTaskDefs({}); // clear session-only custom tasks on template load
+    setEmployeeAssignments({});
     // Reset column order to all effective roles (built-in + custom) and clear session hides
     setColumnOrder(getEffectiveRoles().map(r => r.id));
     setHiddenColumns(new Set());
@@ -454,8 +464,17 @@ export function SchedulerProvider({ children }) {
 
   // ─── Capture / apply state ────────────────────────────────────────────────
   const captureState = useCallback(
-    () => ({ schedule, assumptions, sessionTaskDefs, columnOrder, extraRoles, skippedTasks: [...skippedTasks], hiddenColumns: [...hiddenColumns] }),
-    [schedule, assumptions, sessionTaskDefs, columnOrder, extraRoles, skippedTasks, hiddenColumns]
+    () => ({
+      schedule,
+      assumptions,
+      sessionTaskDefs,
+      columnOrder,
+      extraRoles,
+      skippedTasks: [...skippedTasks],
+      hiddenColumns: [...hiddenColumns],
+      employeeAssignments,
+    }),
+    [schedule, assumptions, sessionTaskDefs, columnOrder, extraRoles, skippedTasks, hiddenColumns, employeeAssignments]
   );
 
   const applyState = useCallback((state) => {
@@ -467,6 +486,7 @@ export function SchedulerProvider({ children }) {
       setColumnOrder(state.columnOrder);
     setSkippedTasks(new Set(Array.isArray(state.skippedTasks) ? state.skippedTasks : []));
     setHiddenColumns(new Set(Array.isArray(state.hiddenColumns) ? state.hiddenColumns : []));
+    setEmployeeAssignments(state.employeeAssignments || {});
   }, []);
 
   const toggleSkipTask = useCallback((taskId) => {
@@ -632,6 +652,8 @@ export function SchedulerProvider({ children }) {
       extraRoles, setExtraRoles,
       columnOrder, setColumnOrder,
       hiddenColumns,
+      employeeAssignments,
+      setEmployeeAssignments,
       hideColumn:    (id) => setHiddenColumns(prev => new Set([...prev, id])),
       restoreColumn: (id) => setHiddenColumns(prev => { const s = new Set(prev); s.delete(id); return s; }),
       userCatDefs, setUserCatDefs,

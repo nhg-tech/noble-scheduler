@@ -59,6 +59,7 @@ export default function App() {
     scheduleLabel, setScheduleLabel,
     currentLoadedEntity, setCurrentLoadedEntity,
     userTaskDefs, setSessionTaskDefs,
+    employeeAssignments, setEmployeeAssignments,
     setExtraRoles, setColumnOrder, restoreColumn,
     extraRoles,
     captureState,
@@ -177,6 +178,10 @@ export default function App() {
       const colorHex = resolveBlockHex(override.color || data.task.color);
       setDragLabel(data.task.code);
       setDragMeta({ color: colorHex, textColor: resolveBlockText(colorHex), isBlock: false });
+    } else if (data?.type === 'staff') {
+      const fullName = `${data.staff.firstName || ''} ${data.staff.lastName || ''}`.trim() || 'Employee';
+      setDragLabel(fullName);
+      setDragMeta({ color: 'var(--purple-pale)', textColor: 'var(--purple)', isBlock: false });
     } else if (data?.type === 'block') {
       const task = schedule[data.blockKey];
       const colorHex = resolveBlockHex(task?.color || 'block-group');
@@ -204,6 +209,21 @@ export default function App() {
       const durationMin = Number(computeTaskDuration(taskWithOverride, getDerivedValues(), assumptions));
       const colorHex = resolveBlockHex(override.color || libTask.color);
       attemptPlaceInSchedule(schedule, null, roleId, startMin, libTask, durationMin, colorHex);
+      return;
+    }
+
+    if (activeData?.type === 'staff' && overData?.type === 'staff-column') {
+      const person = activeData.staff;
+      setEmployeeAssignments(prev => ({
+        ...prev,
+        [overData.roleId]: {
+          staffId: person.id,
+          employeeCode: person.employeeCode,
+          firstName: person.firstName,
+          lastName: person.lastName,
+          role: person.role,
+        },
+      }));
       return;
     }
 
@@ -512,6 +532,14 @@ export default function App() {
               hasClipboard={!!clipboard}
               onCreateHere={(roleId, slotMin) => { setCreateHereCtx({ roleId, slotMin }); setShowCreate(true); }}
               onAddColumn={() => setShowAddColumn(true)}
+              employeeAssignments={employeeAssignments}
+              onClearEmployeeAssignment={(roleId) => {
+                setEmployeeAssignments(prev => {
+                  const next = { ...prev };
+                  delete next[roleId];
+                  return next;
+                });
+              }}
               isReadOnly={!canEditCurrentSchedule}
             />
           </div>

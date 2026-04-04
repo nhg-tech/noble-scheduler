@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
-import { formatShiftTime, keyToRoleAndMin } from '../../utils/scheduling';
+import { useDroppable } from '@dnd-kit/core';
+import { formatShiftTime } from '../../utils/scheduling';
 import { computeRoleSpan } from '../../utils/calculations';
 import { useScheduler } from '../../context/SchedulerContext';
 
@@ -21,7 +22,14 @@ function fmtShift(decimal) {
   return m === 0 ? `${h12}${suffix}` : `${h12}:${String(m).padStart(2, '0')}${suffix}`;
 }
 
-export default function GridHeader({ onAddColumn, colWidth, onColWidthChange }) {
+export default function GridHeader({
+  onAddColumn,
+  colWidth,
+  onColWidthChange,
+  employeeAssignments = {},
+  onClearEmployeeAssignment,
+  isReadOnly = false,
+}) {
   const { schedule, extraRoles, setExtraRoles, columnOrder, setColumnOrder, getEffectiveRoles, getDeletedRoles, hiddenColumns, hideColumn, getTaskDefault, taskLibrary } = useScheduler();
   const [dragRoleId, setDragRoleId] = useState(null);
   const isDraggingRef  = useRef(false);
@@ -126,6 +134,7 @@ export default function GridHeader({ onAddColumn, colWidth, onColWidthChange }) 
       {orderedRoles.map(role => {
         const range = getRoleRange(role.id);
         const isDragging = dragRoleId === role.id;
+        const assignment = employeeAssignments[role.id];
         return (
           <div
             key={role.id}
@@ -195,6 +204,13 @@ export default function GridHeader({ onAddColumn, colWidth, onColWidthChange }) 
               })() : '–'}
             </div>
 
+            <StaffAssignmentDropZone
+              roleId={role.id}
+              assignment={assignment}
+              onClear={onClearEmployeeAssignment}
+              disabled={isReadOnly}
+            />
+
             {/* ✕ shown on every column — hides from this schedule only */}
             <button
               onClick={() => handleHideColumn(role.id)}
@@ -234,6 +250,85 @@ export default function GridHeader({ onAddColumn, colWidth, onColWidthChange }) 
           fontSize: 20, fontWeight: 300, lineHeight: 1,
         }}
       >+</button>
+    </div>
+  );
+}
+
+function StaffAssignmentDropZone({ roleId, assignment, onClear, disabled }) {
+  const { isOver, setNodeRef } = useDroppable({
+    id: `staff-column-${roleId}`,
+    data: { type: 'staff-column', roleId },
+    disabled,
+  });
+  const fullName = assignment
+    ? `${assignment.firstName || ''} ${assignment.lastName || ''}`.trim() || 'Assigned employee'
+    : '';
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        width: '100%',
+        minHeight: 38,
+        marginTop: 8,
+        borderRadius: 8,
+        border: `1.5px dashed ${isOver ? 'var(--purple)' : 'var(--gray-light)'}`,
+        background: isOver ? 'var(--purple-pale)' : '#fff',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: assignment ? '6px 8px' : '8px 6px',
+        boxSizing: 'border-box',
+        transition: 'all 0.12s',
+      }}
+    >
+      {assignment ? (
+        <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: 'var(--purple)',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}>
+              {fullName}
+            </div>
+            <div style={{ fontSize: 9, color: 'var(--gray)', marginTop: 2 }}>
+              {assignment.role || assignment.employeeCode || 'Assigned'}
+            </div>
+          </div>
+          {!disabled && (
+            <button
+              onClick={() => onClear?.(roleId)}
+              title="Remove employee assignment"
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#b0adc8',
+                fontSize: 11,
+                lineHeight: 1,
+                cursor: 'pointer',
+                padding: '2px 4px',
+              }}
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      ) : (
+        <div style={{
+          fontSize: 10,
+          fontWeight: 600,
+          color: isOver ? 'var(--purple)' : 'var(--gray)',
+          letterSpacing: '0.04em',
+          textTransform: 'uppercase',
+          textAlign: 'center',
+        }}>
+          Drop Employee
+        </div>
+      )}
     </div>
   );
 }

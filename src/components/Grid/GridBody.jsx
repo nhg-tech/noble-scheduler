@@ -21,6 +21,8 @@ export default function GridBody({
   hasClipboard,
   onCreateHere,
   onAddColumn,
+  employeeAssignments = {},
+  onClearEmployeeAssignment,
   isReadOnly = false,
 }) {
   const { extraRoles, columnOrder, getEffectiveRoles, getDeletedRoles, userTaskDefs, hiddenColumns, taskLibrary, colWidth, setColWidth } = useScheduler();
@@ -53,7 +55,7 @@ export default function GridBody({
       map[roleId].push({ blockKey, task: resolvedTask, startMin });
     });
     return map;
-  }, [schedule, allRoles, userTaskDefs]);
+  }, [schedule, allRoles, userTaskDefs, taskLibrary]);
 
   function handleBlockContextMenu(e, blockKey) {
     if (isReadOnly) return;
@@ -76,7 +78,14 @@ export default function GridBody({
       onClick={closeMenu}
     >
       {/* Column headers — sticky at top of the scroll container */}
-      <GridHeader onAddColumn={onAddColumn} colWidth={colWidth} onColWidthChange={setColWidth} />
+      <GridHeader
+        onAddColumn={onAddColumn}
+        colWidth={colWidth}
+        onColWidthChange={setColWidth}
+        employeeAssignments={employeeAssignments}
+        onClearEmployeeAssignment={onClearEmployeeAssignment}
+        isReadOnly={isReadOnly}
+      />
 
       {/* Grid rows */}
       <div style={{ display: 'flex', flex: 1, position: 'relative' }}>

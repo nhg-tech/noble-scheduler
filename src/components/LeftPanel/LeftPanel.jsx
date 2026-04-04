@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useDraggable } from '@dnd-kit/core';
 import { useScheduler } from '../../context/SchedulerContext';
 import { apiSchedules } from '../../api';
 import { useAuth } from '../../context/AuthContext';
@@ -514,48 +515,67 @@ function EmployeesLibrary() {
           </button>
 
           {isExpanded(group.role) && group.people.map((person) => (
-            <div
-              key={person.id}
-              style={{
-                marginBottom: 6,
-                padding: '7px 10px',
-                borderRadius: 8,
-                background: EMPLOYEE_CARD_STYLE.background,
-                color: EMPLOYEE_CARD_STYLE.color,
-                border: EMPLOYEE_CARD_STYLE.border,
-                boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-              }}
-            >
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 8,
-              }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{
-                    fontSize: 11,
-                    fontWeight: 700,
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                  }}>
-                    {`${person.firstName || ''} ${person.lastName || ''}`.trim() || 'Unnamed Employee'}
-                  </div>
-                </div>
-                <div style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  opacity: 0.75,
-                  flexShrink: 0,
-                }}>
-                  {group.role}
-                </div>
-              </div>
-            </div>
+            <EmployeeCard key={person.id} person={person} roleLabel={group.role} />
           ))}
         </div>
       ))}
+    </div>
+  );
+}
+
+function EmployeeCard({ person, roleLabel }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `staff-${person.id}`,
+    data: {
+      type: 'staff',
+      staff: person,
+    },
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      style={{
+        marginBottom: 6,
+        padding: '7px 10px',
+        borderRadius: 8,
+        background: EMPLOYEE_CARD_STYLE.background,
+        color: EMPLOYEE_CARD_STYLE.color,
+        border: EMPLOYEE_CARD_STYLE.border,
+        boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+        cursor: isDragging ? 'grabbing' : 'grab',
+        opacity: isDragging ? 0.5 : 1,
+        transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+      }}
+    >
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 8,
+      }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{
+            fontSize: 11,
+            fontWeight: 700,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}>
+            {`${person.firstName || ''} ${person.lastName || ''}`.trim() || 'Unnamed Employee'}
+          </div>
+        </div>
+        <div style={{
+          fontSize: 10,
+          fontWeight: 700,
+          opacity: 0.75,
+          flexShrink: 0,
+        }}>
+          {roleLabel}
+        </div>
+      </div>
     </div>
   );
 }
