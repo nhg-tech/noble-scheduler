@@ -313,6 +313,7 @@ export default function App() {
     setSaveError(null);
     try {
       if (saveMode === 'draft') {
+        if (!assumptions.date) throw new Error('Select a schedule date before saving a draft.');
         if (!canCreateDraft) throw new Error('You do not have permission to save drafts.');
         const result = await apiSaveSchedule(
           name,
@@ -336,6 +337,7 @@ export default function App() {
         setCurrentLoadedEntity({ kind: 'template', scope: type, id: result.id, name });
         setScheduleLabel(name);
       } else if (saveMode === 'post') {
+        if (!assumptions.date) throw new Error('Select a schedule date before publishing a schedule.');
         if (!canPublishSchedules) throw new Error('You do not have permission to publish schedules.');
         const result = await apiSaveSchedule(
           name,
@@ -564,6 +566,7 @@ export default function App() {
         {saveMode && (
           <SaveModal
             mode={saveMode}
+            scheduleDate={assumptions.date || ''}
             existingName={
               saveMode === 'template'
               ? loadedTemplateName

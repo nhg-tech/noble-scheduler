@@ -14,6 +14,7 @@ import Modal, { ModalFooter, Btn } from './Modal';
  */
 export default function SaveModal({
   mode,
+  scheduleDate = '',
   existingName,
   existingScope = null,
   initialTemplateType = null,
@@ -22,7 +23,8 @@ export default function SaveModal({
   onSave,
   onClose,
 }) {
-  const [name, setName] = useState('');
+  const fixedScheduleName = (mode === 'draft' || mode === 'post') ? (scheduleDate || '') : '';
+  const [name, setName] = useState(fixedScheduleName);
   const normalizedExistingScope = existingScope === 'user' ? 'my' : existingScope;
   const resolvedInitialTemplateType = allowedTemplateTypes.includes(initialTemplateType)
     ? initialTemplateType
@@ -41,9 +43,9 @@ export default function SaveModal({
   };
 
   const placeholders = {
-    draft: 'e.g. Thursday draft',
+    draft: 'Select a schedule date first',
     template: tplType === 'master' ? 'e.g. Standard Weekday' : 'e.g. My custom layout',
-    post: 'e.g. Thursday June 5',
+    post: 'Select a schedule date first',
   };
 
   const namesInScope = mode === 'template'
@@ -56,6 +58,7 @@ export default function SaveModal({
   const hasDuplicateName = normalizedName && namesInScope.some(existing => existing.toLowerCase() === normalizedName);
   const templateScopeMatches = mode !== 'template' || normalizedExistingScope === tplType;
   const showOverride = !!existingName && templateScopeMatches;
+  const usesFixedScheduleName = mode === 'draft' || mode === 'post';
 
   function handleSave() {
     if (!name.trim()) return;
@@ -151,17 +154,17 @@ export default function SaveModal({
 
         {/* Save as new */}
         <div>
-          {showOverride && (
+          {showOverride && !usesFixedScheduleName && (
             <div style={{
               fontSize: 11, fontWeight: 700, color: 'var(--gray)',
               letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 8,
             }}>New Name</div>
           )}
-          {!showOverride && (
+          {(!showOverride || usesFixedScheduleName) && (
             <label style={{
               display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--gray)',
               letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 8,
-            }}>Name</label>
+            }}>{usesFixedScheduleName ? 'Schedule Date' : 'Name'}</label>
           )}
           <input
             value={name}
@@ -171,7 +174,9 @@ export default function SaveModal({
             }}
             onKeyDown={e => e.key === 'Enter' && handleSave()}
             placeholder={placeholders[mode] || 'Enter name...'}
-            autoFocus={!showOverride}
+            autoFocus={!showOverride && !usesFixedScheduleName}
+            readOnly={usesFixedScheduleName}
+            disabled={usesFixedScheduleName}
             style={{
               width: '100%',
               padding: '9px 12px',
@@ -182,8 +187,20 @@ export default function SaveModal({
               color: 'var(--dark)',
               outline: 'none',
               boxSizing: 'border-box',
+              background: usesFixedScheduleName ? 'var(--gray-light)' : '#fff',
+              cursor: usesFixedScheduleName ? 'default' : 'text',
             }}
           />
+          {usesFixedScheduleName && (
+            <div style={{
+              marginTop: 8,
+              fontSize: 11,
+              color: 'var(--gray)',
+              lineHeight: 1.45,
+            }}>
+              Drafts and published schedules are named from the selected schedule date.
+            </div>
+          )}
           {nameError && (
             <div style={{
               marginTop: 8,
