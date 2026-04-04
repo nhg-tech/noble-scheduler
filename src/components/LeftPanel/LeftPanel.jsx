@@ -215,13 +215,7 @@ function LoadSchedule() {
   const resolvedLoadTab = availableTabs.includes(loadTab) ? loadTab : (availableTabs[0] || 'template');
   const resolvedDraftValue = draftKeys.includes(draftValue) ? draftValue : (draftKeys[0] || '');
   const resolvedPostingValue = postingKeys.includes(postingValue) ? postingValue : (postingKeys[0] || '');
-  const resolvedTemplateValue = currentLoadedEntity?.kind === 'template' && currentLoadedEntity?.name
-    ? (currentLoadedEntity.scope === 'master'
-        ? `master_${currentLoadedEntity.name}`
-        : `user_${currentLoadedEntity.name}`)
-    : currentLoadedEntity?.kind === 'builtin'
-      ? 'blank'
-      : tplValue;
+  const resolvedTemplateValue = tplValue;
 
   function handleLoadTemplate() {
     if (!resolvedTemplateValue) return;
@@ -241,7 +235,7 @@ function LoadSchedule() {
       applyState(state);
     } else {
       // Built-in Noble Template
-      loadTemplate(tplValue);
+      loadTemplate(resolvedTemplateValue);
     }
   }
 
