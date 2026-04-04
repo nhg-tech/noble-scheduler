@@ -7,6 +7,14 @@ import { ACTIONS, RESOURCES } from '../../permissions';
 const PANEL_TITLE = { fontFamily: "'Cormorant Garamond', serif", fontSize: 13, fontWeight: 600,
   letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--purple)', marginBottom: 8 };
 const PANEL_SECTION = { borderBottom: '1px solid var(--gray-light)', padding: '10px 14px' };
+const STAFF_ROLE_COLORS = [
+  { bg: '#E8F1FF', text: '#1D4E89', border: '#B8D0F2' },
+  { bg: '#E9F7EF', text: '#22633A', border: '#B8E0C4' },
+  { bg: '#FFF2DF', text: '#8A5A12', border: '#E7CE9D' },
+  { bg: '#F6EAFE', text: '#6B3EA8', border: '#D7C0F6' },
+  { bg: '#FCE8EE', text: '#9A395B', border: '#E8BDD0' },
+  { bg: '#E8F7F6', text: '#0F6B67', border: '#BCE3E0' },
+];
 
 // ─── Load Schedule Panel ─────────────────────────────────────────────────────
 function LoadSchedule() {
@@ -265,7 +273,7 @@ function Assumptions() {
   const { can } = useAuth();
   const { assumptions, setAssumptions, getProgramPct, getEffectiveRoles } = useScheduler();
   const pct = getProgramPct();
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const canEditSchedule = can(RESOURCES.DAILY_SCHEDULES, ACTIONS.EDIT);
 
   if (!canEditSchedule) return null;
@@ -289,7 +297,7 @@ function Assumptions() {
   const employees  = getEffectiveRoles().length;
 
   return (
-    <div style={{ ...PANEL_SECTION, flex: 1 }}>
+    <div style={PANEL_SECTION}>
       {/* Title row doubles as the single toggle */}
       <button onClick={() => setOpen(o => !o)} style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -394,6 +402,172 @@ function Assumptions() {
   );
 }
 
+function EmployeesLibrary() {
+  const { can } = useAuth();
+  const { staffData } = useScheduler();
+  const canEditSchedule = can(RESOURCES.DAILY_SCHEDULES, ACTIONS.EDIT);
+  const [expanded, setExpanded] = useState({});
+
+  if (!canEditSchedule) return null;
+
+  const activeStaff = staffData.filter((person) => person.isActive !== false);
+  const groupedStaff = activeStaff.reduce((acc, person) => {
+    const roleKey = person.role?.trim() || 'Other';
+    if (!acc[roleKey]) acc[roleKey] = [];
+    acc[roleKey].push(person);
+    return acc;
+  }, {});
+
+  const orderedGroups = Object.entries(groupedStaff)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([role, people], index) => ({
+      role,
+      people: people.slice().sort((a, b) => {
+        const last = (a.lastName || '').localeCompare(b.lastName || '');
+        if (last !== 0) return last;
+        return (a.firstName || '').localeCompare(b.firstName || '');
+      }),
+      color: STAFF_ROLE_COLORS[index % STAFF_ROLE_COLORS.length],
+    }));
+
+  function isExpanded(role) {
+    return expanded[role] !== false;
+  }
+
+  function toggleGroup(role) {
+    setExpanded((prev) => ({ ...prev, [role]: !isExpanded(role) }));
+  }
+
+  function toggleAll() {
+    const anyCollapsed = orderedGroups.some((group) => expanded[group.role] === false);
+    if (anyCollapsed) {
+      setExpanded({});
+      return;
+    }
+    const allCollapsed = {};
+    orderedGroups.forEach((group) => { allCollapsed[group.role] = false; });
+    setExpanded(allCollapsed);
+  }
+
+  return (
+    <div style={{ ...PANEL_SECTION, paddingBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <div style={PANEL_TITLE}>Employees</div>
+        {orderedGroups.length > 0 && (
+          <button
+            onClick={toggleAll}
+            title={orderedGroups.some((group) => expanded[group.role] === false) ? 'Expand all' : 'Collapse all'}
+            style={{
+              background: 'none',
+              border: '1px solid var(--gray-light)',
+              borderRadius: 4,
+              cursor: 'pointer',
+              padding: '2px 6px',
+              fontSize: 11,
+              color: 'var(--gray)',
+              lineHeight: 1,
+              fontFamily: "'DM Sans', sans-serif",
+            }}
+          >
+            {orderedGroups.some((group) => expanded[group.role] === false) ? '⊞' : '⊟'}
+          </button>
+        )}
+      </div>
+
+      {orderedGroups.length === 0 && (
+        <div style={{ fontSize: 11, color: 'var(--gray)', fontStyle: 'italic' }}>
+          No active employees yet.
+        </div>
+      )}
+
+      {orderedGroups.map((group) => (
+        <div key={group.role} style={{ marginBottom: 8 }}>
+          <button
+            onClick={() => toggleGroup(group.role)}
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: 'var(--gray-light)',
+              border: 'none',
+              borderRadius: 6,
+              cursor: 'pointer',
+              padding: '5px 8px',
+              marginBottom: isExpanded(group.role) ? 6 : 0,
+            }}
+          >
+            <span style={{
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color: 'var(--gray)',
+            }}>
+              {group.role}
+            </span>
+            <span style={{ fontSize: 10, color: 'var(--gray)' }}>
+              {isExpanded(group.role) ? '▲' : '▼'}
+            </span>
+          </button>
+
+          {isExpanded(group.role) && group.people.map((person) => (
+            <div
+              key={person.id}
+              style={{
+                marginBottom: 6,
+                padding: '7px 10px',
+                borderRadius: 8,
+                background: group.color.bg,
+                color: group.color.text,
+                border: `1px solid ${group.color.border}`,
+                boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+              }}
+            >
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 8,
+              }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    fontFamily: "'DM Mono', monospace",
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}>
+                    {person.employeeCode}
+                  </div>
+                  <div style={{
+                    fontSize: 10,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    opacity: 0.9,
+                  }}>
+                    {`${person.firstName || ''} ${person.lastName || ''}`.trim() || 'Unnamed Employee'}
+                  </div>
+                </div>
+                <div style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  opacity: 0.75,
+                  flexShrink: 0,
+                }}>
+                  {group.role}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function SelectWrap({ value, onChange, children }) {
   return (
@@ -478,10 +652,11 @@ export default function LeftPanel() {
     <div style={{
       background: '#fff', borderRight: '1px solid var(--gray-light)',
       overflowY: 'auto', display: 'flex', flexDirection: 'column',
-      width: 280, flexShrink: 0,
+      width: 300, flexShrink: 0,
     }}>
       <LoadSchedule />
       <Assumptions />
+      <EmployeesLibrary />
     </div>
   );
 }
