@@ -260,8 +260,15 @@ function StaffAssignmentDropZone({ roleId, assignment, onClear, disabled }) {
     data: { type: 'staff-column', roleId },
     disabled,
   });
-  const fullName = assignment
-    ? `${assignment.firstName || ''} ${assignment.lastName || ''}`.trim() || 'Assigned employee'
+  const displayName = assignment
+    ? (() => {
+        const first = (assignment.firstName || '').trim();
+        const lastInitial = (assignment.lastName || '').trim().charAt(0);
+        if (first && lastInitial) return `${first} ${lastInitial}.`;
+        if (first) return first;
+        if (lastInitial) return `${lastInitial}.`;
+        return 'Assigned employee';
+      })()
     : '';
 
   return (
@@ -285,15 +292,15 @@ function StaffAssignmentDropZone({ roleId, assignment, onClear, disabled }) {
       {assignment ? (
         <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{
-              fontSize: 11,
-              fontWeight: 700,
-              color: 'var(--purple)',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}>
-              {fullName}
+             <div style={{
+               fontSize: 11,
+               fontWeight: 700,
+               color: 'var(--purple)',
+               whiteSpace: 'nowrap',
+               overflow: 'hidden',
+               textOverflow: 'ellipsis',
+             }}>
+              {displayName}
             </div>
             <div style={{ fontSize: 9, color: 'var(--gray)', marginTop: 2 }}>
               {assignment.role || assignment.employeeCode || 'Assigned'}
