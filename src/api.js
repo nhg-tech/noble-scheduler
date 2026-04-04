@@ -79,8 +79,9 @@ export const apiSetup = {
 
 // ─── Staffing helpers ────────────────────────────────────────────────────────
 export const apiStaffing = {
-  getProfiles:   () => api.get('/staffing/profiles'),
-  saveProfiles:  (profiles) => api.put('/staffing/profiles', profiles),
+  getAvailability: ({ staffId, startDate, endDate }) =>
+    api.get(`/staffing/availability?staffId=${encodeURIComponent(staffId)}&startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`),
+  saveAvailability: (payload) => api.put('/staffing/availability/bulk', payload),
 };
 
 // ─── Template helpers ─────────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { resolveBlockHex } from '../data/palette';
 import { legacySlotsToMinutes, makeKey, minutesToGridSlots } from '../utils/scheduling';
-import { apiSetup, apiTemplates, apiSchedules, apiStaffing, isLoggedIn } from '../api';
+import { apiSetup, apiTemplates, apiSchedules, isLoggedIn } from '../api';
 import {
   deleteScheduleRecord,
   deleteTemplateRecord,
@@ -22,7 +22,6 @@ const LS_COL_ORDER   = 'noble_column_order';
 const LS_COL_WIDTH   = 'noble_col_width';
 const LS_SKILLS      = 'noble_skills';
 const LS_STAFF       = 'noble_staff';
-const LS_STAFFING    = 'noble_staffing_profiles';
 const LS_CAT_DEFS    = 'noble_cat_defs';    // { [catId]: { label?, deleted?, custom?, color? } }
 const LS_CAT_ORDER   = 'noble_cat_order';   // [catId, ...]
 const LS_TASK_ORDER  = 'noble_task_order';  // { [catId]: [taskId, ...] }
@@ -58,7 +57,6 @@ export function SchedulerProvider({ children }) {
   const [userProgramDefs,setUserProgramDefs]= useState(() => loadLS(LS_PROGRAMS, {}));
   const [skillsData,     setSkillsData]     = useState(() => loadLS(LS_SKILLS, []));
   const [staffData,      setStaffData]      = useState(() => loadLS(LS_STAFF, []));
-  const [staffingProfiles, setStaffingProfiles] = useState(() => loadLS(LS_STAFFING, []));
   const [extraRoles,     setExtraRoles]     = useState(() => loadLS(LS_EXTRA_ROLES, []));
   const [columnOrder,    setColumnOrder]    = useState(() => {
     const stored     = loadLS(LS_COL_ORDER, null);
@@ -97,7 +95,6 @@ export function SchedulerProvider({ children }) {
   useEffect(() => { saveLS(LS_PROGRAMS,    userProgramDefs); }, [userProgramDefs]);
   useEffect(() => { saveLS(LS_SKILLS,      skillsData);      }, [skillsData]);
   useEffect(() => { saveLS(LS_STAFF,       staffData);       }, [staffData]);
-  useEffect(() => { saveLS(LS_STAFFING,    staffingProfiles); }, [staffingProfiles]);
   useEffect(() => { saveLS(LS_EXTRA_ROLES, extraRoles);      }, [extraRoles]);
   useEffect(() => { saveLS(LS_COL_ORDER,   columnOrder);     }, [columnOrder]);
   useEffect(() => { saveLS(LS_COL_WIDTH,   colWidth);        }, [colWidth]);
@@ -116,13 +113,12 @@ export function SchedulerProvider({ children }) {
     if (!isLoggedIn()) return;
     async function hydrate() {
       try {
-        const [tasks, roles, progMix, skills, staff, staffing, cats, master, user, drafts, postings] = await Promise.allSettled([
+        const [tasks, roles, progMix, skills, staff, cats, master, user, drafts, postings] = await Promise.allSettled([
           apiSetup.getTasks(),
           apiSetup.getRoles(),
           apiSetup.getProgramMix(),
           apiSetup.getSkills(),
           apiSetup.getStaff(),
-          apiStaffing.getProfiles(),
           apiSetup.getCategories(),
           apiTemplates.getMaster(),
           apiTemplates.getUser(),
@@ -182,9 +178,6 @@ export function SchedulerProvider({ children }) {
         }
         if (staff.status    === 'fulfilled') {
           setStaffData(Array.isArray(staff.value) ? staff.value : []);
-        }
-        if (staffing.status === 'fulfilled') {
-          setStaffingProfiles(Array.isArray(staffing.value) ? staffing.value : []);
         }
         if (cats.status     === 'fulfilled') {
           const { catDefs, catOrder: co, taskOrder: to } = cats.value;
@@ -572,13 +565,6 @@ export function SchedulerProvider({ children }) {
     });
   }, [masterTemplatesData, userTemplatesData]);
 
-  const apiSaveStaffingProfiles = useCallback(async (profiles) => {
-    await apiStaffing.saveProfiles(profiles);
-    setStaffingProfiles(Array.isArray(profiles) ? profiles : []);
-    saveLS(LS_STAFFING, Array.isArray(profiles) ? profiles : []);
-    return { ok: true };
-  }, []);
-
   // ─── Save user defaults ───────────────────────────────────────────────────
   // Re-apply color and code overrides to any blocks already on the schedule
   const saveDefaults = useCallback(() => {
@@ -658,7 +644,6 @@ export function SchedulerProvider({ children }) {
       userTaskDefs, userRoleDefs, userProgramDefs,
       skillsData, setSkillsData,
       staffData, setStaffData,
-      staffingProfiles, setStaffingProfiles,
       // Session-only custom tasks (not persisted; saved/restored with schedule)
       sessionTaskDefs, setSessionTaskDefs,
       colWidth, setColWidth,
@@ -673,7 +658,7 @@ export function SchedulerProvider({ children }) {
       loadTemplate, captureState, applyState,
       getUserTemplates, getMasterTemplates, getUserPostings, getUserDrafts,
       saveUserTemplates, saveMasterTemplates, saveUserPostings, saveUserDrafts,
-      apiSaveTemplate, apiSaveSchedule, apiDeleteTemplate, apiDeleteSchedule, apiSaveStaffingProfiles, persistDefaultsToApi,
+      apiSaveTemplate, apiSaveSchedule, apiDeleteTemplate, apiDeleteSchedule, persistDefaultsToApi,
       saveDefaults, resetDefaults,
     }}>
       {children}
