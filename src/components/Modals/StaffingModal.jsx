@@ -512,12 +512,13 @@ export default function StaffingModal({ scheduleDate, staffData, onClose }) {
                             style={inputStyle}
                           >
                             <option value="unavailable">Unavailable</option>
+                            <option value="unavailable_window">Unavailable Time Window</option>
                             <option value="available_window">Available Window</option>
                           </select>
                         </InputLabel>
                       </div>
 
-                      {exceptionDraft.mode === 'available_window' && (
+                      {(exceptionDraft.mode === 'available_window' || exceptionDraft.mode === 'unavailable_window') && (
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12 }}>
                           <InputLabel label="Available Start">
                             <input
@@ -616,7 +617,9 @@ export default function StaffingModal({ scheduleDate, staffData, onClose }) {
                               <div style={{ fontSize: 11, color: 'var(--gray)', marginTop: 3 }}>
                                 {exception.mode === 'unavailable'
                                   ? 'Unavailable'
-                                  : `Available ${exception.availableStart || '--'} - ${exception.availableEnd || '--'}`}
+                                  : exception.mode === 'unavailable_window'
+                                    ? `Unavailable ${exception.availableStart || '--'} - ${exception.availableEnd || '--'}`
+                                    : `Available ${exception.availableStart || '--'} - ${exception.availableEnd || '--'}`}
                                 {exception.preferredStart && exception.preferredEnd
                                   ? ` • Prefers ${exception.preferredStart} - ${exception.preferredEnd}`
                                   : ''}
