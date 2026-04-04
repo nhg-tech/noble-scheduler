@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { useScheduler } from '../../context/SchedulerContext';
 import { apiSchedules } from '../../api';
@@ -17,6 +17,157 @@ const EMPLOYEE_GROUP_STYLE = {
   background: 'var(--gold-light)',
   color: 'var(--gold-dark)',
 };
+
+const CALENDAR_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function isIsoDateName(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function shiftMonth(monthString, delta) {
+  const [year, month] = monthString.split('-').map(Number);
+  const next = new Date(year, month - 1 + delta, 1);
+  return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function humanDate(dateString) {
+  const date = new Date(`${dateString}T12:00:00`);
+  return Number.isNaN(date.getTime())
+    ? dateString
+    : date.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
+}
+
+function getMonthGrid(monthString) {
+  const [year, month] = monthString.split('-').map(Number);
+  const first = new Date(year, month - 1, 1);
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const leading = first.getDay();
+  const cells = [];
+
+  for (let i = 0; i < leading; i += 1) cells.push(null);
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    cells.push(`${monthString}-${String(day).padStart(2, '0')}`);
+  }
+  while (cells.length % 7 !== 0) cells.push(null);
+  return cells;
+}
+
+function DateMarkerCalendar({
+  markedDates,
+  selectedDate,
+  onSelectDate,
+  emptyLabel,
+}) {
+  const validDates = markedDates.filter(isIsoDateName).sort();
+  const fallbackMonth = selectedDate && isIsoDateName(selectedDate)
+    ? selectedDate.slice(0, 7)
+    : (validDates[0]?.slice(0, 7) || new Date().toISOString().slice(0, 7));
+  const [viewMonth, setViewMonth] = useState(fallbackMonth);
+
+  if (validDates.length === 0) {
+    return (
+      <div style={{ fontSize: 11, color: 'var(--gray)', fontStyle: 'italic', marginBottom: 8 }}>
+        {emptyLabel}
+      </div>
+    );
+  }
+
+  const markedDateSet = new Set(validDates);
+  const cells = getMonthGrid(viewMonth);
+  const monthLabel = new Date(`${viewMonth}-01T12:00:00`).toLocaleDateString(undefined, {
+    month: 'long',
+    year: 'numeric',
+  });
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        marginBottom: 8,
+      }}>
+        <button onClick={() => setViewMonth(prev => shiftMonth(prev, -1))} style={calendarNavBtnStyle}>‹</button>
+        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--purple)' }}>{monthLabel}</div>
+        <button onClick={() => setViewMonth(prev => shiftMonth(prev, 1))} style={calendarNavBtnStyle}>›</button>
+      </div>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
+        gap: 4,
+        marginBottom: 4,
+      }}>
+        {CALENDAR_WEEKDAYS.map((label) => (
+          <div
+            key={label}
+            style={{
+              fontSize: 9,
+              fontWeight: 700,
+              color: 'var(--gray)',
+              textAlign: 'center',
+              letterSpacing: '0.05em',
+              textTransform: 'uppercase',
+            }}
+          >
+            {label}
+          </div>
+        ))}
+      </div>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
+        gap: 4,
+      }}>
+        {cells.map((dateValue, index) => {
+          if (!dateValue) {
+            return <div key={`blank-${index}`} style={{ minHeight: 32 }} />;
+          }
+          const isMarked = markedDateSet.has(dateValue);
+          const isSelected = selectedDate === dateValue;
+          return (
+            <button
+              key={dateValue}
+              onClick={() => isMarked && onSelectDate(dateValue)}
+              style={{
+                minHeight: 32,
+                borderRadius: 8,
+                border: `1px solid ${isSelected ? 'var(--purple)' : isMarked ? 'var(--gold)' : 'var(--gray-light)'}`,
+                background: isSelected ? 'var(--purple)' : isMarked ? 'var(--gold-light)' : '#fff',
+                color: isSelected ? '#fff' : isMarked ? 'var(--gold-dark)' : '#B8B6C5',
+                fontSize: 11,
+                fontWeight: 700,
+                cursor: isMarked ? 'pointer' : 'default',
+                position: 'relative',
+                fontFamily: "'DM Sans', sans-serif",
+                opacity: isMarked ? 1 : 0.6,
+              }}
+            >
+              {dateValue.slice(-2)}
+              {isMarked && !isSelected && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    bottom: 4,
+                    left: '50%',
+                    width: 5,
+                    height: 5,
+                    marginLeft: -2.5,
+                    borderRadius: '50%',
+                    background: 'var(--purple)',
+                    opacity: 0.7,
+                  }}
+                />
+              )}
+            </button>
+          );
+        })}
+      </div>
+      {selectedDate && (
+        <div style={{ marginTop: 8, fontSize: 11, color: 'var(--gray)' }}>
+          Selected: {humanDate(selectedDate)}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── Load Schedule Panel ─────────────────────────────────────────────────────
 function LoadSchedule() {
@@ -42,8 +193,10 @@ function LoadSchedule() {
   const userPostings    = getUserPostings();    // { name: state }
   const masterKeys   = Object.keys(masterTemplates);
   const templateKeys = Object.keys(userTemplates);
-  const draftKeys    = Object.keys(userDrafts);
-  const postingKeys  = Object.keys(userPostings);
+  const draftKeys    = Object.keys(userDrafts).sort();
+  const postingKeys  = Object.keys(userPostings).sort();
+  const legacyDraftKeys = draftKeys.filter((name) => !isIsoDateName(name));
+  const legacyPostingKeys = postingKeys.filter((name) => !isIsoDateName(name));
 
   const canViewMasterTemplates = can(RESOURCES.MASTER_TEMPLATES, ACTIONS.VIEW);
   const canDeleteMasterTemplates = can(RESOURCES.MASTER_TEMPLATES, ACTIONS.DELETE);
@@ -59,43 +212,28 @@ function LoadSchedule() {
     canViewDrafts ? 'draft' : null,
     canViewPosted ? 'posting' : null,
   ].filter(Boolean);
-
-  // Auto-select first item when lists populate (e.g. after API hydration)
-  useEffect(() => {
-    if (!draftValue && draftKeys.length > 0) setDraftValue(draftKeys[0]);
-  }, [draftKeys.length]); // eslint-disable-line
-  useEffect(() => {
-    if (!postingValue && postingKeys.length > 0) setPostingValue(postingKeys[0]);
-  }, [postingKeys.length]); // eslint-disable-line
-  useEffect(() => {
-    if (!availableTabs.length) return;
-    if (!availableTabs.includes(loadTab)) setLoadTab(availableTabs[0]);
-  }, [availableTabs, loadTab]);
-  useEffect(() => {
-    if (currentLoadedEntity?.kind === 'template' && currentLoadedEntity?.name) {
-      const nextValue = currentLoadedEntity.scope === 'master'
+  const resolvedLoadTab = availableTabs.includes(loadTab) ? loadTab : (availableTabs[0] || 'template');
+  const resolvedDraftValue = draftKeys.includes(draftValue) ? draftValue : (draftKeys[0] || '');
+  const resolvedPostingValue = postingKeys.includes(postingValue) ? postingValue : (postingKeys[0] || '');
+  const resolvedTemplateValue = currentLoadedEntity?.kind === 'template' && currentLoadedEntity?.name
+    ? (currentLoadedEntity.scope === 'master'
         ? `master_${currentLoadedEntity.name}`
-        : `user_${currentLoadedEntity.name}`;
-      if (tplValue !== nextValue) setTplValue(nextValue);
-      if (loadTab !== 'template') setLoadTab('template');
-      return;
-    }
-    if (currentLoadedEntity?.kind === 'builtin') {
-      if (tplValue !== 'blank') setTplValue('blank');
-    }
-  }, [currentLoadedEntity]);
+        : `user_${currentLoadedEntity.name}`)
+    : currentLoadedEntity?.kind === 'builtin'
+      ? 'blank'
+      : tplValue;
 
   function handleLoadTemplate() {
-    if (!tplValue) return;
-    if (tplValue.startsWith('master_')) {
-      const name = tplValue.replace('master_', '');
+    if (!resolvedTemplateValue) return;
+    if (resolvedTemplateValue.startsWith('master_')) {
+      const name = resolvedTemplateValue.replace('master_', '');
       const state = masterTemplates[name];
       if (!state) return;
       setScheduleLabel(name);
       setCurrentLoadedEntity({ kind: 'template', scope: 'master', id: state.id, name });
       applyState(state);
-    } else if (tplValue.startsWith('user_')) {
-      const name = tplValue.replace('user_', '');
+    } else if (resolvedTemplateValue.startsWith('user_')) {
+      const name = resolvedTemplateValue.replace('user_', '');
       const state = userTemplates[name];
       if (!state) return;
       setScheduleLabel(name);
@@ -131,10 +269,10 @@ function LoadSchedule() {
   }
 
   async function handleDeleteTemplate() {
-    const isMaster = tplValue.startsWith('master_');
-    const isUser   = tplValue.startsWith('user_');
+    const isMaster = resolvedTemplateValue.startsWith('master_');
+    const isUser   = resolvedTemplateValue.startsWith('user_');
     if (!isMaster && !isUser) return;
-    const name = tplValue.replace(/^(master_|user_)/, '');
+    const name = resolvedTemplateValue.replace(/^(master_|user_)/, '');
     if (!window.confirm(`Delete template "${name}"?`)) return;
     await apiDeleteTemplate(name, isMaster ? 'master' : 'user');
     setTplValue('blank');
@@ -154,13 +292,13 @@ function LoadSchedule() {
       {availableTabs.length > 0 && (
         <div style={{ display: 'flex', gap: 2, marginBottom: 8, background: 'var(--cream)', borderRadius: 6, padding: 2 }}>
           {availableTabs.includes('template') && (
-            <button style={tabStyle(loadTab === 'template')} onClick={() => setLoadTab('template')}>Templates</button>
+            <button style={tabStyle(resolvedLoadTab === 'template')} onClick={() => setLoadTab('template')}>Templates</button>
           )}
           {availableTabs.includes('draft') && (
-            <button style={tabStyle(loadTab === 'draft')} onClick={() => setLoadTab('draft')}>📝 Drafts</button>
+            <button style={tabStyle(resolvedLoadTab === 'draft')} onClick={() => setLoadTab('draft')}>📝 Drafts</button>
           )}
           {availableTabs.includes('posting') && (
-            <button style={tabStyle(loadTab === 'posting')} onClick={() => setLoadTab('posting')}>✅ Posted</button>
+            <button style={tabStyle(resolvedLoadTab === 'posting')} onClick={() => setLoadTab('posting')}>✅ Posted</button>
           )}
         </div>
       )}
@@ -170,9 +308,9 @@ function LoadSchedule() {
         </div>
       )}
 
-      {loadTab === 'template' && (
+      {resolvedLoadTab === 'template' && (
         <>
-          <SelectWrap value={tplValue} onChange={setTplValue}>
+          <SelectWrap value={resolvedTemplateValue} onChange={setTplValue}>
             <option value="blank">— New Blank Schedule —</option>
             {canViewMasterTemplates && masterKeys.length > 0 && (
               <optgroup label="— Master Templates —">
@@ -190,9 +328,9 @@ function LoadSchedule() {
             )}
           </SelectWrap>
           <LoadBtn onClick={handleLoadTemplate}>
-            {tplValue === 'blank' ? 'New Blank Schedule' : 'Load Template'}
+            {resolvedTemplateValue === 'blank' ? 'New Blank Schedule' : 'Load Template'}
           </LoadBtn>
-          {((tplValue.startsWith('master_') && canDeleteMasterTemplates) || (tplValue.startsWith('user_') && canDeleteUserTemplates)) && (
+          {((resolvedTemplateValue.startsWith('master_') && canDeleteMasterTemplates) || (resolvedTemplateValue.startsWith('user_') && canDeleteUserTemplates)) && (
             <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
               <SmBtn onClick={handleDeleteTemplate} danger>🗑 Delete</SmBtn>
             </div>
@@ -200,34 +338,39 @@ function LoadSchedule() {
         </>
       )}
 
-      {loadTab === 'draft' && (
+      {resolvedLoadTab === 'draft' && (
         <>
-          <SelectWrap value={draftValue} onChange={setDraftValue}>
-            {draftKeys.length === 0
-              ? <option value="">— No saved drafts —</option>
-              : draftKeys.map(name => (
-                  <option key={name} value={name}>📝 {name}</option>
-                ))
-            }
-          </SelectWrap>
-          <LoadBtn onClick={() => handleLoad(userDrafts, draftValue)}>Load Draft</LoadBtn>
-          {draftValue && canDeleteDrafts && (
+          <DateMarkerCalendar
+            markedDates={draftKeys}
+            selectedDate={resolvedDraftValue}
+            onSelectDate={setDraftValue}
+            emptyLabel="No saved drafts yet."
+          />
+          {legacyDraftKeys.length > 0 && (
+            <SelectWrap value={resolvedDraftValue} onChange={setDraftValue}>
+              {legacyDraftKeys.map(name => (
+                <option key={name} value={name}>📝 {name}</option>
+              ))}
+            </SelectWrap>
+          )}
+          <LoadBtn onClick={() => handleLoad(userDrafts, resolvedDraftValue)}>Load Draft</LoadBtn>
+          {resolvedDraftValue && canDeleteDrafts && (
             <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
               <SmBtn danger onClick={async () => {
-                if (!window.confirm(`Delete draft "${draftValue}"?`)) return;
-                const draft = userDrafts[draftValue];
+                if (!window.confirm(`Delete draft "${resolvedDraftValue}"?`)) return;
+                const draft = userDrafts[resolvedDraftValue];
                 try {
                   if (draft?.id) {
-                    await apiDeleteSchedule(draft.id, 'draft', draftValue);
+                    await apiDeleteSchedule(draft.id, 'draft', resolvedDraftValue);
                   } else {
                     const updated = { ...userDrafts };
-                    delete updated[draftValue];
+                    delete updated[resolvedDraftValue];
                     saveUserDrafts(updated);
                   }
                   if (
                     currentLoadedEntity?.kind === 'schedule' &&
                     currentLoadedEntity?.status === 'draft' &&
-                    currentLoadedEntity?.name === draftValue
+                    currentLoadedEntity?.name === resolvedDraftValue
                   ) {
                     setCurrentLoadedEntity({ kind: 'builtin', scope: 'builtin', name: 'blank' });
                   }
@@ -241,17 +384,22 @@ function LoadSchedule() {
         </>
       )}
 
-      {loadTab === 'posting' && (
+      {resolvedLoadTab === 'posting' && (
         <>
-          <SelectWrap value={postingValue} onChange={setPostingValue}>
-            {postingKeys.length === 0
-              ? <option value="">— No posted schedules —</option>
-              : postingKeys.map(name => (
-                  <option key={name} value={name}>✅ {name}</option>
-                ))
-            }
-          </SelectWrap>
-          <LoadBtn onClick={() => handleLoad(userPostings, postingValue)}>Load Posted</LoadBtn>
+          <DateMarkerCalendar
+            markedDates={postingKeys}
+            selectedDate={resolvedPostingValue}
+            onSelectDate={setPostingValue}
+            emptyLabel="No posted schedules yet."
+          />
+          {legacyPostingKeys.length > 0 && (
+            <SelectWrap value={resolvedPostingValue} onChange={setPostingValue}>
+              {legacyPostingKeys.map(name => (
+                <option key={name} value={name}>✅ {name}</option>
+              ))}
+            </SelectWrap>
+          )}
+          <LoadBtn onClick={() => handleLoad(userPostings, resolvedPostingValue)}>Load Posted</LoadBtn>
         </>
       )}
 
@@ -657,6 +805,18 @@ function Derived({ children }) {
     </div>
   );
 }
+
+const calendarNavBtnStyle = {
+  border: '1px solid var(--gray-light)',
+  background: '#fff',
+  color: 'var(--purple)',
+  borderRadius: 6,
+  width: 28,
+  height: 28,
+  cursor: 'pointer',
+  fontSize: 16,
+  lineHeight: 1,
+};
 
 // ─── Export ──────────────────────────────────────────────────────────────────
 export default function LeftPanel() {

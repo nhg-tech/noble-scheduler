@@ -51,7 +51,12 @@ import ChecklistModal from './components/Modals/ChecklistModal';
 import StaffingModal from './components/Modals/StaffingModal';
 import VersionHistoryModal from './components/Modals/VersionHistoryModal';
 import AssignmentWarningModal from './components/Modals/AssignmentWarningModal';
+import StaffingReviewModal from './components/Modals/StaffingReviewModal';
 import SetupOverlay from './components/Setup/SetupOverlay';
+
+function getColumnsWithTasks(schedule) {
+  return [...new Set(Object.keys(schedule).map((key) => key.split('|')[0]))];
+}
 
 export default function App() {
   const { can } = useAuth();
@@ -142,6 +147,7 @@ export default function App() {
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [showPrint, setShowPrint]         = useState(false);
   const [pendingAssignment, setPendingAssignment] = useState(null);
+  const [publishReviewState, setPublishReviewState] = useState(null);
   const [printOpts, setPrintOpts]         = useState({ paperSize: 'legal', inclSummary: true, inclAssumptions: true, excludedCols: [] });
   const [saveError, setSaveError]         = useState(null);
 
@@ -370,6 +376,111 @@ export default function App() {
     setSchedule(prev => resizeBlockSchedule(prev, blockKey, newMins));
   }
 
+  async function buildPublishReview() {
+    const columnsWithTasks = getColumnsWithTasks(schedule);
+    const unassignedColumns = columnsWithTasks
+      .filter((roleId) => !employeeAssignments[roleId])
+      .map((roleId) => ({
+        roleId,
+        label: roleConfigs.find((role) => role.id === roleId)?.label || roleId,
+      }));
+
+    const uniqueStaffIds = [...new Set(
+      columnsWithTasks
+        .map((roleId) => employeeAssignments[roleId]?.staffId)
+        .filter(Boolean)
+    )];
+
+    const staffingLookup = new Map();
+    await Promise.all(uniqueStaffIds.map(async (staffId) => {
+      const [availabilityRecords, exceptions] = await Promise.all([
+        apiStaffing.getAvailability({
+          staffId,
+          startDate: assumptions.date,
+          endDate: assumptions.date,
+        }),
+        apiStaffing.getExceptions({ staffId }),
+      ]);
+      staffingLookup.set(staffId, { availabilityRecords, exceptions });
+    }));
+
+    const assignmentIssues = columnsWithTasks.reduce((issues, roleId) => {
+      const assignment = employeeAssignments[roleId];
+      if (!assignment?.staffId) return issues;
+
+      const person = staffData.find((entry) => String(entry.id) === String(assignment.staffId));
+      const role = roleConfigs.find((entry) => entry.id === roleId);
+      const roleLabel = role?.label || roleId;
+
+      if (!person) {
+        issues.push({
+          roleId,
+          roleLabel,
+          employeeName: `${assignment.firstName || ''} ${assignment.lastName || ''}`.trim() || 'Assigned employee',
+          warnings: [{
+            type: 'staff',
+            severity: 'strong',
+            title: 'Assigned employee record missing',
+            message: 'This schedule still references an employee who is no longer in the active staff list.',
+          }],
+        });
+        return issues;
+      }
+
+      const staffingData = staffingLookup.get(person.id) || { availabilityRecords: [], exceptions: [] };
+      const warnings = buildAssignmentWarnings({
+        schedule,
+        role,
+        roleId,
+        person,
+        taskDefs: userTaskDefs,
+        skills: skillsData,
+        availabilityRecords: staffingData.availabilityRecords,
+        exceptions: staffingData.exceptions,
+        scheduleDate: assumptions.date,
+      });
+
+      if (warnings.length > 0) {
+        issues.push({
+          roleId,
+          roleLabel,
+          employeeName: `${person.firstName || ''} ${person.lastName || ''}`.trim() || 'Assigned employee',
+          warnings,
+        });
+      }
+      return issues;
+    }, []);
+
+    return {
+      scheduleDate: assumptions.date,
+      columnsWithTasks,
+      assignedColumns: columnsWithTasks.filter((roleId) => !!employeeAssignments[roleId]),
+      unassignedColumns,
+      assignmentIssues,
+      warningCount: assignmentIssues.reduce((count, issue) => count + issue.warnings.length, 0),
+    };
+  }
+
+  async function handlePostScheduleClick() {
+    setSaveError(null);
+    if (!assumptions.date) {
+      setSaveError('Select a schedule date before publishing a schedule.');
+      return;
+    }
+    if (!canPublishSchedules) {
+      setSaveError('You do not have permission to publish schedules.');
+      return;
+    }
+    setPublishReviewState({ isLoading: true, review: null });
+    try {
+      const review = await buildPublishReview();
+      setPublishReviewState({ isLoading: false, review });
+    } catch (err) {
+      setPublishReviewState(null);
+      setSaveError(err.message || 'Failed to prepare the staffing review.');
+    }
+  }
+
   // ─── Save handlers ────────────────────────────────────────────────────────
   async function handleSaveConfirm(name, tplType) {
     const state = captureState();
@@ -505,7 +616,7 @@ export default function App() {
         onSetup={() => canViewSetupPanel && setShowSetup(true)}
         onStaffing={() => canUseWorkflowTools && setShowStaffing(true)}
         onSave={() => (canCreateDraft || canSaveAnyTemplate) && setShowSaveChooser(true)}
-        onPostSchedule={() => canPublishSchedules && setSaveMode('post')}
+        onPostSchedule={handlePostScheduleClick}
         onVersionHistory={() => isViewingPostedSchedule && setShowVersionHistory(true)}
         onValidate={() => setShowValidate(true)}
         onChecklist={() => setShowChecklist(true)}
@@ -703,6 +814,17 @@ export default function App() {
           scheduleName={currentLoadedEntity.name}
           onRestored={handleRestorePublishedVersion}
           onClose={() => setShowVersionHistory(false)}
+        />
+      )}
+      {publishReviewState && (
+        <StaffingReviewModal
+          review={publishReviewState.review}
+          isLoading={publishReviewState.isLoading}
+          onClose={() => setPublishReviewState(null)}
+          onContinue={() => {
+            setPublishReviewState(null);
+            setSaveMode('post');
+          }}
         />
       )}
       {showPrint && (
