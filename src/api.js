@@ -77,6 +77,12 @@ export const apiSetup = {
   createCategory:   (label) => api.post('/setup/categories', { label }),
 };
 
+// ─── Staffing helpers ────────────────────────────────────────────────────────
+export const apiStaffing = {
+  getProfiles:   () => api.get('/staffing/profiles'),
+  saveProfiles:  (profiles) => api.put('/staffing/profiles', profiles),
+};
+
 // ─── Template helpers ─────────────────────────────────────────────────────────
 export const apiTemplates = {
   getMaster:     ()           => api.get('/templates/master'),

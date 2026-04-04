@@ -63,7 +63,8 @@ export default function App() {
     getDerivedValues,
     getEffectiveRoles, getDeletedRoles,
     getUserTemplates, getMasterTemplates, getUserPostings, getUserDrafts,
-    apiSaveTemplate, apiSaveSchedule,
+    apiSaveTemplate, apiSaveSchedule, apiSaveStaffingProfiles,
+    staffData, staffingProfiles,
   } = useScheduler();
 
   const roleConfigs = [...getEffectiveRoles(), ...getDeletedRoles(), ...extraRoles];
@@ -587,6 +588,9 @@ export default function App() {
       {showStaffing && canUseWorkflowTools && (
         <StaffingModal
           scheduleDate={assumptions.date}
+          staffData={staffData}
+          staffingProfiles={staffingProfiles}
+          onSave={apiSaveStaffingProfiles}
           onClose={() => setShowStaffing(false)}
         />
       )}
