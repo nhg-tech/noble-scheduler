@@ -13,6 +13,8 @@ export default function SetupOverlay({ onClose }) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingTask, setEditingTask] = useState(null);   // custom task being edited
   const [editingLibTask, setEditingLibTask] = useState(null); // library task being edited
+  const [editingStaff, setEditingStaff] = useState(null);
+  const [showStaffModal, setShowStaffModal] = useState(false);
   const {
     assumptions, setAssumptions,
     userTaskDefs, setUserTaskDefs,
@@ -231,6 +233,7 @@ export default function SetupOverlay({ onClose }) {
             <TaskDefaultsTab
               userTaskDefs={userTaskDefs}
               sessionTaskDefs={sessionTaskDefs}
+              skillsData={skillsData}
               onChange={setTaskDefault}
               onCreateTask={() => setShowCreateModal(true)}
               onEditTask={task => setEditingLibTask(task)}
@@ -249,6 +252,9 @@ export default function SetupOverlay({ onClose }) {
             <StaffTab
               staffData={staffData}
               setStaffData={setStaffData}
+              skillsData={skillsData}
+              onCreateStaff={() => { setEditingStaff(null); setShowStaffModal(true); }}
+              onEditStaff={(person) => { setEditingStaff(person); setShowStaffModal(true); }}
             />
           )}
           {tab === 5 && (
@@ -360,8 +366,33 @@ export default function SetupOverlay({ onClose }) {
       <EditLibTaskModal
         task={editingLibTask}
         override={userTaskDefs[editingLibTask.id] || {}}
+        skillsData={skillsData}
         onSave={handleLibTaskSave}
         onClose={() => setEditingLibTask(null)}
+      />
+    )}
+    {showStaffModal && (
+      <StaffModal
+        initialData={editingStaff}
+        skillsData={skillsData}
+        onSave={(staffRecord) => {
+          setStaffData((prev) => {
+            if (staffRecord.id) {
+              return prev.map((person) => person.id === staffRecord.id ? { ...person, ...staffRecord } : person);
+            }
+            return [
+              ...prev,
+              {
+                ...staffRecord,
+                id: `tmp-${Date.now()}`,
+                sortOrder: prev.length,
+              },
+            ];
+          });
+          setEditingStaff(null);
+          setShowStaffModal(false);
+        }}
+        onClose={() => { setEditingStaff(null); setShowStaffModal(false); }}
       />
     )}
     </>
@@ -540,7 +571,7 @@ function SkillsTab({ skillsData, setSkillsData }) {
                 <Td>
                   <input
                     value={skill.code || ''}
-                    onChange={(e) => updateSkill(skill.id, 'code', e.target.value.trimStart())}
+                    onChange={(e) => updateSkill(skill.id, 'code', e.target.value.replace(/\s+/g, '').trimStart())}
                     placeholder="FD"
                     maxLength={12}
                     style={{ ...inputStyle, width: 90 }}
@@ -624,40 +655,13 @@ function SkillsTab({ skillsData, setSkillsData }) {
   );
 }
 
-function StaffTab({ staffData, setStaffData }) {
+function StaffTab({ staffData, setStaffData, skillsData, onCreateStaff, onEditStaff }) {
   const [showInactive, setShowInactive] = useState(false);
   const isDraggingRef = useRef(false);
   const dragIdRef = useRef(null);
+  const skillLabelById = Object.fromEntries(skillsData.map((skill) => [skill.id, skill.label || skill.code]));
 
   const visibleStaff = staffData.filter((person) => showInactive || person.isActive !== false);
-
-  function addStaff() {
-    setStaffData((prev) => [
-      ...prev,
-      {
-        id: `tmp-${Date.now()}`,
-        employeeCode: '',
-        firstName: '',
-        lastName: '',
-        email: '',
-        phone: '',
-        notes: '',
-        isActive: true,
-        sortOrder: prev.length,
-      },
-    ]);
-  }
-
-  function updateStaff(id, field, value) {
-    setStaffData((prev) => prev.map((person) => (
-      person.id === id
-        ? {
-            ...person,
-            [field]: field === 'employeeCode' ? value.toUpperCase() : value,
-          }
-        : person
-    )));
-  }
 
   function toggleStaff(id) {
     setStaffData((prev) => prev.map((person) => (
@@ -709,6 +713,7 @@ function StaffTab({ staffData, setStaffData }) {
               <Th>Last Name</Th>
               <Th>Email</Th>
               <Th>Phone</Th>
+              <Th>Skills</Th>
               <Th>Notes</Th>
               <Th>Status</Th>
               <Th></Th>
@@ -729,54 +734,55 @@ function StaffTab({ staffData, setStaffData }) {
                   >⠿</div>
                 </Td>
                 <Td>
-                  <input
-                    value={person.employeeCode || ''}
-                    onChange={(e) => updateStaff(person.id, 'employeeCode', e.target.value.trimStart())}
-                    placeholder="E001"
-                    maxLength={20}
-                    style={{ ...inputStyle, width: 110 }}
-                  />
+                  <span style={{ fontFamily: "'DM Mono', monospace" }}>{person.employeeCode || '—'}</span>
                 </Td>
                 <Td>
-                  <input
-                    value={person.firstName || ''}
-                    onChange={(e) => updateStaff(person.id, 'firstName', e.target.value)}
-                    placeholder="Jane"
-                    style={{ ...inputStyle, width: 120 }}
-                  />
+                  {person.firstName || '—'}
                 </Td>
                 <Td>
-                  <input
-                    value={person.lastName || ''}
-                    onChange={(e) => updateStaff(person.id, 'lastName', e.target.value)}
-                    placeholder="Smith"
-                    style={{ ...inputStyle, width: 120 }}
-                  />
+                  {person.lastName || '—'}
                 </Td>
                 <Td>
-                  <input
-                    type="email"
-                    value={person.email || ''}
-                    onChange={(e) => updateStaff(person.id, 'email', e.target.value)}
-                    placeholder="jane@noble.com"
-                    style={{ ...inputStyle, width: 180 }}
-                  />
+                  {person.email || '—'}
                 </Td>
                 <Td>
-                  <input
-                    value={person.phone || ''}
-                    onChange={(e) => updateStaff(person.id, 'phone', e.target.value)}
-                    placeholder="555-123-4567"
-                    style={{ ...inputStyle, width: 130 }}
-                  />
+                  {person.phone || '—'}
                 </Td>
                 <Td>
-                  <input
-                    value={person.notes || ''}
-                    onChange={(e) => updateStaff(person.id, 'notes', e.target.value)}
-                    placeholder="Optional notes"
-                    style={{ ...inputStyle, width: 180 }}
-                  />
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, maxWidth: 180 }}>
+                    {(person.skillIds || [])
+                      .map((skillId) => skillLabelById[skillId])
+                      .filter(Boolean)
+                      .slice(0, 3)
+                      .map((label) => (
+                        <span
+                          key={`${person.id}-${label}`}
+                          style={{
+                            padding: '2px 6px',
+                            borderRadius: 999,
+                            background: 'var(--purple-pale)',
+                            color: 'var(--purple)',
+                            fontSize: 10,
+                            fontWeight: 600,
+                          }}
+                        >
+                          {label}
+                        </span>
+                      ))}
+                    {(person.skillIds || []).length > 3 && (
+                      <span style={{ fontSize: 10, color: 'var(--gray)', alignSelf: 'center' }}>
+                        +{(person.skillIds || []).length - 3} more
+                      </span>
+                    )}
+                    {(person.skillIds || []).length === 0 && (
+                      <span style={{ fontSize: 10, color: 'var(--gray)' }}>No skills</span>
+                    )}
+                  </div>
+                </Td>
+                <Td>
+                  <div style={{ maxWidth: 180, color: person.notes ? 'var(--dark)' : 'var(--gray)' }}>
+                    {person.notes || '—'}
+                  </div>
                 </Td>
                 <Td>
                   <span style={{
@@ -789,18 +795,26 @@ function StaffTab({ staffData, setStaffData }) {
                   </span>
                 </Td>
                 <Td>
-                  <button
-                    onClick={() => toggleStaff(person.id)}
-                    style={{ ...actionBtnStyle, fontSize: 11, padding: '3px 8px', color: person.isActive === false ? 'var(--purple)' : 'var(--red)' }}
-                  >
-                    {person.isActive === false ? 'Reactivate' : 'Deactivate'}
-                  </button>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button
+                      onClick={() => onEditStaff(person)}
+                      style={{ ...actionBtnStyle, fontSize: 11, padding: '3px 8px', color: 'var(--purple)' }}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => toggleStaff(person.id)}
+                      style={{ ...actionBtnStyle, fontSize: 11, padding: '3px 8px', color: person.isActive === false ? 'var(--purple)' : 'var(--red)' }}
+                    >
+                      {person.isActive === false ? 'Reactivate' : 'Deactivate'}
+                    </button>
+                  </div>
                 </Td>
               </tr>
             ))}
             {visibleStaff.length === 0 && (
               <tr>
-                <Td colSpan={9} style={{ color: 'var(--gray)', fontStyle: 'italic' }}>
+                <Td colSpan={10} style={{ color: 'var(--gray)', fontStyle: 'italic' }}>
                   {showInactive
                     ? 'No staff yet. Add your first team member to get started.'
                     : 'No active staff. Toggle inactive staff or add a new team member.'}
@@ -812,7 +826,7 @@ function StaffTab({ staffData, setStaffData }) {
       </div>
       <div style={{ marginTop: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
         <button
-          onClick={addStaff}
+          onClick={onCreateStaff}
           style={{
             padding: '8px 16px', borderRadius: 7, border: '1.5px dashed var(--purple-light)',
             background: 'transparent', color: 'var(--purple)', fontSize: 12,
@@ -840,13 +854,139 @@ function StaffTab({ staffData, setStaffData }) {
   );
 }
 
+function StaffModal({ initialData, skillsData, onSave, onClose }) {
+  const activeSkills = skillsData.filter((skill) => skill.isActive !== false);
+  const [local, setLocal] = useState({
+    id: initialData?.id,
+    employeeCode: initialData?.employeeCode || '',
+    firstName: initialData?.firstName || '',
+    lastName: initialData?.lastName || '',
+    email: initialData?.email || '',
+    phone: initialData?.phone || '',
+    notes: initialData?.notes || '',
+    isActive: initialData?.isActive !== false,
+    skillIds: initialData?.skillIds || [],
+  });
+
+  function toggleSkill(skillId) {
+    setLocal((prev) => ({
+      ...prev,
+      skillIds: prev.skillIds.includes(skillId)
+        ? prev.skillIds.filter((id) => id !== skillId)
+        : [...prev.skillIds, skillId],
+    }));
+  }
+
+  function handleSave() {
+    if (!local.employeeCode.trim() || !local.firstName.trim() || !local.lastName.trim()) {
+      window.alert('Employee code, first name, and last name are required.');
+      return;
+    }
+    onSave({
+      ...local,
+      employeeCode: local.employeeCode.trim().toUpperCase(),
+      firstName: local.firstName.trim(),
+      lastName: local.lastName.trim(),
+      email: local.email.trim(),
+      phone: local.phone.trim(),
+      notes: local.notes.trim(),
+    });
+  }
+
+  return (
+    <Modal title={initialData ? `Edit Staff: ${initialData.firstName} ${initialData.lastName}` : 'Add Staff'} onClose={onClose} width={620}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+          <div>
+            <label style={editLabelStyle}>Employee Code</label>
+            <input
+              value={local.employeeCode}
+              maxLength={20}
+              onChange={(e) => setLocal((prev) => ({ ...prev, employeeCode: e.target.value.replace(/\s+/g, '') }))}
+              style={editInputStyle}
+            />
+          </div>
+          <div>
+            <label style={editLabelStyle}>First Name</label>
+            <input value={local.firstName} onChange={(e) => setLocal((prev) => ({ ...prev, firstName: e.target.value }))} style={editInputStyle} />
+          </div>
+          <div>
+            <label style={editLabelStyle}>Last Name</label>
+            <input value={local.lastName} onChange={(e) => setLocal((prev) => ({ ...prev, lastName: e.target.value }))} style={editInputStyle} />
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div>
+            <label style={editLabelStyle}>Email</label>
+            <input type="email" value={local.email} onChange={(e) => setLocal((prev) => ({ ...prev, email: e.target.value }))} style={editInputStyle} />
+          </div>
+          <div>
+            <label style={editLabelStyle}>Phone</label>
+            <input value={local.phone} onChange={(e) => setLocal((prev) => ({ ...prev, phone: e.target.value }))} style={editInputStyle} />
+          </div>
+        </div>
+
+        <div>
+          <label style={editLabelStyle}>Notes</label>
+          <textarea
+            rows={3}
+            value={local.notes}
+            onChange={(e) => setLocal((prev) => ({ ...prev, notes: e.target.value }))}
+            placeholder="Optional notes…"
+            style={{ ...editInputStyle, resize: 'vertical', fontFamily: "'DM Sans', sans-serif" }}
+          />
+        </div>
+
+        <div>
+          <label style={editLabelStyle}>Skills</label>
+          <div style={{
+            border: '1.5px solid var(--gray-light)',
+            borderRadius: 8,
+            padding: 12,
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+            gap: 8,
+            maxHeight: 220,
+            overflowY: 'auto',
+          }}>
+            {activeSkills.map((skill) => (
+              <label key={skill.id} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={local.skillIds.includes(skill.id)}
+                  onChange={() => toggleSkill(skill.id)}
+                  style={{ accentColor: 'var(--purple)' }}
+                />
+                <span style={{ fontSize: 12, color: 'var(--dark)' }}>
+                  <strong>{skill.code}</strong> · {skill.label}
+                </span>
+              </label>
+            ))}
+            {activeSkills.length === 0 && (
+              <span style={{ fontSize: 12, color: 'var(--gray)' }}>No active skills yet.</span>
+            )}
+          </div>
+        </div>
+      </div>
+      <ModalFooter>
+        <Btn onClick={onClose} variant="secondary">Cancel</Btn>
+        <Btn onClick={handleSave} variant="primary">Save</Btn>
+      </ModalFooter>
+    </Modal>
+  );
+}
+
 // ─── Task Defaults Tab ───────────────────────────────────────────────────────
 
-function TaskDefaultsTab({ userTaskDefs, sessionTaskDefs, onChange, onCreateTask, onEditTask, onDeleteTask }) {
+function TaskDefaultsTab({ userTaskDefs, sessionTaskDefs, skillsData, onChange, onCreateTask, onEditTask, onDeleteTask }) {
   const { getFullCatList, taskOrder, setTaskOrder, getTaskDefault, taskLibrary } = useScheduler();
   const isDraggingRef = useRef(false);
   const dragIdRef     = useRef(null);
   const dragCatRef    = useRef(null);
+  const skillLabelById = Object.fromEntries(
+    skillsData.map((skill) => [String(skill.id), skill.code || skill.label || String(skill.id)])
+  );
 
   const activeCats = getFullCatList().filter(c => !c.deleted);
 
@@ -911,6 +1051,7 @@ function TaskDefaultsTab({ userTaskDefs, sessionTaskDefs, onChange, onCreateTask
             <Th>Min / Unit</Th>
             <Th>Min Res / Unit</Th>
             <Th>Color</Th>
+            <Th>Skills</Th>
             <Th style={{ whiteSpace: 'nowrap' }}>Count Hrs</Th>
             <Th></Th>
           </tr>
@@ -920,7 +1061,7 @@ function TaskDefaultsTab({ userTaskDefs, sessionTaskDefs, onChange, onCreateTask
             const tasks = getOrderedTasksForCat(cat.id);
             return [
               <tr key={`cat-${cat.id}`}>
-                <td colSpan={9} style={{
+                <td colSpan={10} style={{
                   padding: '6px 10px 3px', fontSize: 10, fontWeight: 700,
                   letterSpacing: '0.07em', textTransform: 'uppercase',
                   color: 'var(--purple)', background: cat.color || 'var(--gray-light)',
@@ -932,6 +1073,7 @@ function TaskDefaultsTab({ userTaskDefs, sessionTaskDefs, onChange, onCreateTask
                 const minVal   = def.unitMin ?? task.durationMin ?? 30;
                 const minRes   = def.minResources;
                 const colorVal = def.color ?? task.color;
+                const requiredSkills = Array.isArray(def.requiredSkills) ? def.requiredSkills : [];
                 return (
                   <tr
                     key={task.id}
@@ -971,6 +1113,31 @@ function TaskDefaultsTab({ userTaskDefs, sessionTaskDefs, onChange, onCreateTask
                     </Td>
                     <Td>
                       <ColorPicker value={colorVal} onChange={hex => onChange(task.id, 'color', hex)} />
+                    </Td>
+                    <Td style={{ minWidth: 140 }}>
+                      {requiredSkills.length === 0 ? (
+                        <span style={{ color: 'var(--gray)', fontSize: 11 }}>None</span>
+                      ) : (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                          {requiredSkills.map((skillId) => (
+                            <span
+                              key={`${task.id}-skill-${skillId}`}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                padding: '2px 6px',
+                                borderRadius: 999,
+                                background: 'var(--purple-pale)',
+                                color: 'var(--purple)',
+                                fontSize: 10,
+                                fontWeight: 700,
+                              }}
+                            >
+                              {skillLabelById[String(skillId)] || `Skill ${skillId}`}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </Td>
                     <Td style={{ textAlign: 'center' }}>
                       <input
@@ -1487,9 +1654,11 @@ function Td({ children, style, ...props }) {
 }
 
 // ─── Edit Library Task Modal ──────────────────────────────────────────────────
-function EditLibTaskModal({ task, override, onSave, onClose }) {
+function EditLibTaskModal({ task, override, skillsData, onSave, onClose }) {
   const { getFullCatList, getTaskDefault } = useScheduler();
   const catOptions = getFullCatList().filter(c => !c.deleted).map(c => ({ value: c.id, label: c.label }));
+  const activeSkills = skillsData.filter((skill) => skill.isActive !== false);
+  const currentDefaults = getTaskDefault(task.id);
 
   const [local, setLocal] = useState({
     durationMin:       override.durationMin     ?? task.unitMin,
@@ -1502,8 +1671,23 @@ function EditLibTaskModal({ task, override, onSave, onClose }) {
     code:              override.code             ?? task.code,
     name:              override.name             ?? task.name,
     expectedInstances: override.expectedInstances ?? task.expectedInstances ?? 1,
-    countHours:        getTaskDefault(task.id).countHours,
+    countHours:        currentDefaults.countHours,
+    requiredSkills:    Array.isArray(override.requiredSkills)
+      ? override.requiredSkills.map(String)
+      : Array.isArray(currentDefaults.requiredSkills)
+        ? currentDefaults.requiredSkills.map(String)
+        : [],
   });
+
+  function toggleSkill(skillId) {
+    const normalizedId = String(skillId);
+    setLocal((prev) => ({
+      ...prev,
+      requiredSkills: prev.requiredSkills.includes(normalizedId)
+        ? prev.requiredSkills.filter((id) => id !== normalizedId)
+        : [...prev.requiredSkills, normalizedId],
+    }));
+  }
 
   function handleSave() {
     onSave(task.id, {
@@ -1517,6 +1701,7 @@ function EditLibTaskModal({ task, override, onSave, onClose }) {
       countHours:        local.countHours,
       code:              local.code.trim() || task.code,
       name:              local.name.trim() || task.name,
+      requiredSkills:    local.requiredSkills,
     });
     onClose();
   }
@@ -1600,6 +1785,48 @@ function EditLibTaskModal({ task, override, onSave, onClose }) {
             placeholder="Optional description…"
             style={{ ...editInputStyle, resize: 'vertical', fontFamily: "'DM Sans', sans-serif" }}
           />
+        </div>
+
+        <div>
+          <label style={editLabelStyle}>Required Skills</label>
+          {activeSkills.length === 0 ? (
+            <div style={{ fontSize: 12, color: 'var(--gray)' }}>No active skills available yet.</div>
+          ) : (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+              gap: 8,
+              padding: '10px 12px',
+              border: '1.5px solid var(--gray-light)',
+              borderRadius: 8,
+              background: '#fff',
+            }}>
+              {activeSkills.map((skill) => {
+                const checked = local.requiredSkills.includes(String(skill.id));
+                return (
+                  <label
+                    key={skill.id}
+                    style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleSkill(skill.id)}
+                      style={{ marginTop: 2, accentColor: 'var(--purple)' }}
+                    />
+                    <span>
+                      <span style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--dark)' }}>
+                        {skill.code}
+                      </span>
+                      <span style={{ display: 'block', fontSize: 11, color: 'var(--gray)' }}>
+                        {skill.label}
+                      </span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Count toward hours toggle */}
