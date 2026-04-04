@@ -104,6 +104,8 @@ export const apiSchedules = {
   save:         (payload)    => api.post('/schedules', payload),
   update:       (id, payload)=> api.put(`/schedules/${id}`, payload),
   getOne:       (id)         => api.get(`/schedules/${id}`),
+  getHistory:   (id)         => api.get(`/schedules/${id}/history`),
   post:         (id)         => api.post(`/schedules/${id}/post`, {}),
+  restore:      (id, changeNote) => api.post(`/schedules/${id}/restore`, changeNote ? { changeNote } : {}),
   delete:       (id)         => api.delete(`/schedules/${id}`),
 };

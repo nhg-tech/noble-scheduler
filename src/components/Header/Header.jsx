@@ -6,6 +6,7 @@ export default function Header({
   onStaffing,
   onSave,
   onPostSchedule,
+  onVersionHistory,
   onValidate,
   onChecklist,
   onPrint,
@@ -13,6 +14,7 @@ export default function Header({
   canViewStaffing = true,
   canSave = true,
   canPostSchedule = true,
+  canViewVersionHistory = false,
   canValidate = true,
   canChecklist = true,
   canEditSchedule = true,
@@ -59,6 +61,7 @@ export default function Header({
         {canViewStaffing && <Btn onClick={onStaffing}>👥 Staffing</Btn>}
         {canSave && <Btn onClick={onSave}>💾 Save</Btn>}
         {canPostSchedule && <Btn onClick={onPostSchedule}>📋 Post Schedule</Btn>}
+        {canViewVersionHistory && <Btn onClick={onVersionHistory}>🕘 Versions</Btn>}
         {canValidate && <Btn onClick={onValidate}>⚡ Validate</Btn>}
         {canChecklist && <Btn onClick={onChecklist}>☑ Checklist</Btn>}
         {canEditSchedule && <Btn onClick={handleClear}>🗑 Clear</Btn>}

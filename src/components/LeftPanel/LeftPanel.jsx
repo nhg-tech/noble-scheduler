@@ -123,6 +123,8 @@ function LoadSchedule() {
       status: state.status || (loadTab === 'draft' ? 'draft' : 'posted'),
       id: state.id,
       name,
+      versionNumber: state.versionNumber,
+      rootScheduleId: state.rootScheduleId,
     });
     applyState(state);
   }

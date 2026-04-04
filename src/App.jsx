@@ -12,6 +12,7 @@ import {
 
 import { useScheduler } from './context/SchedulerContext';
 import { useAuth } from './context/AuthContext';
+import { apiSchedules } from './api';
 import {
   keyToRoleAndMin,
   getBlockDurationMin,
@@ -47,6 +48,7 @@ import SaveChooserModal from './components/Modals/SaveChooserModal';
 import ValidationModal from './components/Modals/ValidationModal';
 import ChecklistModal from './components/Modals/ChecklistModal';
 import StaffingModal from './components/Modals/StaffingModal';
+import VersionHistoryModal from './components/Modals/VersionHistoryModal';
 import SetupOverlay from './components/Setup/SetupOverlay';
 
 export default function App() {
@@ -63,6 +65,8 @@ export default function App() {
     getDerivedValues,
     getEffectiveRoles, getDeletedRoles,
     getUserTemplates, getMasterTemplates, getUserPostings, getUserDrafts,
+    applyState,
+    saveUserPostings,
     apiSaveTemplate, apiSaveSchedule,
     staffData,
   } = useScheduler();
@@ -131,6 +135,7 @@ export default function App() {
   const [showChecklist, setShowChecklist] = useState(false);
   const [showSetup, setShowSetup]         = useState(false);
   const [showStaffing, setShowStaffing]   = useState(false);
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [showPrint, setShowPrint]         = useState(false);
   const [printOpts, setPrintOpts]         = useState({ paperSize: 'legal', inclSummary: true, inclAssumptions: true, excludedCols: [] });
   const [saveError, setSaveError]         = useState(null);
@@ -340,13 +345,37 @@ export default function App() {
             ? currentLoadedEntity
             : null
         );
-        setCurrentLoadedEntity({ kind: 'schedule', status: 'posted', id: result.id, name });
+        setCurrentLoadedEntity({
+          kind: 'schedule',
+          status: 'posted',
+          id: result.id,
+          name,
+          versionNumber: result.version_number ?? result.versionNumber ?? 1,
+          rootScheduleId: result.root_schedule_id ?? result.rootScheduleId ?? result.id,
+        });
         setScheduleLabel(name);
       }
       setSaveMode(null);
     } catch (err) {
       setSaveError(err.message || 'Failed to save. Please try again.');
     }
+  }
+
+  async function handleRestorePublishedVersion(restored) {
+    const full = await apiSchedules.getOne(restored.id);
+    const postings = await apiSchedules.getPostings();
+    saveUserPostings(postings);
+    applyState(full);
+    setCurrentLoadedEntity({
+      kind: 'schedule',
+      status: 'posted',
+      id: full.id,
+      name: full.name,
+      versionNumber: full.versionNumber,
+      rootScheduleId: full.rootScheduleId,
+    });
+    setScheduleLabel(full.name);
+    setShowVersionHistory(false);
   }
 
   function handleCreateCustom(taskData) {
@@ -412,6 +441,7 @@ export default function App() {
         onStaffing={() => canUseWorkflowTools && setShowStaffing(true)}
         onSave={() => (canCreateDraft || canSaveAnyTemplate) && setShowSaveChooser(true)}
         onPostSchedule={() => canPublishSchedules && setSaveMode('post')}
+        onVersionHistory={() => isViewingPostedSchedule && setShowVersionHistory(true)}
         onValidate={() => setShowValidate(true)}
         onChecklist={() => setShowChecklist(true)}
         onPrint={() => setShowPrint(true)}
@@ -419,6 +449,7 @@ export default function App() {
         canViewStaffing={canUseWorkflowTools}
         canSave={canCreateDraft || canSaveAnyTemplate}
         canPostSchedule={canPublishSchedules}
+        canViewVersionHistory={isViewingPostedSchedule}
         canValidate={canUseWorkflowTools}
         canChecklist={canUseWorkflowTools}
         canEditSchedule={canEditCurrentSchedule}
@@ -590,6 +621,14 @@ export default function App() {
           scheduleDate={assumptions.date}
           staffData={staffData}
           onClose={() => setShowStaffing(false)}
+        />
+      )}
+      {showVersionHistory && isViewingPostedSchedule && currentLoadedEntity?.id && (
+        <VersionHistoryModal
+          scheduleId={currentLoadedEntity.id}
+          scheduleName={currentLoadedEntity.name}
+          onRestored={handleRestorePublishedVersion}
+          onClose={() => setShowVersionHistory(false)}
         />
       )}
       {showPrint && (

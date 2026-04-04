@@ -35,6 +35,11 @@ export function buildSavedScheduleEntry(state, result, payload) {
     status: result.status,
     scheduleDate: payload.scheduleDate,
     updatedAt: result.updated_at,
+    versionNumber: result.version_number ?? result.versionNumber ?? 1,
+    rootScheduleId: result.root_schedule_id ?? result.rootScheduleId ?? null,
+    isCurrentVersion: result.is_current_version ?? result.isCurrentVersion ?? (payload.status === 'posted'),
+    publishedAt: result.published_at ?? result.publishedAt ?? null,
+    changeNote: result.change_note ?? result.changeNote ?? null,
   };
 }
 
