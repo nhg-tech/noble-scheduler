@@ -96,9 +96,22 @@ export default function StaffingModal({ scheduleDate, staffData, onClose }) {
   const [preferredEnd, setPreferredEnd] = useState('16:00');
   const [notes, setNotes] = useState('');
   const [savedRecords, setSavedRecords] = useState([]);
+  const [exceptions, setExceptions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingExceptions, setIsLoadingExceptions] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSavingExceptions, setIsSavingExceptions] = useState(false);
   const [error, setError] = useState('');
+  const [exceptionDraft, setExceptionDraft] = useState(() => ({
+    startDate: today,
+    endDate: today,
+    mode: 'unavailable',
+    availableStart: '09:00',
+    availableEnd: '17:00',
+    preferredStart: '',
+    preferredEnd: '',
+    notes: '',
+  }));
 
   const selectedStaff = activeStaff.find((person) => person.id === selectedStaffId) || null;
 
@@ -111,6 +124,10 @@ export default function StaffingModal({ scheduleDate, staffData, onClose }) {
       setSelectedStaffId(activeStaff[0].id);
     }
   }, [activeStaff, selectedStaffId]);
+
+  useEffect(() => {
+    setExceptionDraft((prev) => ({ ...prev, startDate: today, endDate: today }));
+  }, [today]);
 
   useEffect(() => {
     async function loadAvailability() {
@@ -132,6 +149,26 @@ export default function StaffingModal({ scheduleDate, staffData, onClose }) {
     }
     loadAvailability();
   }, [selectedStaffId, startDate, endDate]);
+
+  useEffect(() => {
+    async function loadExceptions() {
+      if (!selectedStaffId) {
+        setExceptions([]);
+        return;
+      }
+      setIsLoadingExceptions(true);
+      try {
+        const rows = await apiStaffing.getExceptions({ staffId: selectedStaffId });
+        setExceptions(rows);
+      } catch (err) {
+        setError(err.message || 'Failed to load staffing exceptions.');
+        setExceptions([]);
+      } finally {
+        setIsLoadingExceptions(false);
+      }
+    }
+    loadExceptions();
+  }, [selectedStaffId]);
 
   function togglePatternDay(dayKey) {
     setWeekdayPattern((prev) => ({ ...prev, [dayKey]: !prev[dayKey] }));
@@ -160,6 +197,53 @@ export default function StaffingModal({ scheduleDate, staffData, onClose }) {
     } finally {
       setIsSaving(false);
     }
+  }
+
+  async function handleSaveExceptions() {
+    if (!selectedStaffId) return;
+    setIsSavingExceptions(true);
+    setError('');
+    try {
+      await apiStaffing.saveExceptions({
+        staffId: selectedStaffId,
+        exceptions: exceptions.map((exception) => ({
+          startDate: exception.startDate,
+          endDate: exception.endDate,
+          mode: exception.mode,
+          availableStart: exception.mode === 'available_window' ? exception.availableStart : null,
+          availableEnd: exception.mode === 'available_window' ? exception.availableEnd : null,
+          preferredStart: exception.preferredStart || null,
+          preferredEnd: exception.preferredEnd || null,
+          notes: exception.notes || '',
+        })),
+      });
+      const rows = await apiStaffing.getExceptions({ staffId: selectedStaffId });
+      setExceptions(rows);
+    } catch (err) {
+      setError(err.message || 'Failed to save staffing exceptions.');
+    } finally {
+      setIsSavingExceptions(false);
+    }
+  }
+
+  function handleAddException() {
+    setExceptions((prev) => [
+      ...prev,
+      {
+        id: `draft-${Date.now()}`,
+        ...exceptionDraft,
+      },
+    ]);
+    setExceptionDraft((prev) => ({
+      ...prev,
+      startDate,
+      endDate: startDate,
+      notes: '',
+    }));
+  }
+
+  function removeException(targetId) {
+    setExceptions((prev) => prev.filter((exception) => exception.id !== targetId));
   }
 
   return (
@@ -197,7 +281,7 @@ export default function StaffingModal({ scheduleDate, staffData, onClose }) {
             No active employees are available for staffing yet.
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 14, minHeight: 480 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 14, minHeight: 560 }}>
             <div style={{
               border: '1px solid var(--gray-light)',
               borderRadius: 10,
@@ -374,6 +458,193 @@ export default function StaffingModal({ scheduleDate, staffData, onClose }) {
                     lineHeight: 1.6,
                   }}>
                     {isLoading ? 'Loading saved staffing plan for this range...' : readRangeSummary(savedRecords, startDate, endDate)}
+                  </div>
+
+                  <div style={{
+                    borderTop: '1px solid var(--gray-light)',
+                    paddingTop: 16,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 14,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--purple)' }}>Availability Exceptions</div>
+                        <div style={{ fontSize: 11, color: 'var(--gray)', marginTop: 2 }}>
+                          Exceptions override the base staffing plan for vacations, one-off changes, or specific-time availability.
+                        </div>
+                      </div>
+                      <Btn onClick={handleSaveExceptions} variant="secondary" disabled={isSavingExceptions}>
+                        {isSavingExceptions ? 'Saving Exceptions...' : 'Save Exceptions'}
+                      </Btn>
+                    </div>
+
+                    <div style={{
+                      padding: '12px 14px',
+                      borderRadius: 8,
+                      border: '1px solid var(--gray-light)',
+                      background: 'var(--cream)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 12,
+                    }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 200px', gap: 12 }}>
+                        <InputLabel label="Exception Start">
+                          <input
+                            type="date"
+                            value={exceptionDraft.startDate}
+                            onChange={(e) => setExceptionDraft((prev) => ({ ...prev, startDate: e.target.value }))}
+                            style={inputStyle}
+                          />
+                        </InputLabel>
+                        <InputLabel label="Exception End">
+                          <input
+                            type="date"
+                            value={exceptionDraft.endDate}
+                            onChange={(e) => setExceptionDraft((prev) => ({ ...prev, endDate: e.target.value }))}
+                            style={inputStyle}
+                          />
+                        </InputLabel>
+                        <InputLabel label="Mode">
+                          <select
+                            value={exceptionDraft.mode}
+                            onChange={(e) => setExceptionDraft((prev) => ({ ...prev, mode: e.target.value }))}
+                            style={inputStyle}
+                          >
+                            <option value="unavailable">Unavailable</option>
+                            <option value="available_window">Available Window</option>
+                          </select>
+                        </InputLabel>
+                      </div>
+
+                      {exceptionDraft.mode === 'available_window' && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12 }}>
+                          <InputLabel label="Available Start">
+                            <input
+                              type="time"
+                              value={exceptionDraft.availableStart}
+                              onChange={(e) => setExceptionDraft((prev) => ({ ...prev, availableStart: e.target.value }))}
+                              style={inputStyle}
+                            />
+                          </InputLabel>
+                          <InputLabel label="Available End">
+                            <input
+                              type="time"
+                              value={exceptionDraft.availableEnd}
+                              onChange={(e) => setExceptionDraft((prev) => ({ ...prev, availableEnd: e.target.value }))}
+                              style={inputStyle}
+                            />
+                          </InputLabel>
+                          <InputLabel label="Preferred Start">
+                            <input
+                              type="time"
+                              value={exceptionDraft.preferredStart}
+                              onChange={(e) => setExceptionDraft((prev) => ({ ...prev, preferredStart: e.target.value }))}
+                              style={inputStyle}
+                            />
+                          </InputLabel>
+                          <InputLabel label="Preferred End">
+                            <input
+                              type="time"
+                              value={exceptionDraft.preferredEnd}
+                              onChange={(e) => setExceptionDraft((prev) => ({ ...prev, preferredEnd: e.target.value }))}
+                              style={inputStyle}
+                            />
+                          </InputLabel>
+                        </div>
+                      )}
+
+                      <InputLabel label="Exception Notes">
+                        <textarea
+                          value={exceptionDraft.notes}
+                          onChange={(e) => setExceptionDraft((prev) => ({ ...prev, notes: e.target.value }))}
+                          rows={2}
+                          placeholder="Optional note for this exception..."
+                          style={{ ...inputStyle, minHeight: 72, resize: 'vertical' }}
+                        />
+                      </InputLabel>
+
+                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <Btn onClick={handleAddException} variant="primary">Add Exception</Btn>
+                      </div>
+                    </div>
+
+                    <div style={{
+                      border: '1px solid var(--gray-light)',
+                      borderRadius: 8,
+                      overflow: 'hidden',
+                    }}>
+                      <div style={{
+                        padding: '10px 12px',
+                        borderBottom: '1px solid var(--gray-light)',
+                        background: '#fff',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        letterSpacing: '0.06em',
+                        textTransform: 'uppercase',
+                        color: 'var(--gray)',
+                      }}>
+                        Saved Exceptions
+                      </div>
+                      <div style={{ maxHeight: 220, overflowY: 'auto', background: '#fff' }}>
+                        {isLoadingExceptions ? (
+                          <div style={{ padding: '12px', fontSize: 12, color: 'var(--gray)' }}>
+                            Loading exceptions...
+                          </div>
+                        ) : exceptions.length === 0 ? (
+                          <div style={{ padding: '12px', fontSize: 12, color: 'var(--gray)' }}>
+                            No exceptions yet for this employee.
+                          </div>
+                        ) : exceptions.map((exception) => (
+                          <div
+                            key={exception.id}
+                            style={{
+                              padding: '12px',
+                              borderBottom: '1px solid var(--gray-light)',
+                              display: 'flex',
+                              alignItems: 'flex-start',
+                              justifyContent: 'space-between',
+                              gap: 12,
+                            }}
+                          >
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--dark)' }}>
+                                {exception.startDate === exception.endDate
+                                  ? exception.startDate
+                                  : `${exception.startDate} to ${exception.endDate}`}
+                              </div>
+                              <div style={{ fontSize: 11, color: 'var(--gray)', marginTop: 3 }}>
+                                {exception.mode === 'unavailable'
+                                  ? 'Unavailable'
+                                  : `Available ${exception.availableStart || '--'} - ${exception.availableEnd || '--'}`}
+                                {exception.preferredStart && exception.preferredEnd
+                                  ? ` • Prefers ${exception.preferredStart} - ${exception.preferredEnd}`
+                                  : ''}
+                              </div>
+                              {exception.notes && (
+                                <div style={{ fontSize: 11, color: 'var(--gray)', marginTop: 4 }}>
+                                  {exception.notes}
+                                </div>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => removeException(exception.id)}
+                              style={{
+                                border: 'none',
+                                background: 'none',
+                                color: '#B42318',
+                                fontSize: 12,
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                flexShrink: 0,
+                              }}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </>
               )}

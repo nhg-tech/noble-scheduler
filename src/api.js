@@ -82,6 +82,9 @@ export const apiStaffing = {
   getAvailability: ({ staffId, startDate, endDate }) =>
     api.get(`/staffing/availability?staffId=${encodeURIComponent(staffId)}&startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`),
   saveAvailability: (payload) => api.put('/staffing/availability/bulk', payload),
+  getExceptions: ({ staffId }) =>
+    api.get(`/staffing/exceptions?staffId=${encodeURIComponent(staffId)}`),
+  saveExceptions: (payload) => api.put('/staffing/exceptions', payload),
 };
 
 // ─── Template helpers ─────────────────────────────────────────────────────────
