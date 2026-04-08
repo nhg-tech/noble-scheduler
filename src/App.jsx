@@ -666,7 +666,7 @@ export default function App() {
       document.head.appendChild(styleEl);
     }
     const size = opts.paperSize === 'letter' ? 'letter' : 'legal';
-    styleEl.textContent = `@page { size: ${size} landscape; margin: 0.4in; }`;
+      styleEl.textContent = `@page { size: ${size} landscape; margin: 0.2in; }`;
 
     window.print();
   }

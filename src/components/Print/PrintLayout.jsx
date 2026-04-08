@@ -8,7 +8,7 @@ import { computeSummary } from '../../utils/calculations';
 
 // ─── Print layout constants ───────────────────────────────────────────────────
 const MIN_SLOT_H     = 14;   // minimum px per 15-min slot
-const MAX_SLOT_H     = 22;   // match live grid density when there is extra room
+const MAX_SLOT_H     = 30;   // allow print to expand beyond live grid density when there is extra room
 const PRINT_TIME_W   = 40;   // time gutter width
 const PRINT_COL_W    = 112;  // per-role column width
 const COL_HEADER_H   = 38;   // column header strip

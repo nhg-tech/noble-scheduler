@@ -51,6 +51,12 @@ body {
 
 /* Print */
 @media print {
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+
   /* Hide all direct body children (React root, modals, portals, etc.) */
   body > * { display: none !important; }
 
@@ -62,6 +68,6 @@ body {
     top: auto !important;
     z-index: auto !important;
     pointer-events: auto !important;
-    width: auto !important;
+    width: 100% !important;
   }
 }
