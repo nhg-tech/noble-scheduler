@@ -8,7 +8,6 @@ import { computeSummary } from '../../utils/calculations';
 
 // ─── Print layout constants ───────────────────────────────────────────────────
 const MIN_SLOT_H     = 14;   // minimum px per 30-min slot
-const MAX_SLOT_H     = 30;   // maximum px per 30-min slot (don't over-expand)
 const PRINT_TIME_W   = 40;   // time gutter width
 const PRINT_COL_W    = 112;  // per-role column width
 const COL_HEADER_H   = 38;   // column header strip
@@ -106,9 +105,10 @@ export default function PrintLayout({ opts }) {
   const colW     = numCols > 0 ? Math.floor((page.w - PRINT_TIME_W) / numCols) : PRINT_COL_W;
   const contentW = PRINT_TIME_W + numCols * colW; // ≤ page.w (floor guarantees this)
 
-  // Dynamic slot height: expand slots to fill available vertical space.
+  // Dynamic slot height: expand slots to fill the available vertical space.
+  // Allow growth when the schedule is short so the printout uses the page better.
   const idealSlotH = numSlots > 0 ? (page.h - baseH) / numSlots : MIN_SLOT_H;
-  const slotH      = Math.min(MAX_SLOT_H, Math.max(MIN_SLOT_H, Math.floor(idealSlotH)));
+  const slotH      = Math.max(MIN_SLOT_H, idealSlotH);
 
   const gridH    = numSlots * slotH;
   const contentH = baseH + gridH;

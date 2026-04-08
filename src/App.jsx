@@ -65,7 +65,7 @@ export default function App() {
     assumptions,
     scheduleLabel, setScheduleLabel,
     currentLoadedEntity, setCurrentLoadedEntity,
-    userTaskDefs, setSessionTaskDefs,
+    userTaskDefs, sessionTaskDefs, setSessionTaskDefs,
     employeeAssignments, setEmployeeAssignments,
     setExtraRoles, setColumnOrder, restoreColumn,
     extraRoles,
@@ -603,6 +603,44 @@ export default function App() {
     setShowCreate(false);
   }
 
+  function handleEditCustomTask(taskData) {
+    if (!canEditCurrentSchedule || !editKey) return;
+    const editedTask = schedule[editKey];
+    if (!editedTask?.taskId) return;
+
+    const normalizedColor = resolveBlockHex(taskData.color);
+    const updatedTask = {
+      ...taskData,
+      color: normalizedColor,
+      durationMin: Number(taskData.durationMin),
+      unitMin: Number(taskData.durationMin),
+      slots: Math.ceil(Number(taskData.durationMin) / 30),
+    };
+
+    setSessionTaskDefs((prev) => ({
+      ...prev,
+      [updatedTask.id]: updatedTask,
+    }));
+
+    setSchedule((prev) => {
+      const next = { ...prev };
+      Object.entries(prev).forEach(([key, block]) => {
+        if (block.taskId !== updatedTask.id) return;
+        next[key] = {
+          ...block,
+          name: updatedTask.name,
+          code: updatedTask.code,
+          color: normalizedColor,
+          durationMin: updatedTask.durationMin,
+          slots: Math.ceil(updatedTask.durationMin / 30),
+        };
+      });
+      return next;
+    });
+
+    setEditKey(null);
+  }
+
   function handleAddColumnSave(label, sub) {
     if (!canEditCurrentSchedule) return;
     const id = `custom_${Date.now()}`;
@@ -638,6 +676,13 @@ export default function App() {
     restoreColumn(roleId);
     setShowAddColumn(false);
   }
+
+  const editTask = editKey ? schedule[editKey] : null;
+  const editTaskId = editTask?.taskId;
+  const isEditingSessionCustomTask = !!(editTaskId && sessionTaskDefs[editTaskId] && !userTaskDefs[editTaskId]);
+  const customEditInitialData = isEditingSessionCustomTask
+    ? { ...sessionTaskDefs[editTaskId] }
+    : null;
 
   return (
     <div style={{
@@ -776,14 +821,21 @@ export default function App() {
           onConfirm={(key, splitAt) => handleSplitConfirm(key, splitAt)} onClose={() => setSplitKey(null)}
         />
       )}
-      {editKey && (
+      {editKey && !isEditingSessionCustomTask && (
         <EditModal
           blockKey={editKey} task={schedule[editKey]}
           onSave={handleEditSave} onClose={() => setEditKey(null)}
         />
       )}
-      {showCreate && (
-        <CreateTaskModal onSave={handleCreateCustom} onClose={() => setShowCreate(false)} />
+      {(showCreate || isEditingSessionCustomTask) && (
+        <CreateTaskModal
+          initialData={showCreate ? undefined : customEditInitialData}
+          onSave={showCreate ? handleCreateCustom : handleEditCustomTask}
+          onClose={() => {
+            if (showCreate) setShowCreate(false);
+            if (isEditingSessionCustomTask) setEditKey(null);
+          }}
+        />
       )}
         {saveMode && (
           <SaveModal
