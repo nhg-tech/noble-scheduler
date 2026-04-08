@@ -106,14 +106,14 @@ export default function PrintLayout({ opts }) {
   const contentW = PRINT_TIME_W + numCols * colW; // ≤ page.w (floor guarantees this)
 
   // Dynamic slot height: expand slots to fill the available vertical space.
-  // Allow growth when the schedule is short so the printout uses the page better.
-  const idealSlotH = numSlots > 0 ? (page.h - baseH) / numSlots : MIN_SLOT_H;
-  const slotH      = Math.max(MIN_SLOT_H, idealSlotH);
-
-  const gridH    = numSlots * slotH;
-  const contentH = baseH + gridH;
-  // Scale only for vertical overflow — horizontal is already fitted by colW calculation.
-  const scale    = Math.min(page.h / contentH, 1);
+  // When the schedule is too tall, shrink vertically only so width still fills the page.
+  const availableGridH = Math.max(page.h - baseH, MIN_SLOT_H);
+  const idealSlotH = numSlots > 0 ? availableGridH / numSlots : MIN_SLOT_H;
+  const slotH      = idealSlotH >= MIN_SLOT_H ? idealSlotH : MIN_SLOT_H;
+  const gridH      = numSlots * slotH;
+  const gridScaleY = gridH > 0 ? Math.min(availableGridH / gridH, 1) : 1;
+  const scaledGridH = gridH * gridScaleY;
+  const contentH = baseH + scaledGridH;
 
   // ── Summary calculation (mirrors ScheduleSummary) ─────────────────────────
   const { suites, cats, bungalows, scCount, totalRooms } = getDerivedValues();
@@ -176,13 +176,10 @@ export default function PrintLayout({ opts }) {
       id="noble-print-root"
       style={{ position: 'fixed', left: -99999, top: 0, zIndex: -1, pointerEvents: 'none' }}
     >
-      {/* Outer container sets the layout footprint after scaling so the page has no extra whitespace */}
-      <div style={{ width: contentW * scale, height: contentH * scale, overflow: 'hidden' }}>
-      {/* Scale wrapper — transform: scale is more reliable than zoom in print contexts */}
+      {/* Outer container sets the layout footprint; width stays full-page even when height compresses */}
+      <div style={{ width: contentW, height: contentH, overflow: 'hidden' }}>
       <div style={{
         width: contentW,
-        transformOrigin: 'top left',
-        transform: scale < 1 ? `scale(${scale})` : undefined,
         fontFamily: "'DM Sans', sans-serif",
         background: '#fff',
         color: '#1A1A2E',
@@ -245,7 +242,13 @@ export default function PrintLayout({ opts }) {
         </div>
 
         {/* ── Grid body ────────────────────────────────────────────────────── */}
-        <div style={{ display: 'flex', height: gridH, position: 'relative' }}>
+        <div style={{
+          display: 'flex',
+          height: scaledGridH,
+          position: 'relative',
+          transformOrigin: 'top left',
+          transform: gridScaleY < 1 ? `scaleY(${gridScaleY})` : undefined,
+        }}>
 
           {/* Time gutter */}
           <div style={{
@@ -347,7 +350,7 @@ export default function PrintLayout({ opts }) {
           </div>
         )}
       </div>
-      </div>{/* end outer scale-footprint container */}
+      </div>{/* end outer print container */}
     </div>
   );
 
