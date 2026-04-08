@@ -67,12 +67,17 @@ export default function PrintLayout({ opts }) {
     .filter(Boolean)
     .filter(r => !hiddenColumns.has(r.id))
     .filter(r => !excludedSet.has(r.id));
+  const printedRoleIds = useMemo(
+    () => new Set(roles.map((role) => role.id)),
+    [roles]
+  );
 
   // ── Active slot range — trim to actual task content ────────────────────────
   const { activeStart, activeEnd } = useMemo(() => {
     let minMin = Infinity, maxMin = -Infinity;
     Object.entries(schedule).forEach(([key, task]) => {
-      const { startMin } = keyToRoleAndMin(key);
+      const { roleId, startMin } = keyToRoleAndMin(key);
+      if (!printedRoleIds.has(roleId)) return;
       const dur = task.durationMin ?? task.slots * 30;
       minMin = Math.min(minMin, startMin);
       maxMin = Math.max(maxMin, startMin + dur);
@@ -82,7 +87,7 @@ export default function PrintLayout({ opts }) {
     const startMin = Math.floor(Math.max(0, minMin - 60) / 15) * 15;
     const endMin   = Math.ceil((maxMin + 60) / 15) * 15;
     return { activeStart: startMin, activeEnd: endMin };
-  }, [schedule]);
+  }, [schedule, printedRoleIds]);
 
   const activeSlots = useMemo(() =>
     TIME_SLOTS.filter(s => {
