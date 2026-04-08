@@ -105,11 +105,10 @@ export default function PrintLayout({ opts }) {
   const colW     = numCols > 0 ? Math.floor((page.w - PRINT_TIME_W) / numCols) : PRINT_COL_W;
   const contentW = PRINT_TIME_W + numCols * colW; // ≤ page.w (floor guarantees this)
 
-  // Dynamic slot height: expand slots to fill the available vertical space.
-  // When the schedule is too tall, shrink vertically only so width still fills the page.
+  // Vertical sizing: keep a natural slot height so the print view trims to the
+  // scheduled time window, and only shrink when needed for overflow.
   const availableGridH = Math.max(page.h - baseH, MIN_SLOT_H);
-  const idealSlotH = numSlots > 0 ? availableGridH / numSlots : MIN_SLOT_H;
-  const slotH      = idealSlotH >= MIN_SLOT_H ? idealSlotH : MIN_SLOT_H;
+  const slotH      = MIN_SLOT_H;
   const gridH      = numSlots * slotH;
   const gridScaleY = gridH > 0 ? Math.min(availableGridH / gridH, 1) : 1;
   const scaledGridH = gridH * gridScaleY;
