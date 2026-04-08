@@ -7,7 +7,8 @@ import { resolveBlockHex, resolveBlockText } from '../../data/palette';
 import { computeSummary } from '../../utils/calculations';
 
 // ─── Print layout constants ───────────────────────────────────────────────────
-const MIN_SLOT_H     = 14;   // minimum px per 30-min slot
+const MIN_SLOT_H     = 14;   // minimum px per 15-min slot
+const MAX_SLOT_H     = 22;   // match live grid density when there is extra room
 const PRINT_TIME_W   = 40;   // time gutter width
 const PRINT_COL_W    = 112;  // per-role column width
 const COL_HEADER_H   = 38;   // column header strip
@@ -113,7 +114,9 @@ export default function PrintLayout({ opts }) {
   // Vertical sizing: keep a natural slot height so the print view trims to the
   // scheduled time window, and only shrink when needed for overflow.
   const availableGridH = Math.max(page.h - baseH, MIN_SLOT_H);
-  const slotH      = MIN_SLOT_H;
+  const slotH      = numSlots > 0
+    ? Math.max(MIN_SLOT_H, Math.min(MAX_SLOT_H, Math.floor(availableGridH / numSlots)))
+    : MAX_SLOT_H;
   const gridH      = numSlots * slotH;
   const gridScaleY = gridH > 0 ? Math.min(availableGridH / gridH, 1) : 1;
   const scaledGridH = gridH * gridScaleY;
@@ -432,6 +435,7 @@ function PrintColumn({ role, schedule, activeSlots, activeStart, colW, slotH, gr
 
         const bgHex  = resolveBlockHex(task.color || 'block-group');
         const txtCol = resolveBlockText(bgHex);
+        const codeFontPx = Math.max(9, Math.min(12, Math.floor(heightPx * 0.28)));
 
         return (
           <div key={key} style={{
@@ -449,7 +453,7 @@ function PrintColumn({ role, schedule, activeSlots, activeStart, colW, slotH, gr
             padding: '0 3px',
           }}>
             <span style={{
-              fontSize: 7, fontWeight: 700,
+              fontSize: codeFontPx, fontWeight: 700,
               fontFamily: "'DM Mono', monospace",
               letterSpacing: '0.02em',
               textAlign: 'center',
@@ -471,6 +475,7 @@ function PrintColumn({ role, schedule, activeSlots, activeStart, colW, slotH, gr
 // ─── MergedPrintBlock ─────────────────────────────────────────────────────────
 function MergedPrintBlock({ task, topPx, heightPx, colW }) {
   const total = task.constituents.reduce((s, c) => s + (c.durationMin || 0), 0) || 1;
+  const codeFontPx = Math.max(8, Math.min(10, Math.floor(heightPx * 0.18)));
 
   return (
     <div style={{
@@ -497,7 +502,7 @@ function MergedPrintBlock({ task, topPx, heightPx, colW }) {
             overflow: 'hidden',
           }}>
             <span style={{
-              fontSize: 7, fontWeight: 700,
+              fontSize: codeFontPx, fontWeight: 700,
               fontFamily: "'DM Mono', monospace",
               textAlign: 'center',
               whiteSpace: 'nowrap',
