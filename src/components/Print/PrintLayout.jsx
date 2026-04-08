@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useScheduler } from '../../context/SchedulerContext';
 import { TIME_SLOTS } from '../../data/roles';
-import { keyToRoleAndMin, formatMin, inShift } from '../../utils/scheduling';
+import { keyToRoleAndMin, formatMin, inShift, getBlockDurationMin, GRID_SLOT_MINUTES } from '../../utils/scheduling';
 import { resolveBlockHex, resolveBlockText } from '../../data/palette';
 import { computeSummary } from '../../utils/calculations';
 
@@ -78,7 +78,7 @@ export default function PrintLayout({ opts }) {
     Object.entries(schedule).forEach(([key, task]) => {
       const { roleId, startMin } = keyToRoleAndMin(key);
       if (!printedRoleIds.has(roleId)) return;
-      const dur = task.durationMin ?? task.slots * 30;
+      const dur = getBlockDurationMin(task);
       minMin = Math.min(minMin, startMin);
       maxMin = Math.max(maxMin, startMin + dur);
     });
@@ -413,9 +413,9 @@ function PrintColumn({ role, schedule, activeSlots, activeStart, colW, slotH, gr
 
       {/* Task blocks */}
       {blocks.map(({ key, task, startMin }) => {
-        const durationMin = task.durationMin ?? task.slots * 30;
-        const topPx    = ((startMin - activeStart) / 30) * slotH;
-        const heightPx = Math.max(slotH - 1, (durationMin / 30) * slotH - 1);
+        const durationMin = getBlockDurationMin(task);
+        const topPx    = ((startMin - activeStart) / GRID_SLOT_MINUTES) * slotH;
+        const heightPx = Math.max(slotH - 1, (durationMin / GRID_SLOT_MINUTES) * slotH - 1);
 
         if (task.merged && task.constituents) {
           // Merged block — split vertically by constituent proportion
