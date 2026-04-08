@@ -78,9 +78,9 @@ export default function PrintLayout({ opts }) {
       maxMin = Math.max(maxMin, startMin + dur);
     });
     if (minMin === Infinity) { minMin = 5 * 60; maxMin = 21.5 * 60; }
-    // Pad by 1 slot each side, then align to 15-min boundary
-    const startMin = Math.floor(Math.max(0, minMin - 15) / 15) * 15;
-    const endMin   = Math.ceil((maxMin + 15) / 15) * 15;
+    // Pad by 1 hour each side, then align to 15-min boundary
+    const startMin = Math.floor(Math.max(0, minMin - 60) / 15) * 15;
+    const endMin   = Math.ceil((maxMin + 60) / 15) * 15;
     return { activeStart: startMin, activeEnd: endMin };
   }, [schedule]);
 
