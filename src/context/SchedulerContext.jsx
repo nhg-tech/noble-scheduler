@@ -248,12 +248,23 @@ export function SchedulerProvider({ children }) {
     };
   }, [userTaskDefs]);
 
+  function deriveRoleHours(shiftStart, shiftEnd, unpaidBreak = 0) {
+    if (shiftStart == null || shiftEnd == null) return null;
+    let mins = (shiftEnd - shiftStart) * 60;
+    if (mins < 0) mins += 24 * 60;
+    mins -= (Number(unpaidBreak) || 0);
+    return Math.round((mins / 60) * 10) / 10;
+  }
+
   const getRoleConfig = useCallback((roleId) => {
     const role = userRoleDefs[roleId] || {};
+    const shiftStart = role.shiftStart;
+    const shiftEnd = role.shiftEnd;
+    const unpaidBreak = role.unpaidBreak ?? 0;
     return {
-      shiftStart:   role.shiftStart,
-      shiftEnd:     role.shiftEnd,
-      hours:        role.hours,
+      shiftStart,
+      shiftEnd,
+      hours:        deriveRoleHours(shiftStart, shiftEnd, unpaidBreak),
       includeInHrs: role.includeInHrs,
     };
   }, [userRoleDefs]);
@@ -264,14 +275,14 @@ export function SchedulerProvider({ children }) {
     return Object.entries(userRoleDefs)
       .filter(([, r]) => !r.deleted)
       .map(([id, r]) => ({
+        shiftStart:   r.shiftStart   ?? 9,
+        shiftEnd:     r.shiftEnd     ?? 17,
+        unpaidBreak:  r.unpaidBreak  ?? 0,
         id,
         label:        r.label        || id,
         sub:          r.sub          || '',
         type:         r.type         || 'TM',
-        shiftStart:   r.shiftStart   ?? 9,
-        shiftEnd:     r.shiftEnd     ?? 17,
-        unpaidBreak:  r.unpaidBreak  ?? 0,
-        hours:        r.hours        ?? 7.5,
+        hours:        deriveRoleHours(r.shiftStart ?? 9, r.shiftEnd ?? 17, r.unpaidBreak ?? 0),
         includeInHrs: r.includeInHrs,
       }));
   }, [userRoleDefs]);
@@ -282,14 +293,14 @@ export function SchedulerProvider({ children }) {
     return Object.entries(userRoleDefs)
       .filter(([, r]) => r.deleted)
       .map(([id, r]) => ({
+        shiftStart:   r.shiftStart   ?? 9,
+        shiftEnd:     r.shiftEnd     ?? 17,
+        unpaidBreak:  r.unpaidBreak  ?? 0,
         id,
         label:        r.label        || id,
         sub:          r.sub          || '',
         type:         r.type         || 'TM',
-        shiftStart:   r.shiftStart   ?? 9,
-        shiftEnd:     r.shiftEnd     ?? 17,
-        unpaidBreak:  r.unpaidBreak  ?? 0,
-        hours:        r.hours        ?? 7.5,
+        hours:        deriveRoleHours(r.shiftStart ?? 9, r.shiftEnd ?? 17, r.unpaidBreak ?? 0),
         includeInHrs: false,
         deleted:      true,
       }));
