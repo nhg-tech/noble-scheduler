@@ -220,13 +220,30 @@ function LoadSchedule({ onBeforeReplaceSchedule, onAfterStateLoaded }) {
   const resolvedLoadTab = availableTabs.includes(loadTab) ? loadTab : (availableTabs[0] || 'template');
   const resolvedDraftValue = draftKeys.includes(draftValue) ? draftValue : (draftKeys[0] || '');
   const resolvedPostingValue = postingKeys.includes(postingValue) ? postingValue : (postingKeys[0] || '');
-  const resolvedTemplateValue = currentLoadedEntity?.kind === 'template'
-    ? currentLoadedEntity.scope === 'master'
-      ? `master_${currentLoadedEntity.name}`
-      : currentLoadedEntity.scope === 'user'
-        ? `user_${currentLoadedEntity.name}`
-        : tplValue
-    : tplValue;
+  const resolvedTemplateValue = tplValue;
+
+  useEffect(() => {
+    if (currentLoadedEntity?.kind === 'template') {
+      const nextValue = currentLoadedEntity.scope === 'master'
+        ? `master_${currentLoadedEntity.name}`
+        : currentLoadedEntity.scope === 'user'
+          ? `user_${currentLoadedEntity.name}`
+          : 'blank';
+      const frame = window.requestAnimationFrame(() => {
+        setTplValue((prev) => (prev === nextValue ? prev : nextValue));
+      });
+      return () => window.cancelAnimationFrame(frame);
+    }
+
+    if (currentLoadedEntity?.kind === 'builtin' && currentLoadedEntity?.name === 'blank') {
+      const frame = window.requestAnimationFrame(() => {
+        setTplValue((prev) => (prev === 'blank' ? prev : 'blank'));
+      });
+      return () => window.cancelAnimationFrame(frame);
+    }
+
+    return undefined;
+  }, [currentLoadedEntity]);
 
   function handleLoadTemplate() {
     if (!resolvedTemplateValue) return;
