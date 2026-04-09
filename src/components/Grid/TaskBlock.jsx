@@ -35,6 +35,7 @@ export default function TaskBlock({ blockKey, task, slotMin, onEdit, onRemove, o
   const infoBtnRef = useRef(null);
   const infoPanelRef = useRef(null);
   const [showIssueInfo, setShowIssueInfo] = useState(false);
+  const [issuePanelPos, setIssuePanelPos] = useState(null);
 
   // Color resolution
   const effectiveColor = task.color || 'block-group';
@@ -55,6 +56,7 @@ export default function TaskBlock({ blockKey, task, slotMin, onEdit, onRemove, o
         infoBtnRef.current && !infoBtnRef.current.contains(event.target)
       ) {
         setShowIssueInfo(false);
+        setIssuePanelPos(null);
       }
     }
     document.addEventListener('mousedown', handleOutside);
@@ -171,7 +173,19 @@ export default function TaskBlock({ blockKey, task, slotMin, onEdit, onRemove, o
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
-              setShowIssueInfo((prev) => !prev);
+              setShowIssueInfo((prev) => {
+                const next = !prev;
+                if (next && infoBtnRef.current) {
+                  const rect = infoBtnRef.current.getBoundingClientRect();
+                  setIssuePanelPos({
+                    top: rect.bottom + 8,
+                    left: Math.min(rect.left, window.innerWidth - 220),
+                  });
+                } else {
+                  setIssuePanelPos(null);
+                }
+                return next;
+              });
             }}
             style={{
               position: 'absolute',
@@ -198,16 +212,16 @@ export default function TaskBlock({ blockKey, task, slotMin, onEdit, onRemove, o
           >
             i
           </button>
-          {showIssueInfo && (
+          {showIssueInfo && issuePanelPos && (
             <div
               ref={infoPanelRef}
               onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => e.stopPropagation()}
               style={{
-                position: 'absolute',
-                top: 20,
-                left: 4,
-                width: 180,
+                position: 'fixed',
+                top: issuePanelPos.top,
+                left: issuePanelPos.left,
+                width: 200,
                 padding: '8px 10px',
                 borderRadius: 8,
                 border: '1px solid rgba(255,82,82,0.35)',
