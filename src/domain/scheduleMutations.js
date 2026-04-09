@@ -5,9 +5,11 @@ import {
   findOverlapInRange,
   freeTimeFrom,
   getBlockDurationMin,
+  getShiftEndMinute,
   keyToRoleAndMin,
   makeKey,
   minutesToGridSlots,
+  normalizeMinuteForShift,
 } from '../utils/scheduling.js';
 
 export function createScheduledBlock(task, durationMin, colorHex, extra = {}) {
@@ -29,6 +31,31 @@ function clearConflictFlags(block) {
     overflow: false,
     overlap: false,
   };
+}
+
+function evaluateBlockWarnings(schedule, blockKey, roleConfigs = []) {
+  const block = schedule[blockKey];
+  if (!block) return { overflow: false, overlap: false };
+
+  const { roleId, startMin } = keyToRoleAndMin(blockKey);
+  const durationMin = getBlockDurationMin(block);
+  const role = roleConfigs.find((entry) => entry.id === roleId);
+
+  const overlap = Object.entries(schedule).some(([otherKey, otherTask]) => {
+    if (otherKey === blockKey) return false;
+    const other = keyToRoleAndMin(otherKey);
+    if (other.roleId !== roleId) return false;
+    const otherEnd = other.startMin + getBlockDurationMin(otherTask);
+    const thisEnd = startMin + durationMin;
+    return other.startMin < thisEnd && otherEnd > startMin;
+  });
+
+  const normalizedStart = normalizeMinuteForShift(role, startMin);
+  const normalizedEnd = normalizedStart + durationMin;
+  const shiftEnd = getShiftEndMinute(role, startMin);
+  const overflow = !!role && normalizedEnd > shiftEnd;
+
+  return { overflow, overlap };
 }
 
 export function resolvePlacement({
@@ -137,7 +164,7 @@ export function waterfallConflictSchedule(conflictState) {
 }
 
 export function editBlockSchedule(schedule, blockKey, { notes, durationMin, color }) {
-  return {
+  const nextSchedule = {
     ...schedule,
     [blockKey]: {
       ...clearConflictFlags(schedule[blockKey]),
@@ -145,6 +172,13 @@ export function editBlockSchedule(schedule, blockKey, { notes, durationMin, colo
       durationMin,
       slots: minutesToGridSlots(durationMin),
       color: resolveBlockHex(color) || schedule[blockKey].color,
+    },
+  };
+  return {
+    ...nextSchedule,
+    [blockKey]: {
+      ...nextSchedule[blockKey],
+      ...evaluateBlockWarnings(nextSchedule, blockKey),
     },
   };
 }
@@ -200,14 +234,21 @@ export function splitBlockSchedule(schedule, blockKey, splitAt, roleConfigs) {
   return nextSchedule;
 }
 
-export function resizeBlockSchedule(schedule, blockKey, newMins) {
-  return {
+export function resizeBlockSchedule(schedule, blockKey, newMins, roleConfigs = []) {
+  const nextSchedule = {
     ...schedule,
     [blockKey]: {
       ...clearConflictFlags(schedule[blockKey]),
       durationMin: newMins,
       slots: minutesToGridSlots(newMins),
       resizedMins: newMins,
+    },
+  };
+  return {
+    ...nextSchedule,
+    [blockKey]: {
+      ...nextSchedule[blockKey],
+      ...evaluateBlockWarnings(nextSchedule, blockKey, roleConfigs),
     },
   };
 }

@@ -402,7 +402,7 @@ export default function App() {
 
   function handleResize(blockKey, newMins) {
     if (!canEditCurrentSchedule) return;
-    setSchedule(prev => resizeBlockSchedule(prev, blockKey, newMins));
+    setSchedule(prev => resizeBlockSchedule(prev, blockKey, newMins, roleConfigs));
   }
 
   async function buildPublishReview() {
