@@ -685,8 +685,8 @@ function TaskDefaultsTab({ userTaskDefs, skillsData, onChange, onCreateTask, onE
             <Th>Min / Unit</Th>
             <Th>Min Res / Unit</Th>
             <Th>Color</Th>
-            <Th>Skills</Th>
-            <Th style={{ whiteSpace: 'nowrap' }}>Count Hrs</Th>
+            <Th style={{ width: 110 }}>Skills</Th>
+            <Th style={{ whiteSpace: 'nowrap', width: 74 }}>Count Hrs</Th>
             <Th></Th>
           </tr>
         </thead>
@@ -748,23 +748,24 @@ function TaskDefaultsTab({ userTaskDefs, skillsData, onChange, onCreateTask, onE
                     <Td>
                       <ColorPicker value={colorVal} onChange={hex => onChange(task.id, 'color', hex)} />
                     </Td>
-                    <Td style={{ minWidth: 140 }}>
+                    <Td style={{ width: 110, maxWidth: 110 }}>
                       {requiredSkills.length === 0 ? (
                         <span style={{ color: 'var(--gray)', fontSize: 11 }}>None</span>
                       ) : (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
                           {requiredSkills.map((skillId) => (
                             <span
                               key={`${task.id}-skill-${skillId}`}
                               style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
-                                padding: '2px 6px',
+                                padding: '1px 5px',
                                 borderRadius: 999,
                                 background: 'var(--purple-pale)',
                                 color: 'var(--purple)',
-                                fontSize: 10,
+                                fontSize: 9,
                                 fontWeight: 700,
+                                lineHeight: 1.2,
                               }}
                             >
                               {skillLabelById[String(skillId)] || `Skill ${skillId}`}

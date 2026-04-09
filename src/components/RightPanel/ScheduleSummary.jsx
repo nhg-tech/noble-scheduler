@@ -309,19 +309,25 @@ function DeltaBreakdown({ summary }) {
     summary.delta < 0
       ? `The schedule is short by ${fmtMins(Math.abs(summary.delta))}.`
       : summary.delta > 0
-        ? `The schedule has ${fmtMins(summary.delta)} more scheduled time than estimated required time.`
+        ? `The schedule has ${fmtMins(summary.delta)} more coverage than estimated required time.`
         : 'The schedule is exactly balanced.';
 
   return (
     <div>
       <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--purple)', marginBottom: 6 }}>
-        Delta = hours scheduled − est. time required
+        Delta = hours scheduled + leadership coverage − est. time required
       </div>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
         <tbody>
           <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
             <td style={{ padding: '2px 4px', color: 'var(--dark)' }}>Hours scheduled</td>
             <td style={{ padding: '2px 4px', textAlign: 'right', color: 'var(--dark)', fontWeight: 600 }}>{fmtMins(Math.round(summary.schedMins))}</td>
+          </tr>
+          <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
+            <td style={{ padding: '2px 4px', color: 'var(--dark)' }}>Leadership Coverage</td>
+            <td style={{ padding: '2px 4px', textAlign: 'right', color: 'var(--dark)', fontWeight: 600 }}>
+              {summary.leadershipCoverageMins > 0 ? fmtMins(Math.round(summary.leadershipCoverageMins)) : '—'}
+            </td>
           </tr>
           <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
             <td style={{ padding: '2px 4px', color: 'var(--dark)' }}>Est. time required</td>
@@ -337,7 +343,7 @@ function DeltaBreakdown({ summary }) {
         {status}
       </div>
       <div style={{ fontSize: 9, color: 'var(--gray)', marginTop: 4, lineHeight: 1.4 }}>
-        Open slots show unscheduled gaps inside counted role spans, but they do not change the delta formula directly.
+        Leadership Coverage reflects counted task time placed on roles excluded from "In Hrs". Open slots still do not change the delta formula directly.
       </div>
     </div>
   );

@@ -191,14 +191,44 @@ export function computeAllSpanMins(roles, schedule, taskLibrary, getTaskDefault)
 }
 
 /**
+ * Count productive task minutes that were placed on roles excluded from Hours Scheduled.
+ * These minutes should still contribute to staffing delta as coverage supplied by
+ * leadership or otherwise excluded roles.
+ */
+export function computeLeadershipCoverageMins(roles, schedule, taskLibrary, getTaskDefault) {
+  const excludedRoleIds = new Set(
+    (roles || [])
+      .filter(role => role.includeInHrs === false)
+      .map(role => role.id)
+  );
+
+  if (excludedRoleIds.size === 0) return 0;
+
+  let total = 0;
+  Object.entries(schedule || {}).forEach(([key, task]) => {
+    const roleId = key.split('|')[0];
+    if (!excludedRoleIds.has(roleId)) return;
+
+    const libTask = taskLibrary?.find(t => t.id === task.taskId || t.code === task.code);
+    const counts = libTask && getTaskDefault
+      ? (getTaskDefault(libTask.id)?.countHours !== false)
+      : true;
+
+    if (!counts) return;
+    total += Number(getBlockDurationMin(task)) || 0;
+  });
+
+  return total;
+}
+
+/**
  * Compute full schedule summary.
  * countingSchedule — subset of schedule blocks that count toward hours
  *   (excludes breaks, optional events, etc. where countHours === false).
  * getTaskDefault — required; used by computeAllSpanMins to identify non-counting blocks.
  */
 export function computeSummary({
-  dogs, multipet, multipetCats, socpg, selpg,
-  suites, cats, bungalows, scCount, schedule, countingSchedule, effectiveRoles,
+  schedule, countingSchedule, effectiveRoles,
   taskLibrary, userTaskDefs, sessionTaskDefs, skippedTasks, roleCount, derivedValues, assumptions,
   getTaskDefault,
 }) {
@@ -210,6 +240,8 @@ export function computeSummary({
   // This matches the purple bar totals shown in GridHeader exactly.
   const schedMins = computeAllSpanMins(rolesForHours, schedule, taskLibrary, getTaskDefault);
   const schedHrs  = schedMins / 60;
+  const leadershipCoverageMins = computeLeadershipCoverageMins(rolesForHours, schedule, taskLibrary, getTaskDefault);
+  const leadershipCoverageHrs = leadershipCoverageMins / 60;
 
   // Open mins = gap within the scheduled span not covered by counted task blocks
   const countedTaskMins = Object.values(countingSchedule ?? schedule ?? {})
@@ -240,7 +272,6 @@ export function computeSummary({
       const effectiveUnitBasis = override.unitBasis   ?? task.unitBasis   ?? 'Fixed';
       const mergedTask = { ...task, unitMin: effectiveUnitMin, unitBasis: effectiveUnitBasis };
       const duration     = computeTaskDuration(mergedTask, derivedValues, assumptions);
-      const instancesLib = getExpectedInstances(task, assumptions?.socpg, assumptions?.selpg, derivedValues?.scCount ?? scCount, roleCount ?? 0);
       const overrideMin  = override.minResources === 99 ? (roleCount ?? 0) : override.minResources;
       const instances    = overrideMin ?? 1; // Min Res/Unit is the sole driver; default 1
       if (duration > 0 && instances > 0) reqMins += duration * instances;
@@ -248,12 +279,14 @@ export function computeSummary({
   }
   const reqHrs = reqMins / 60;
 
-  const delta = schedMins - reqMins;
+  const delta = (schedMins + leadershipCoverageMins) - reqMins;
 
   return {
     hrsAvail,
     schedHrs,
     schedMins,
+    leadershipCoverageHrs,
+    leadershipCoverageMins,
     openSlots,
     openMins,
     reqHrs,
