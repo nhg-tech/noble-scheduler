@@ -1,6 +1,7 @@
 import { useMemo, useState, useRef, useEffect } from 'react';
 import { useScheduler } from '../../context/SchedulerContext';
 import { computeSummary, computeTaskDuration, computeRoleSpan } from '../../utils/calculations';
+import { getBlockDurationMin } from '../../utils/scheduling';
 
 function fmtDelta(mins) {
   const sign = mins >= 0 ? '+' : '-';
@@ -127,7 +128,7 @@ export default function ScheduleSummary() {
       const def = taskId ? getTaskDefault(taskId) : null;
       if (def?.countHours === false) return;
 
-      const total = Math.max(0, Math.round((block.end - block.start) * 60));
+      const total = Math.max(0, Math.round(getBlockDurationMin(block)));
       if (!total) return;
 
       const name = block.code || libTask?.code || libTask?.name || block.label || taskId || 'Task';
