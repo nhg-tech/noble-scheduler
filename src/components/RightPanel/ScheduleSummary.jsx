@@ -1,7 +1,6 @@
 import { useMemo, useState, useRef, useEffect } from 'react';
 import { useScheduler } from '../../context/SchedulerContext';
 import { computeSummary, computeTaskDuration, computeRoleSpan } from '../../utils/calculations';
-import { formatMin } from '../../utils/scheduling';
 
 function fmtDelta(mins) {
   const sign = mins >= 0 ? '+' : '-';
@@ -29,6 +28,10 @@ export default function ScheduleSummary() {
   const { multipet, multipetCats } = getProgramPct();
   // Only count hours for roles currently visible (in columnOrder and not hidden)
   const effectiveRoles = getEffectiveRoles().filter(r => columnOrder.includes(r.id) && !hiddenColumns.has(r.id));
+  const roleOrder = useMemo(
+    () => new Map(effectiveRoles.map((role, index) => [role.id, index])),
+    [effectiveRoles]
+  );
   // 99 = all roles means every visible column — must match what the grid actually shows
   const totalRoleCount = getEffectiveRoles().filter(r => columnOrder.includes(r.id) && !hiddenColumns.has(r.id)).length
     + (extraRoles || []).filter(r => !hiddenColumns.has(r.id)).length;
@@ -100,7 +103,12 @@ export default function ScheduleSummary() {
         });
       }
     });
-    return items.sort((a, b) => b.total - a.total);
+    return items.sort((a, b) =>
+      b.total - a.total ||
+      b.instances - a.instances ||
+      b.duration - a.duration ||
+      a.name.localeCompare(b.name)
+    );
   }, [taskLibrary, sessionTaskDefs, userTaskDefs, skippedTasks, suites, cats, bungalows, scCount, totalRooms, assumptions, totalRoleCount]);
 
   const deltaColor = summary.delta < 0 ? '#FF5252' : summary.delta > 60 ? '#4CAF50' : 'var(--gold-dark)';
@@ -123,6 +131,7 @@ export default function ScheduleSummary() {
         tooltip={
           <SchedHrsBreakdown
             effectiveRoles={effectiveRoles}
+            roleOrder={roleOrder}
             schedule={schedule}
             taskLibrary={taskLibrary}
             getTaskDefault={getTaskDefault}
@@ -132,7 +141,7 @@ export default function ScheduleSummary() {
       <Row
         label="Hours available"
         value={`${summary.hrsAvail.toFixed(1)}h`}
-        tooltip={<HrsAvailBreakdown effectiveRoles={effectiveRoles} />}
+        tooltip={<HrsAvailBreakdown effectiveRoles={effectiveRoles} roleOrder={roleOrder} />}
       />
       <Row label="Open slots" value={`${summary.openSlots} (${Math.round(summary.openMins)}m)`} />
 
@@ -148,6 +157,7 @@ export default function ScheduleSummary() {
         value={fmtDelta(summary.delta)}
         valueColor={deltaColor}
         bold
+        tooltip={<DeltaBreakdown summary={summary} />}
       />
 
       {/* Missing box hidden — to be revisited */}
@@ -160,6 +170,9 @@ function ReqBreakdown({ items, totalMins }) {
     <div>
       <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--purple)', marginBottom: 6 }}>
         Est. time required = task duration × min. staffing
+      </div>
+      <div style={{ fontSize: 9, color: 'var(--gray)', marginBottom: 6, lineHeight: 1.4 }}>
+        Sorted by largest total required time, then staffing count, then duration.
       </div>
       <div>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
@@ -195,18 +208,21 @@ function ReqBreakdown({ items, totalMins }) {
   );
 }
 
-function SchedHrsBreakdown({ effectiveRoles, schedule, taskLibrary, getTaskDefault }) {
+function SchedHrsBreakdown({ effectiveRoles, roleOrder, schedule, taskLibrary, getTaskDefault }) {
   const eligible = effectiveRoles.filter(r => r.includeInHrs !== false);
   const rows = eligible.map(role => {
     const span = computeRoleSpan(role.id, schedule, taskLibrary, getTaskDefault, effectiveRoles);
     const hrs  = span ? ((span.endMin - span.startMin) - span.nonCountedMins) / 60 : 0;
-    return { label: role.label || role.id, hrs };
-  });
+    return { id: role.id, label: role.label || role.id, hrs };
+  }).sort((a, b) => (roleOrder.get(a.id) ?? 999) - (roleOrder.get(b.id) ?? 999));
   const total = rows.reduce((a, r) => a + r.hrs, 0);
   return (
     <div>
       <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--purple)', marginBottom: 6 }}>
         Hours Scheduled = counted task span per eligible role
+      </div>
+      <div style={{ fontSize: 9, color: 'var(--gray)', marginBottom: 6, lineHeight: 1.4 }}>
+        Sorted in the same order as the visible schedule columns.
       </div>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
         <thead>
@@ -239,14 +255,20 @@ function SchedHrsBreakdown({ effectiveRoles, schedule, taskLibrary, getTaskDefau
   );
 }
 
-function HrsAvailBreakdown({ effectiveRoles }) {
+function HrsAvailBreakdown({ effectiveRoles, roleOrder }) {
   const eligible = effectiveRoles.filter(r => r.includeInHrs !== false);
+  const sortedEligible = [...eligible].sort((a, b) => (roleOrder.get(a.id) ?? 999) - (roleOrder.get(b.id) ?? 999));
   const total    = eligible.reduce((a, r) => a + (r.hours ?? 0), 0);
-  const excluded = effectiveRoles.filter(r => r.includeInHrs === false);
+  const excluded = effectiveRoles
+    .filter(r => r.includeInHrs === false)
+    .sort((a, b) => (roleOrder.get(a.id) ?? 999) - (roleOrder.get(b.id) ?? 999));
   return (
     <div>
       <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--purple)', marginBottom: 6 }}>
         Hours Available = configured shift hours per eligible role
+      </div>
+      <div style={{ fontSize: 9, color: 'var(--gray)', marginBottom: 6, lineHeight: 1.4 }}>
+        Sorted in the same order as the visible schedule columns.
       </div>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
         <thead>
@@ -256,7 +278,7 @@ function HrsAvailBreakdown({ effectiveRoles }) {
           </tr>
         </thead>
         <tbody>
-          {eligible.map((r, i) => (
+          {sortedEligible.map((r, i) => (
             <tr key={i} style={{ borderBottom: '1px solid #f0f0f0' }}>
               <td style={{ padding: '2px 4px', color: 'var(--dark)', fontFamily: "'DM Mono', monospace" }}>{r.label || r.id}</td>
               <td style={{ padding: '2px 4px', textAlign: 'right', color: 'var(--dark)' }}>{(r.hours ?? 0).toFixed(1)}h</td>
@@ -277,6 +299,45 @@ function HrsAvailBreakdown({ effectiveRoles }) {
       )}
       <div style={{ fontSize: 9, color: 'var(--gray)', marginTop: 4, lineHeight: 1.4 }}>
         Shift hours are configured in Role Config. Toggle "In Hrs" to include or exclude a role.
+      </div>
+    </div>
+  );
+}
+
+function DeltaBreakdown({ summary }) {
+  const status =
+    summary.delta < 0
+      ? `The schedule is short by ${fmtMins(Math.abs(summary.delta))}.`
+      : summary.delta > 0
+        ? `The schedule has ${fmtMins(summary.delta)} more scheduled time than estimated required time.`
+        : 'The schedule is exactly balanced.';
+
+  return (
+    <div>
+      <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--purple)', marginBottom: 6 }}>
+        Delta = hours scheduled − est. time required
+      </div>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
+        <tbody>
+          <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
+            <td style={{ padding: '2px 4px', color: 'var(--dark)' }}>Hours scheduled</td>
+            <td style={{ padding: '2px 4px', textAlign: 'right', color: 'var(--dark)', fontWeight: 600 }}>{fmtMins(Math.round(summary.schedMins))}</td>
+          </tr>
+          <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
+            <td style={{ padding: '2px 4px', color: 'var(--dark)' }}>Est. time required</td>
+            <td style={{ padding: '2px 4px', textAlign: 'right', color: 'var(--dark)', fontWeight: 600 }}>{fmtMins(Math.round(summary.reqMins))}</td>
+          </tr>
+          <tr>
+            <td style={{ padding: '3px 4px', fontWeight: 700, color: 'var(--purple)' }}>Delta</td>
+            <td style={{ padding: '3px 4px', textAlign: 'right', fontWeight: 700, color: 'var(--purple)' }}>{fmtDelta(summary.delta)}</td>
+          </tr>
+        </tbody>
+      </table>
+      <div style={{ fontSize: 9, color: 'var(--gray)', marginTop: 6, lineHeight: 1.4 }}>
+        {status}
+      </div>
+      <div style={{ fontSize: 9, color: 'var(--gray)', marginTop: 4, lineHeight: 1.4 }}>
+        Open slots show unscheduled gaps inside counted role spans, but they do not change the delta formula directly.
       </div>
     </div>
   );
