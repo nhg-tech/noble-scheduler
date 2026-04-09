@@ -22,6 +22,7 @@ export default function CreateTaskModal({ onSave, onClose, initialData }) {
     color:             initialData?.color             || '#3E2A7E',
     desc:              initialData?.desc              || '',
     expectedInstances: initialData?.expectedInstances || 1,
+    countHours:        initialData?.countHours        ?? true,
   });
 
   function set(field, val) {
@@ -39,6 +40,7 @@ export default function CreateTaskModal({ onSave, onClose, initialData }) {
       unitMin: Number(form.durationMin),
       unitBasis: form.unitBasis,
       idealStart: 'Various',
+      countHours: form.countHours,
     });
   }
 
@@ -112,6 +114,21 @@ export default function CreateTaskModal({ onSave, onClose, initialData }) {
             style={{ ...inputStyle, resize: 'vertical', fontFamily: "'DM Sans', sans-serif" }}
           />
         </Field>
+
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={form.countHours}
+            onChange={e => set('countHours', e.target.checked)}
+            style={{ width: 15, height: 15, cursor: 'pointer', accentColor: 'var(--purple)' }}
+          />
+          <span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--dark)' }}>Count toward scheduled hours</span>
+            <span style={{ display: 'block', fontSize: 11, color: 'var(--gray)', marginTop: 1 }}>
+              Uncheck for unpaid breaks, optional events, or reference-only tasks.
+            </span>
+          </span>
+        </label>
 
         <Field label="Color">
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
