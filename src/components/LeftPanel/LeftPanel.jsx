@@ -220,7 +220,13 @@ function LoadSchedule({ onBeforeReplaceSchedule, onAfterStateLoaded }) {
   const resolvedLoadTab = availableTabs.includes(loadTab) ? loadTab : (availableTabs[0] || 'template');
   const resolvedDraftValue = draftKeys.includes(draftValue) ? draftValue : (draftKeys[0] || '');
   const resolvedPostingValue = postingKeys.includes(postingValue) ? postingValue : (postingKeys[0] || '');
-  const resolvedTemplateValue = tplValue;
+  const resolvedTemplateValue = currentLoadedEntity?.kind === 'template'
+    ? currentLoadedEntity.scope === 'master'
+      ? `master_${currentLoadedEntity.name}`
+      : currentLoadedEntity.scope === 'user'
+        ? `user_${currentLoadedEntity.name}`
+        : tplValue
+    : tplValue;
 
   function handleLoadTemplate() {
     if (!resolvedTemplateValue) return;
