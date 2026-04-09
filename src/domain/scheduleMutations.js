@@ -23,6 +23,14 @@ export function createScheduledBlock(task, durationMin, colorHex, extra = {}) {
   };
 }
 
+function clearConflictFlags(block) {
+  return {
+    ...block,
+    overflow: false,
+    overlap: false,
+  };
+}
+
 export function resolvePlacement({
   baseSchedule,
   sourceKey = null,
@@ -132,7 +140,7 @@ export function editBlockSchedule(schedule, blockKey, { notes, durationMin, colo
   return {
     ...schedule,
     [blockKey]: {
-      ...schedule[blockKey],
+      ...clearConflictFlags(schedule[blockKey]),
       notes,
       durationMin,
       slots: minutesToGridSlots(durationMin),
@@ -166,6 +174,8 @@ export function splitBlockSchedule(schedule, blockKey, splitAt, roleConfigs) {
         slots: minutesToGridSlots(c.durationMin),
         durationMin: c.durationMin,
         notes: '',
+        overflow: false,
+        overlap: false,
       };
       cursor = free + c.durationMin;
     });
@@ -176,14 +186,14 @@ export function splitBlockSchedule(schedule, blockKey, splitAt, roleConfigs) {
   const firstDur = splitAt;
   const secondDur = totalDur - splitAt;
   nextSchedule[makeKey(roleId, startMin)] = {
-    ...task,
+    ...clearConflictFlags(task),
     durationMin: firstDur,
     slots: minutesToGridSlots(firstDur),
   };
   const naturalSplit = startMin + firstDur;
   const freeStart = findNextFreeMinute(nextSchedule, roleId, naturalSplit, secondDur, roleConfigs) ?? naturalSplit;
   nextSchedule[makeKey(roleId, freeStart)] = {
-    ...task,
+    ...clearConflictFlags(task),
     durationMin: secondDur,
     slots: minutesToGridSlots(secondDur),
   };
@@ -194,7 +204,7 @@ export function resizeBlockSchedule(schedule, blockKey, newMins) {
   return {
     ...schedule,
     [blockKey]: {
-      ...schedule[blockKey],
+      ...clearConflictFlags(schedule[blockKey]),
       durationMin: newMins,
       slots: minutesToGridSlots(newMins),
       resizedMins: newMins,

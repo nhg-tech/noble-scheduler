@@ -1,5 +1,5 @@
 import { useDraggable, useDroppable } from '@dnd-kit/core';
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { resolveBlockHex, resolveBlockText } from '../../data/palette';
 import { getBlockDurationMin, GRID_SLOT_MINUTES, keyToRoleAndMin } from '../../utils/scheduling';
 
@@ -32,6 +32,9 @@ export default function TaskBlock({ blockKey, task, slotMin, onEdit, onRemove, o
   const startYRef       = useRef(null);
   const origDurRef      = useRef(null);
   const durationLabelRef = useRef(null);
+  const infoBtnRef = useRef(null);
+  const infoPanelRef = useRef(null);
+  const [showIssueInfo, setShowIssueInfo] = useState(false);
 
   // Color resolution
   const effectiveColor = task.color || 'block-group';
@@ -42,6 +45,21 @@ export default function TaskBlock({ blockKey, task, slotMin, onEdit, onRemove, o
   const offsetInSlot = startMin - slotMin;
   const topPx        = Math.round((offsetInSlot / GRID_SLOT_MINUTES) * SLOT_H) + 2;
   const heightPx     = Math.round((durationMin / GRID_SLOT_MINUTES) * SLOT_H) - 2;
+  const hasIssue = !!(task.overlap || task.overflow);
+
+  useEffect(() => {
+    if (!showIssueInfo) return;
+    function handleOutside(event) {
+      if (
+        infoPanelRef.current && !infoPanelRef.current.contains(event.target) &&
+        infoBtnRef.current && !infoBtnRef.current.contains(event.target)
+      ) {
+        setShowIssueInfo(false);
+      }
+    }
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, [showIssueInfo]);
 
   // Resize via mousedown on handle
   function startResizeDrag(e) {
@@ -110,6 +128,13 @@ export default function TaskBlock({ blockKey, task, slotMin, onEdit, onRemove, o
     </div>
   );
 
+  const issueTitle = task.overlap
+    ? 'Timing conflict'
+    : 'Needs review';
+  const issueMessage = task.overlap
+    ? 'This task is overlapping another task in the same role. Please review the timing.'
+    : 'This task was forced into a busy time slot. Please review its timing and placement.';
+
   return (
     <div
       ref={(node) => { setDragRef(node); setDropRef(node); resizeRef.current = node; }}
@@ -138,13 +163,72 @@ export default function TaskBlock({ blockKey, task, slotMin, onEdit, onRemove, o
       }}
     >
       {colorBar}
+      {hasIssue && (
+        <>
+          <button
+            ref={infoBtnRef}
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowIssueInfo((prev) => !prev);
+            }}
+            style={{
+              position: 'absolute',
+              top: 2,
+              left: 3,
+              width: 14,
+              height: 14,
+              borderRadius: '50%',
+              border: '1px solid #FF5252',
+              background: '#fff5f5',
+              color: '#FF5252',
+              fontSize: 10,
+              fontWeight: 700,
+              lineHeight: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              zIndex: 2,
+              padding: 0,
+            }}
+            aria-label="Scheduling issue details"
+            title="Scheduling issue"
+          >
+            i
+          </button>
+          {showIssueInfo && (
+            <div
+              ref={infoPanelRef}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                position: 'absolute',
+                top: 20,
+                left: 4,
+                width: 180,
+                padding: '8px 10px',
+                borderRadius: 8,
+                border: '1px solid rgba(255,82,82,0.35)',
+                background: '#fff',
+                color: 'var(--dark)',
+                boxShadow: '0 6px 18px rgba(0,0,0,0.14)',
+                zIndex: 30,
+              }}
+            >
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#FF5252', marginBottom: 4 }}>
+                {issueTitle}
+              </div>
+              <div style={{ fontSize: 10, lineHeight: 1.35, color: 'var(--dark)' }}>
+                {issueMessage}
+              </div>
+            </div>
+          )}
+        </>
+      )}
       {codeLabel}
       {durLabel}
-      {/* Overflow indicator */}
-      {task.overflow && (
-        <div style={{ position: 'absolute', top: 2, left: 3, width: 6, height: 6,
-          borderRadius: '50%', background: '#FF5252' }} />
-      )}
       {/* Remove button */}
       {!isReadOnly && (
         <button
