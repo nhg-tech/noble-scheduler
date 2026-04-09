@@ -111,6 +111,46 @@ export default function ScheduleSummary() {
     );
   }, [taskLibrary, sessionTaskDefs, userTaskDefs, skippedTasks, suites, cats, bungalows, scCount, totalRooms, assumptions, totalRoleCount]);
 
+  const leadershipCoverageBreakdown = useMemo(() => {
+    const roleMap = new Map(effectiveRoles.map(role => [role.id, role]));
+    const breakdown = new Map();
+
+    Object.entries(schedule).forEach(([key, block]) => {
+      const roleId = key.split('|')[0];
+      const role = roleMap.get(roleId);
+      if (!role || role.includeInHrs !== false) return;
+
+      const libTask = block.taskId
+        ? taskLibrary.find(t => t.id === block.taskId)
+        : taskLibrary.find(t => t.code === block.code);
+      const taskId = libTask?.id ?? block.taskId;
+      const def = taskId ? getTaskDefault(taskId) : null;
+      if (def?.countHours === false) return;
+
+      const total = Math.max(0, Math.round((block.end - block.start) * 60));
+      if (!total) return;
+
+      const name = block.code || libTask?.code || libTask?.name || block.label || taskId || 'Task';
+      const existing = breakdown.get(name);
+      if (existing) {
+        existing.instances += 1;
+        existing.total += total;
+      } else {
+        breakdown.set(name, {
+          name,
+          instances: 1,
+          total,
+        });
+      }
+    });
+
+    return [...breakdown.values()].sort((a, b) =>
+      b.total - a.total ||
+      b.instances - a.instances ||
+      a.name.localeCompare(b.name)
+    );
+  }, [effectiveRoles, schedule, taskLibrary, getTaskDefault]);
+
   const deltaColor = summary.delta < 0 ? '#FF5252' : summary.delta > 60 ? '#4CAF50' : 'var(--gold-dark)';
 
   return (
@@ -151,6 +191,16 @@ export default function ScheduleSummary() {
         label="Est. time required"
         value={`${summary.reqHrs.toFixed(1)}h`}
         tooltip={<ReqBreakdown items={reqBreakdown} totalMins={Math.round(summary.reqMins)} />}
+      />
+      <Row
+        label="Leadership Coverage"
+        value={summary.leadershipCoverageMins > 0 ? `${summary.leadershipCoverageHrs.toFixed(1)}h` : '—'}
+        tooltip={
+          <LeadershipCoverageBreakdown
+            items={leadershipCoverageBreakdown}
+            totalMins={Math.round(summary.leadershipCoverageMins)}
+          />
+        }
       />
       <Row
         label="Delta"
@@ -204,6 +254,51 @@ function ReqBreakdown({ items, totalMins }) {
           </tfoot>
         </table>
       </div>
+    </div>
+  );
+}
+
+function LeadershipCoverageBreakdown({ items, totalMins }) {
+  return (
+    <div>
+      <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--purple)', marginBottom: 6 }}>
+        Leadership Coverage = counted task time on roles excluded from &quot;In Hrs&quot;
+      </div>
+      <div style={{ fontSize: 9, color: 'var(--gray)', marginBottom: 6, lineHeight: 1.4 }}>
+        Sorted by largest total covered time, then number of task placements.
+      </div>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
+        <thead>
+          <tr style={{ borderBottom: '1px solid var(--gray-light)' }}>
+            <th style={{ textAlign: 'left', padding: '2px 4px', color: 'var(--gray)', fontWeight: 600 }}>Task</th>
+            <th style={{ textAlign: 'right', padding: '2px 4px', color: 'var(--gray)', fontWeight: 600 }}>Count</th>
+            <th style={{ textAlign: 'right', padding: '2px 4px', color: 'var(--gray)', fontWeight: 600 }}>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.length > 0 ? (
+            items.map((item, i) => (
+              <tr key={i} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                <td style={{ padding: '2px 4px', color: 'var(--dark)', fontFamily: "'DM Mono', monospace" }}>{item.name}</td>
+                <td style={{ padding: '2px 4px', textAlign: 'right', color: 'var(--gray)' }}>{item.instances}</td>
+                <td style={{ padding: '2px 4px', textAlign: 'right', color: 'var(--dark)', fontWeight: 600 }}>{fmtMins(item.total)}</td>
+              </tr>
+            ))
+          ) : (
+            <tr>
+              <td colSpan={3} style={{ padding: '4px', color: 'var(--gray)', fontStyle: 'italic' }}>No counted leadership coverage tasks.</td>
+            </tr>
+          )}
+        </tbody>
+        <tfoot>
+          <tr style={{ borderTop: '1px solid var(--gray-light)' }}>
+            <td colSpan={2} style={{ padding: '3px 4px', fontWeight: 700, color: 'var(--purple)' }}>Total</td>
+            <td style={{ padding: '3px 4px', textAlign: 'right', fontWeight: 700, color: 'var(--purple)' }}>
+              {totalMins > 0 ? fmtMins(totalMins) : '—'}
+            </td>
+          </tr>
+        </tfoot>
+      </table>
     </div>
   );
 }
