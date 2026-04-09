@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { apiStaffing } from '../../api';
+import { apiSetup, apiStaffing } from '../../api';
+import { useScheduler } from '../../context/SchedulerContext';
 import Modal, { ModalFooter, Btn } from './Modal';
+import { StaffDirectoryPanel, StaffEditorModal } from '../Staffing/StaffDirectoryPanel';
 
 const DAY_KEYS = [
   ['mon', 'Mon'],
@@ -97,7 +99,9 @@ function describeException(exception) {
 }
 
 export default function StaffingModal({ scheduleDate, staffData, onClose }) {
+  const { setStaffData, skillsData } = useScheduler();
   const today = scheduleDate || new Date().toISOString().slice(0, 10);
+  const [activeTab, setActiveTab] = useState('availability');
   const activeStaff = useMemo(
     () => (staffData || [])
       .filter((person) => person.isActive !== false)
@@ -127,6 +131,8 @@ export default function StaffingModal({ scheduleDate, staffData, onClose }) {
   const [isLoadingExceptions, setIsLoadingExceptions] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
+  const [editingStaff, setEditingStaff] = useState(null);
+  const [showStaffModal, setShowStaffModal] = useState(false);
   const [exceptionDraft, setExceptionDraft] = useState(() => ({
     startDate: today,
     endDate: today,
@@ -199,7 +205,7 @@ export default function StaffingModal({ scheduleDate, staffData, onClose }) {
     setWeekdayPattern((prev) => ({ ...prev, [dayKey]: !prev[dayKey] }));
   }
 
-  async function handleSave() {
+  async function handleSaveAvailability() {
     if (!selectedStaffId) return;
     setIsSaving(true);
     setError('');
@@ -242,6 +248,36 @@ export default function StaffingModal({ scheduleDate, staffData, onClose }) {
     } finally {
       setIsSaving(false);
     }
+  }
+
+  async function handleSaveDirectory() {
+    setIsSaving(true);
+    setError('');
+    try {
+      await apiSetup.saveStaff(staffData);
+    } catch (err) {
+      setError(err.message || 'Failed to save staff directory.');
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  function handleStaffSave(staffRecord) {
+    setStaffData((prev) => {
+      if (staffRecord.id) {
+        return prev.map((person) => person.id === staffRecord.id ? { ...person, ...staffRecord } : person);
+      }
+      return [
+        ...prev,
+        {
+          ...staffRecord,
+          id: `tmp-${Date.now()}`,
+          sortOrder: prev.length,
+        },
+      ];
+    });
+    setEditingStaff(null);
+    setShowStaffModal(false);
   }
 
   function handleAddException() {
@@ -288,7 +324,52 @@ export default function StaffingModal({ scheduleDate, staffData, onClose }) {
           </div>
         </div>
 
-        {activeStaff.length === 0 ? (
+        <div style={{
+          display: 'flex',
+          gap: 8,
+          borderBottom: '1px solid var(--gray-light)',
+          paddingBottom: 10,
+        }}>
+          {[
+            { id: 'availability', label: 'Availability' },
+            { id: 'directory', label: 'Directory' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              style={{
+                padding: '8px 12px',
+                borderRadius: 8,
+                border: activeTab === tab.id ? '1px solid var(--purple)' : '1px solid var(--gray-light)',
+                background: activeTab === tab.id ? 'var(--purple-pale)' : '#fff',
+                color: activeTab === tab.id ? 'var(--purple)' : 'var(--gray)',
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+                fontFamily: "'DM Sans', sans-serif",
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {activeTab === 'directory' ? (
+          <div style={{
+            border: '1px solid var(--gray-light)',
+            borderRadius: 10,
+            padding: '16px',
+            background: '#fff',
+          }}>
+            <StaffDirectoryPanel
+              staffData={staffData}
+              setStaffData={setStaffData}
+              skillsData={skillsData}
+              onCreateStaff={() => { setEditingStaff(null); setShowStaffModal(true); }}
+              onEditStaff={(person) => { setEditingStaff(person); setShowStaffModal(true); }}
+            />
+          </div>
+        ) : activeStaff.length === 0 ? (
           <div style={{
             border: '1px solid var(--gray-light)',
             borderRadius: 10,
@@ -680,10 +761,22 @@ export default function StaffingModal({ scheduleDate, staffData, onClose }) {
       </div>
       <ModalFooter>
         <Btn onClick={onClose} variant="secondary">Cancel</Btn>
-        <Btn onClick={handleSave} variant="primary" disabled={isSaving || !selectedStaffId}>
-          {isSaving ? 'Saving Staffing...' : 'Save Staffing'}
+        <Btn
+          onClick={activeTab === 'directory' ? handleSaveDirectory : handleSaveAvailability}
+          variant="primary"
+          disabled={isSaving || (activeTab === 'availability' && !selectedStaffId)}
+        >
+          {isSaving ? (activeTab === 'directory' ? 'Saving Directory...' : 'Saving Staffing...') : (activeTab === 'directory' ? 'Save Directory' : 'Save Staffing')}
         </Btn>
       </ModalFooter>
+      {showStaffModal && (
+        <StaffEditorModal
+          initialData={editingStaff}
+          skillsData={skillsData}
+          onSave={handleStaffSave}
+          onClose={() => { setEditingStaff(null); setShowStaffModal(false); }}
+        />
+      )}
     </Modal>
   );
 }
